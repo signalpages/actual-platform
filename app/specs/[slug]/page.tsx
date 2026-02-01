@@ -5,13 +5,12 @@ import ProductDetailView from '@/components/ProductDetailView';
 
 export const runtime = 'edge';
 
-export default async function Page({ params }: { params: { slug: string } }) {
-    // In Next.js 15+, params is strictly async or sync depending on config,
-    // but standard App Router [slug] usage:
-    // params.slug is the slug string.
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+    // In Next.js 15+, params is strictly async.
+    const resolvedParams = await params;
 
     // Safety check for array slug (catch-all) vs string
-    const slug = typeof params.slug === 'string' ? params.slug : Array.isArray(params.slug) ? params.slug[0] : '';
+    const slug = typeof resolvedParams.slug === 'string' ? resolvedParams.slug : Array.isArray(resolvedParams.slug) ? resolvedParams.slug[0] : '';
 
     if (!slug) {
         return <ProductDetailView initialAsset={null} slug="" />;
@@ -28,9 +27,17 @@ export default async function Page({ params }: { params: { slug: string } }) {
         const auditShadow = await getAudit(product.id);
         const initialAudit = auditShadow ? mapShadowToResult(auditShadow) : null;
 
+        // Map Product (DB) to Asset (UI)
+        const asset = {
+            ...product,
+            // products table has is_audited. Mapping to UI model:
+            verified: (product as any).is_audited || false,
+            verification_status: (product as any).is_audited ? 'verified' : 'provisional'
+        };
+
         return (
             <ProductDetailView
-                initialAsset={product}
+                initialAsset={asset as any} // Cast to any or strict Asset if type aligns
                 initialAudit={initialAudit}
                 slug={slug}
             />
