@@ -1,20 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
-import { getProductBySlug, getAudit, saveAudit, mapShadowToResult } from "../../lib/dataBridge";
+import { getProductBySlug, getAudit, saveAudit, mapShadowToResult, Env } from "../../lib/dataBridge";
 import { KNOWLEDGE_CANONICAL } from "../../lib/canonical";
 
-export const onRequestPost: PagesFunction = async (ctx) => {
+export const onRequestPost: PagesFunction<Env> = async (ctx) => {
   const origin = ctx.request.headers.get("Origin") || "*";
+  const env = ctx.env; // Derived from Cloudflare context
 
-  // 1. Env & Setup
-  const supabaseUrl = ctx.env.SUPABASE_URL as string;
-  const supabaseKey = ctx.env.SUPABASE_SERVICE_ROLE_KEY as string; // Must be service role for write access usually, or anon if RLS permits
-  const geminiKey = ctx.env.GOOGLE_AI_STUDIO_KEY as string;
-
-  if (!supabaseUrl || !supabaseKey || !geminiKey) {
+  // 1. Setup check (Lazy)
+  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY || !env.GOOGLE_AI_STUDIO_KEY) {
     return json({ ok: false, error: "SERVER_CONFIG_ERROR" }, 500, origin);
   }
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
 
   // 2. Parse Input
   let body: any;
@@ -27,22 +21,19 @@ export const onRequestPost: PagesFunction = async (ctx) => {
   const slug = String(body?.slug || "").trim();
   if (!slug) return json({ ok: false, error: "MISSING_SLUG" }, 200, origin);
 
-  // 3. Resolve Product
-  // Rule: Audit must be grounded in an existing DB product
-  const product = await getProductBySlug(supabase, slug);
+  // 3. Resolve Product (Pass Env)
+  const product = await getProductBySlug(env, slug);
   if (!product) {
     return json({ ok: false, error: "ASSET_NOT_FOUND", slug }, 200, origin);
   }
 
-  // 4. Check Cache
-  const cached = await getAudit(supabase, product.id);
+  // 4. Check Cache (Pass Env)
+  const cached = await getAudit(env, product.id);
   if (cached) {
-    // If verified or simply exists, return it to save tokens/time for V1
     return json({ ok: true, audit: mapShadowToResult(cached), cached: true }, 200, origin);
   }
 
   // 5. Build Prompt
-  // Rule: Grounded inputs only.
   const prompt = buildGroundedPrompt(product);
 
   // 6. Call Gemini
@@ -52,7 +43,7 @@ export const onRequestPost: PagesFunction = async (ctx) => {
   try {
     const resp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-        geminiKey
+        env.GOOGLE_AI_STUDIO_KEY
       )}`,
       {
         method: "POST",
@@ -69,8 +60,6 @@ export const onRequestPost: PagesFunction = async (ctx) => {
     );
 
     if (!resp.ok) {
-      // Rule: No 502s. We treat this as a failed audit entry.
-      // We will create a "failed" persistence record below.
       console.error("Gemini API Error", await resp.text());
     } else {
       const data: any = await resp.json();
@@ -81,23 +70,20 @@ export const onRequestPost: PagesFunction = async (ctx) => {
     console.error("Gemini Network/Parse Error", e);
   }
 
-  // 7. Persist Result (Success or Failure)
+  // 7. Persist Result (Pass Env)
   const isSuccess = payload && typeof payload === "object";
 
   const auditEntry = {
     product_id: product.id,
-    claimed_specs: isSuccess ? payload.claims : [], // Mapping schema "claims" -> DB "claimed_specs"
-    actual_specs: isSuccess ? payload.actuals : [], // see schema below
-    // Schema mismatch note: AUDIT_SCHEMA below uses "claims", "discrepancies". 
-    // DB uses "claimed_specs", "actual_specs", "red_flags".
-    // We strictly map here.
+    claimed_specs: isSuccess ? payload.claims : [],
+    actual_specs: isSuccess ? payload.actuals : [],
     red_flags: isSuccess ? payload.discrepancies : [{ issue: "System Failure", description: "Audit generation failed or network error." }],
     truth_score: isSuccess ? payload.truth_index : null,
     source_urls: [],
     is_verified: isSuccess && payload.is_verified === true && typeof payload.truth_index === 'number',
   };
 
-  const saved = await saveAudit(supabase, product.id, auditEntry);
+  const saved = await saveAudit(env, product.id, auditEntry);
 
   if (!saved) {
     return json({ ok: false, error: "DB_WRITE_FAILED" }, 500, origin);

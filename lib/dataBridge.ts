@@ -1,21 +1,36 @@
 import { SupabaseClient, createClient } from "@supabase/supabase-js";
 import { Product, ShadowSpecs, AuditResult, Category, Asset } from "../types";
 
-// Helper for generic env access
-export const getEnv = (key: string) => {
-  // @ts-ignore
-  const viteEnv = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env : {};
-  // @ts-ignore
-  const procEnv = typeof process !== "undefined" ? process.env : {};
-  return viteEnv[`VITE_${key}`] || procEnv[key];
+// --- Types ---
+
+export type Env = {
+  SUPABASE_URL?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SUPABASE_ANON_KEY?: string;
+  GOOGLE_AI_STUDIO_KEY?: string;
+  [key: string]: any;
 };
 
-// --- Server-Side V1 Pipeline Functions (Require 'supabase' injection) ---
+// --- Server-Side V1 Pipeline Functions (Zero Side Effects) ---
+
+/**
+ * Lazy-initialize Supabase client from Cloudflare Env.
+ * Throws if keys are missing.
+ */
+function getSupabase(env: Env): SupabaseClient {
+  if (!env.SUPABASE_URL) throw new Error("Missing SUPABASE_URL in env");
+  if (!env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in env");
+
+  return createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false },
+  });
+}
 
 /**
  * Resolve product by slug (Server V1).
  */
-export const getProductBySlug = async (supabase: SupabaseClient, slug: string): Promise<Product | null> => {
+export const getProductBySlug = async (env: Env, slug: string): Promise<Product | null> => {
+  const supabase = getSupabase(env);
   const { data, error } = await supabase
     .from("products")
     .select("*")
@@ -29,7 +44,10 @@ export const getProductBySlug = async (supabase: SupabaseClient, slug: string): 
 /**
  * Get latest audit (Server V1).
  */
-export const getAudit = async (supabase: SupabaseClient, productId: string): Promise<ShadowSpecs | null> => {
+export const getAudit = async (env: Env, productId: string): Promise<ShadowSpecs | null> => {
+  const supabase = getSupabase(env);
+
+  // Try to find a verified one first
   const { data: verified } = await supabase
     .from("shadow_specs")
     .select("*")
@@ -41,6 +59,7 @@ export const getAudit = async (supabase: SupabaseClient, productId: string): Pro
 
   if (verified) return verified as ShadowSpecs;
 
+  // Fallback to latest
   const { data: latest } = await supabase
     .from("shadow_specs")
     .select("*")
@@ -55,7 +74,9 @@ export const getAudit = async (supabase: SupabaseClient, productId: string): Pro
 /**
  * Persist audit (Server V1).
  */
-export const saveAudit = async (supabase: SupabaseClient, productId: string, payload: Partial<ShadowSpecs>): Promise<ShadowSpecs | null> => {
+export const saveAudit = async (env: Env, productId: string, payload: Partial<ShadowSpecs>): Promise<ShadowSpecs | null> => {
+  const supabase = getSupabase(env);
+
   const { data, error } = await supabase
     .from("shadow_specs")
     .upsert(
@@ -95,9 +116,33 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
   };
 };
 
-// --- Client-Side Helpers (Restored for UI Compatibility) ---
+// --- Client-Side Helpers (Browser/UI) ---
 
-const publicClient = createClient(getEnv("SUPABASE_URL") || "", getEnv("SUPABASE_ANON_KEY") || "");
+// Helper to get client env (strictly import.meta.env for Vite)
+const getClientEnv = (key: string) => {
+  // @ts-ignore
+  return typeof import.meta !== "undefined" && import.meta.env ? import.meta.env[`VITE_${key}`] : undefined;
+};
+
+// Lazy-init singleton for client to avoid top-level side effects during server build
+let _publicClient: SupabaseClient | null = null;
+
+function getPublicClient() {
+  if (_publicClient) return _publicClient;
+
+  const url = getClientEnv("SUPABASE_URL");
+  const key = getClientEnv("SUPABASE_ANON_KEY");
+
+  if (!url || !key) {
+    // Return a dummy client or throw? 
+    // If we throw here, site crashes if env missing.
+    // Better to create it, but requests will fail.
+    console.warn("Missing Supabase Client Env");
+  }
+
+  _publicClient = createClient(url || "", key || "");
+  return _publicClient;
+}
 
 export const listCategories = (): Category[] => [
   { id: 'portable_power_station', label: 'Portable Power Stations' },
@@ -109,7 +154,7 @@ export const listCategories = (): Category[] => [
 ];
 
 export const searchAssets = async (query: string, category: string): Promise<Product[]> => {
-  const { data } = await publicClient
+  const { data } = await getPublicClient()
     .from('products')
     .select('*')
     .eq('category', category)
@@ -123,7 +168,7 @@ export const createProvisionalAsset = async (payload: any) => {
 };
 
 export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
-  const { data } = await publicClient
+  const { data } = await getPublicClient()
     .from('products')
     .select('*')
     .eq('slug', slug)
@@ -131,12 +176,26 @@ export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
 
   if (!data) return null;
 
-  // Cast to Legacy Asset Type
   return {
     ...data,
     verified: data.is_audited,
     verification_status: data.is_audited ? 'verified' : 'provisional'
   } as Asset;
+};
+
+export const getAllAssets = async (): Promise<Asset[]> => {
+  const { data } = await getPublicClient()
+    .from('products')
+    .select('*')
+    .limit(200);
+
+  if (!data) return [];
+
+  return data.map(d => ({
+    ...d,
+    verified: d.is_audited,
+    verification_status: d.is_audited ? 'verified' : 'provisional'
+  })) as Asset[];
 };
 
 export const runAudit = async (slug: string): Promise<AuditResult> => {
@@ -151,19 +210,4 @@ export const runAudit = async (slug: string): Promise<AuditResult> => {
     throw new Error(data.error || "Audit failed");
   }
   return data.audit;
-};
-
-export const getAllAssets = async (): Promise<Asset[]> => {
-  const { data } = await publicClient
-    .from('products')
-    .select('*')
-    .limit(200);
-
-  if (!data) return [];
-
-  return data.map(d => ({
-    ...d,
-    verified: d.is_audited,
-    verification_status: d.is_audited ? 'verified' : 'provisional'
-  })) as Asset[];
 };
