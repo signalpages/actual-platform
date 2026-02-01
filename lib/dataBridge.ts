@@ -134,13 +134,36 @@ function getPublicClient() {
   const key = getClientEnv("SUPABASE_ANON_KEY");
 
   if (!url || !key) {
-    // Return a dummy client or throw? 
-    // If we throw here, site crashes if env missing.
-    // Better to create it, but requests will fail.
-    console.warn("Missing Supabase Client Env");
+    console.warn("Missing Supabase Client Env (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Inventory will be empty.");
+    // Return a dummy object to strictly prevent crash, but operations will fail.
+    // Or we can return a valid client pointing to nowhere? 
+    // Best to return a client that throws a clear error on use?
+    // Actually, createClient("", "") throws "supabaseUrl is required".
+    // So we MUST NOT call createClient if url is missing.
+    // Let's return a dummy that conforms to the shape we use? 
+    // Too complex to mock valid SupabaseClient. 
+    // Better strategy: Throw a controlled error ONLY when used? 
+    // Or just return null and let callers handle it? 
+    // The previous code called createClient(url || "", key || "") which crashed.
+    // Let's try to return a dummy that simply logs errors on query.
+    // But callers expect a SupabaseClient.
+    // Simplest fix: If missing, throw a clean error here? 
+    // User asked: "Fail gracefully with a console warning (not a hard crash)."
+    // If I throw here, the component catches it? Assuming callers use await.
+    // But `searchAssets` waits on `getPublicClient()`.
+    // Let's return null here and update callers to check?
+    // No, that requires changing all callers.
+    // Let's use a proxy?
+    // Actually, let's just make sure we don't crash the *module load*. 
+    // If we call this function, we ARE executing logic. 
+    // If we throw here, it's a runtime error in the async function, so the promise rejects.
+    // That IS graceful enough for the UI (it handles error state?).
+    // But "supabaseUrl is required" is the error user sees.
+    // Let's provide a better error.
+    throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Check Cloudflare Pages settings.");
   }
 
-  _publicClient = createClient(url || "", key || "");
+  _publicClient = createClient(url, key);
   return _publicClient;
 }
 
@@ -154,13 +177,19 @@ export const listCategories = (): Category[] => [
 ];
 
 export const searchAssets = async (query: string, category: string): Promise<Product[]> => {
-  const { data } = await getPublicClient()
-    .from('products')
-    .select('*')
-    .eq('category', category)
-    .ilike('model_name', `%${query}%`)
-    .limit(20);
-  return (data as Product[]) || [];
+  try {
+    const client = getPublicClient();
+    const { data } = await client
+      .from('products')
+      .select('*')
+      .eq('category', category)
+      .ilike('model_name', `%${query}%`)
+      .limit(20);
+    return (data as Product[]) || [];
+  } catch (e) {
+    console.warn("Supabase search failed:", e);
+    return [];
+  }
 };
 
 export const createProvisionalAsset = async (payload: any) => {
@@ -168,34 +197,46 @@ export const createProvisionalAsset = async (payload: any) => {
 };
 
 export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
-  const { data } = await getPublicClient()
-    .from('products')
-    .select('*')
-    .eq('slug', slug)
-    .maybeSingle();
+  try {
+    const client = getPublicClient();
+    const { data } = await client
+      .from('products')
+      .select('*')
+      .eq('slug', slug)
+      .maybeSingle();
 
-  if (!data) return null;
+    if (!data) return null;
 
-  return {
-    ...data,
-    verified: data.is_audited,
-    verification_status: data.is_audited ? 'verified' : 'provisional'
-  } as Asset;
+    return {
+      ...data,
+      verified: data.is_audited,
+      verification_status: data.is_audited ? 'verified' : 'provisional'
+    } as Asset;
+  } catch (e) {
+    console.warn("Supabase fetch failed:", e);
+    return null;
+  }
 };
 
 export const getAllAssets = async (): Promise<Asset[]> => {
-  const { data } = await getPublicClient()
-    .from('products')
-    .select('*')
-    .limit(200);
+  try {
+    const client = getPublicClient();
+    const { data } = await client
+      .from('products')
+      .select('*')
+      .limit(200);
 
-  if (!data) return [];
+    if (!data) return [];
 
-  return data.map(d => ({
-    ...d,
-    verified: d.is_audited,
-    verification_status: d.is_audited ? 'verified' : 'provisional'
-  })) as Asset[];
+    return data.map(d => ({
+      ...d,
+      verified: d.is_audited,
+      verification_status: d.is_audited ? 'verified' : 'provisional'
+    })) as Asset[];
+  } catch (e) {
+    console.warn("Supabase fetch failed:", e);
+    return [];
+  }
 };
 
 export const runAudit = async (slug: string): Promise<AuditResult> => {
