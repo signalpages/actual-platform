@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "pages:build": "next build && npx @cloudflare/next-on-pages",
+    "pages:build": "next build && npx @cloudflare/next-on-pages && test -d __next-on-pages-dist__ && echo OK_DIST_FOUND"
     "preview": "wrangler pages dev __next-on-pages-dist__ --compatibility-date=2024-11-01 --compatibility-flags nodejs_compat",
     "lint": "next lint"
   },
