@@ -32,15 +32,6 @@ export const getEnv = (key: string) => {
   return viteEnv[`VITE_${key}`] || procEnv[key];
 };
 
-const getAI = () => {
-  const currentKey = getEnv('API_KEY');
-  if (!currentKey) {
-    console.warn("Gemini API Key missing. Ensure GOOGLE_AI_STUDIO_KEY is set in Cloudflare.");
-    return null;
-  }
-  return new GoogleGenAI({ apiKey: currentKey });
-};
-
 const CATEGORIES: Category[] = [
   { id: 'portable_power_station', label: 'Portable Power Station' },
   { id: 'battery', label: 'Home Battery / LFP' },
