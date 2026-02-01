@@ -1,1 +1,1 @@
-{"version":1,"functions":{"/api/audit":{}}}
+{"version":1,"functions":{"/api/audit":{},"/compare/[slugPair]":{},"/specs/[slug]":{}}}

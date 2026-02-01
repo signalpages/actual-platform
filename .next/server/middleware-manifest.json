@@ -11,6 +11,7 @@
         "server/next-font-manifest.js",
         "server/interception-route-rewrite-manifest.js",
         "server/edge-runtime-webpack.js",
+        "server/edge-chunks/284.js",
         "server/app/api/audit/route.js"
       ],
       "name": "app/api/audit/route",
@@ -24,11 +25,75 @@
       "wasm": [],
       "assets": [],
       "env": {
-        "__NEXT_BUILD_ID": "UHX-16XKBl8OCAqH3kJ1W",
+        "__NEXT_BUILD_ID": "OzBYGfFDaSWtBK4wSjTGw",
         "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "HRu9wbyb5bFbzZgmcKJ5tI7xM+wTJw3h2Ik6/G+N/Uo=",
-        "__NEXT_PREVIEW_MODE_ID": "386357d8878f5dd082e1132611e3d11f",
-        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "7196bc466bff5fb8e16075a2b288691450da024902c31bd85c0fa45408a8edc2",
-        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "bee991f6ad390156589a40e6afcf7cf458c5bc64c1a03918c31969acc00c8c69"
+        "__NEXT_PREVIEW_MODE_ID": "58a4aec95dc598c66766a1393d1c66d6",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "acef93a8cdd9dc0aa4234433fcec13206da0de613d5924dc747e502f08c108c1",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "189377dd8e431613d2e7d6c727df97d354804856e5590732c95e22e1eb30d002"
+      }
+    },
+    "/compare/[slugPair]/page": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/compare/[slugPair]/page_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/284.js",
+        "server/edge-chunks/865.js",
+        "server/edge-chunks/677.js",
+        "server/app/compare/[slugPair]/page.js"
+      ],
+      "name": "app/compare/[slugPair]/page",
+      "page": "/compare/[slugPair]/page",
+      "matchers": [
+        {
+          "regexp": "^/compare/(?<slugPair>[^/]+?)$",
+          "originalSource": "/compare/[slugPair]"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "OzBYGfFDaSWtBK4wSjTGw",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "HRu9wbyb5bFbzZgmcKJ5tI7xM+wTJw3h2Ik6/G+N/Uo=",
+        "__NEXT_PREVIEW_MODE_ID": "58a4aec95dc598c66766a1393d1c66d6",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "acef93a8cdd9dc0aa4234433fcec13206da0de613d5924dc747e502f08c108c1",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "189377dd8e431613d2e7d6c727df97d354804856e5590732c95e22e1eb30d002"
+      }
+    },
+    "/specs/[slug]/page": {
+      "files": [
+        "server/server-reference-manifest.js",
+        "server/app/specs/[slug]/page_client-reference-manifest.js",
+        "server/middleware-build-manifest.js",
+        "server/middleware-react-loadable-manifest.js",
+        "server/next-font-manifest.js",
+        "server/interception-route-rewrite-manifest.js",
+        "server/edge-runtime-webpack.js",
+        "server/edge-chunks/284.js",
+        "server/edge-chunks/865.js",
+        "server/edge-chunks/677.js",
+        "server/app/specs/[slug]/page.js"
+      ],
+      "name": "app/specs/[slug]/page",
+      "page": "/specs/[slug]/page",
+      "matchers": [
+        {
+          "regexp": "^/specs/(?<slug>[^/]+?)$",
+          "originalSource": "/specs/[slug]"
+        }
+      ],
+      "wasm": [],
+      "assets": [],
+      "env": {
+        "__NEXT_BUILD_ID": "OzBYGfFDaSWtBK4wSjTGw",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "HRu9wbyb5bFbzZgmcKJ5tI7xM+wTJw3h2Ik6/G+N/Uo=",
+        "__NEXT_PREVIEW_MODE_ID": "58a4aec95dc598c66766a1393d1c66d6",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "acef93a8cdd9dc0aa4234433fcec13206da0de613d5924dc747e502f08c108c1",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "189377dd8e431613d2e7d6c727df97d354804856e5590732c95e22e1eb30d002"
       }
     }
   },
