@@ -1,53 +1,54 @@
-# Audit Pipeline V1 - Deployment Guide
+# Deployment Guide
 
-## 1. Environment Variables
-Ensure these are set in **Cloudflare Pages > Settings > Environment Variables** (Production & Preview):
+## Canonical Runtime: Vercel
 
-| Variable | Description |
-| :--- | :--- |
-| Variable | Description |
-| :--- | :--- |
-| `SUPABASE_URL` | Your Supabase Project URL (`https://...supabase.co`) - Server Only |
-| `SUPABASE_SERVICE_ROLE_KEY` | **Secret** Service Role Key - Server Only |
-| `GOOGLE_AI_STUDIO_KEY` | Gemini API Key - Server Only |
-| `VITE_SUPABASE_URL` | Same as `SUPABASE_URL` but for Client (Browser) |
-| `VITE_SUPABASE_ANON_KEY` | Public Anon Key - Client (Browser) |
+**Production URL**: `https://actual-fyi.vercel.app`
 
-> **⚠️ CAUTION:** `SUPABASE_SERVICE_ROLE_KEY` bypasses RLS. Use carefully. Ensure `dataBridge.ts` is not imported by client-side code (it shouldn't be, checked by build).
+Actual.fyi is deployed exclusively on Vercel. Cloudflare Pages deployment has been deprecated.
 
-## 2. Supabase Schema
-Ensure `shadow_specs` table exists with:
-- `product_id` (foreign key)
-- `claimed_specs` (jsonb)
-- `actual_specs` (jsonb)
-- `red_flags` (jsonb)
-- `truth_score` (numeric)
+---
 
-## 3. Smoke Testing
-Locally:
-```bash
-npm run dev
-# In another terminal:
-node scripts/smoke-audit.mjs ecoflow-delta-2
+## Environment Variables
+
+Required for **Production** environment in Vercel Dashboard:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
+GOOGLE_AI_STUDIO_KEY=AIza...
 ```
 
-Expected Output:
-```json
-{
-  "ok": true,
-  "audit": { ... },
-  "cached": true/false
-}
-```
+---
 
-## 4. Debugging Not-Found Errors
-If you get `ASSET_NOT_FOUND`:
-1.  Check `products` table in Supabase.
-2.  Ensure `slug` column exactly matches the input (case-sensitive?).
-3.  The pipeline **DOES NOT** scrape or invent products. It *only* audits what is in the DB.
+## Build Configuration
 
-## 5. Deployment
-```bash
-npm run build
-npx wrangler pages deploy dist
-```
+- **Framework**: Next.js (auto-detected)
+- **Build Command**: `npm run build`
+- **Output Directory**: `.next` (auto-detected)
+- **Node Version**: 18.x or 20.x
+
+---
+
+## Deployment Workflow
+
+1. Push to `main` branch
+2. Vercel auto-deploys to production
+3. Preview deployments for all PRs
+
+---
+
+## Metadata Configuration
+
+Canonical base URL is set via `metadataBase` in `app/layout.tsx`:
+- Uses `VERCEL_URL` environment variable (auto-set by Vercel)
+- Fallback: `https://actual-fyi.vercel.app`
+
+All OpenGraph URLs and canonical tags resolve to Vercel deployment URL.
+
+---
+
+## Deprecated
+
+⚠️ **Cloudflare Pages** - No longer in use. Configuration archived in `_archive/`.

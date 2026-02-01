@@ -1,8 +1,0 @@
-name = "actual-fyi"
-compatibility_date = "2024-11-01"
-compatibility_flags = ["nodejs_compat"]
-
-# Note: Cloudflare Pages automatically detects the build output.
-# The pages:build command creates .vercel/output/static which Pages will use.
-# If using the Cloudflare adapter, it creates __next-on-pages-dist__
-# For now, we rely on automatic detection.

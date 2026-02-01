@@ -42,3 +42,10 @@ Thumbs.db
 coverage/
 temp/
 tmp/
+
+# Deprecated configuration
+_archive/
+
+# Cloudflare (deprecated runtime)
+.wrangler/
+__next-on-pages-dist__/
