@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { searchAssets, listCategories } from '../lib/dataBridge';
 import { Asset, Category } from '../types';
 
@@ -142,4 +143,5 @@ const SpecLedger: React.FC = () => {
   );
 };
 
+// Added missing default export
 export default SpecLedger;

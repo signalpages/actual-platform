@@ -174,8 +174,7 @@ export const createProvisionalAsset = async (input: { query: string; category: P
     return { ok: false, error: "Unknown Manufacturer: Entries restricted to energy sector authority list." };
   }
 
-  const baseSlug = normalizeSlug(`${brand} ${model}`);
-  const slug = baseSlug; // Consistent and valid slug derived from manufacturer and model
+  const slug = normalizeSlug(`${brand} ${model}`);
 
   // Check if asset already exists to avoid redundant provisional entries
   const existing = await getAssetBySlug(slug);
