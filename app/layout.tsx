@@ -1,6 +1,14 @@
 import React from 'react';
 import './globals.css';
 import Layout from '@/components/Layout';
+import { Inter } from 'next/font/google';
+
+const inter = Inter({
+    subsets: ['latin'],
+    weight: ['400', '500', '600', '700', '800', '900'],
+    variable: '--font-inter',
+    display: 'swap',
+});
 
 export const metadata = {
     metadataBase: new URL(
@@ -19,7 +27,7 @@ export default function RootLayout({
 }) {
     return (
         <html lang="en">
-            <body className="bg-white min-h-screen text-slate-900 selection:bg-blue-100 selection:text-blue-900">
+            <body className={`${inter.variable} bg-white min-h-screen text-slate-900 selection:bg-blue-100 selection:text-blue-900 font-sans`}>
                 <Layout>{children}</Layout>
             </body>
         </html>

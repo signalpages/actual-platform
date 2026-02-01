@@ -1,6 +1,36 @@
-export const runtime = 'edge';
+'use client';
+
+import { useState } from 'react';
 
 export default function ContactPage() {
+    const [message, setMessage] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+    const [submitted, setSubmitted] = useState(false);
+    const [error, setError] = useState('');
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        setSubmitting(true);
+        setError('');
+
+        try {
+            const response = await fetch('/api/contact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message })
+            });
+
+            if (!response.ok) throw new Error('Submission failed');
+
+            setSubmitted(true);
+            setMessage('');
+        } catch (err) {
+            setError('Failed to submit. Please try again or email forensics@actual.fyi directly.');
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
     return (
         <div className="max-w-4xl mx-auto px-6 py-16">
             <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6">
@@ -27,17 +57,46 @@ export default function ContactPage() {
                         </span>
                     </div>
 
-                    <p className="text-sm text-slate-600 mb-8 leading-relaxed">
-                        Describe the discrepancy or tool missing from the ledger...
-                    </p>
+                    {submitted ? (
+                        <div className="bg-green-50 border-2 border-green-200 rounded-xl p-6 text-center">
+                            <div className="text-green-600 font-bold mb-2">✓ Submission Received</div>
+                            <p className="text-sm text-slate-600">
+                                Your report has been queued for editorial review.
+                            </p>
+                            <button
+                                onClick={() => setSubmitted(false)}
+                                className="mt-4 text-sm text-blue-600 hover:underline"
+                            >
+                                Submit another report
+                            </button>
+                        </div>
+                    ) : (
+                        <form onSubmit={handleSubmit}>
+                            <textarea
+                                value={message}
+                                onChange={(e) => setMessage(e.target.value)}
+                                placeholder="Describe the discrepancy or tool missing from the ledger..."
+                                className="w-full h-32 p-4 border-2 border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:border-blue-600 transition-colors mb-4"
+                                required
+                            />
 
-                    <div className="bg-slate-900 text-white rounded-xl p-4 text-center font-bold cursor-pointer hover:bg-slate-800 transition-colors">
-                        SUBMIT CORRECTION
-                    </div>
+                            <button
+                                type="submit"
+                                disabled={submitting || !message.trim()}
+                                className="w-full bg-slate-900 text-white rounded-xl p-4 text-center font-bold hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {submitting ? 'SUBMITTING...' : 'SUBMIT CORRECTION'}
+                            </button>
 
-                    <p className="text-xs text-slate-400 mt-4 leading-relaxed">
-                        Use Cases: Broken links, outdated info, incorrect specs, or missing assets.
-                    </p>
+                            {error && (
+                                <p className="text-xs text-red-600 mt-3">{error}</p>
+                            )}
+
+                            <p className="text-xs text-slate-400 mt-4 leading-relaxed">
+                                Use Cases: Broken links, outdated info, incorrect specs, or missing assets.
+                            </p>
+                        </form>
+                    )}
                 </div>
 
                 {/* Submission Guidelines */}

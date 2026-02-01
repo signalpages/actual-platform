@@ -39,7 +39,7 @@ pnpm-debug.log*
 Thumbs.db
 
 # Other
-coverage/
+/coverage/
 temp/
 tmp/
 
