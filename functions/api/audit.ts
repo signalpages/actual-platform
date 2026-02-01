@@ -1,5 +1,5 @@
 // functions/api/audit.ts
-import type { PagesFunction } from "@cloudflare/workers-types";
+// Cloudflare Pages Functions
 
 export const onRequestOptions: PagesFunction = async (ctx) => {
   const origin = ctx.request.headers.get("Origin") || "*";
@@ -32,15 +32,17 @@ export const onRequestPost: PagesFunction = async (ctx) => {
   const slug = String(body?.slug || "").trim();
   const depth = String(body?.depth || "summary").trim(); // "summary" | "forensic"
   const category = String(body?.category || "").trim();  // optional
+
   if (!slug) return json({ ok: false, error: "MISSING_SLUG" }, 400, origin);
 
-  // ---- Server-only Gemini call via REST ----
-  // ✅ keep your model unchanged
+  // ✅ Do NOT change model (per your request)
   const model = "gemini-3-flash-preview";
 
   const prompt = buildPrompt({ slug, depth, category });
 
   let rawText = "";
+  let httpStatus = 0;
+
   try {
     const resp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
@@ -54,12 +56,16 @@ export const onRequestPost: PagesFunction = async (ctx) => {
           generationConfig: {
             temperature: 0.2,
             maxOutputTokens: depth === "forensic" ? 2500 : 1400,
-            // ✅ helps, but we STILL salvage if it leaks text
+
+            // ✅ Some Gemini endpoints honor this and will stop the chatter.
+            // If Google rejects it, just remove this line.
             responseMimeType: "application/json",
           },
         }),
       }
     );
+
+    httpStatus = resp.status;
 
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
@@ -67,7 +73,7 @@ export const onRequestPost: PagesFunction = async (ctx) => {
         {
           ok: false,
           error: "GEMINI_HTTP_ERROR",
-          status: resp.status,
+          status: httpStatus,
           details: errText.slice(0, 1200),
         },
         502,
@@ -77,12 +83,12 @@ export const onRequestPost: PagesFunction = async (ctx) => {
 
     const data: any = await resp.json();
 
-    // candidates[0].content.parts[].text is the usual shape
     rawText =
       data?.candidates?.[0]?.content?.parts
         ?.map((p: any) => p?.text)
         .filter(Boolean)
         .join("") || "";
+
   } catch (e: any) {
     return json(
       { ok: false, error: "GEMINI_FETCH_FAILED", details: String(e?.message || e).slice(0, 800) },
@@ -91,19 +97,18 @@ export const onRequestPost: PagesFunction = async (ctx) => {
     );
   }
 
-  // ---- Strict JSON enforcement (server-side) ----
-  const cleaned = stripCodeFences(rawText).trim();
+  // ---- Strict JSON enforcement with salvage ----
+  const cleaned = normalizeModelText(rawText);
+  const parsed = safeJsonParseAggressive(cleaned);
 
-  let parsed: any;
-  try {
-    parsed = extractJsonObject(cleaned);
-  } catch {
+  if (!parsed) {
     return json(
       {
         ok: false,
         error: "MODEL_RETURNED_NON_JSON",
         hint: "Model must return strict JSON only.",
-        sample: cleaned.slice(0, 1400),
+        status: httpStatus || 502,
+        sample: cleaned.slice(0, 1500),
       },
       502,
       origin
@@ -143,29 +148,103 @@ function json(payload: unknown, status: number, origin: string) {
   });
 }
 
-function stripCodeFences(s: string) {
-  // Remove ```json ... ``` or ``` ... ``` wrappers, keep content
-  // (If there are multiple fenced blocks, we keep them but remove fences.)
-  return s
-    .replace(/```json\s*/gi, "```")
-    .replace(/```([\s\S]*?)```/g, (_m, inner) => String(inner ?? ""));
+function normalizeModelText(s: string) {
+  if (!s) return "";
+
+  // remove code fences if present
+  let out = s.replace(/```json/gi, "```").replace(/```/g, "");
+
+  // normalize “smart quotes” to ASCII quotes (common JSON.parse killer)
+  out = out
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/\u00A0/g, " "); // nbsp
+
+  // trim
+  return out.trim();
 }
 
-function extractJsonObject(raw: string) {
-  // 1) Try direct parse
-  try {
-    return JSON.parse(raw);
-  } catch {}
+/**
+ * Aggressive salvage:
+ * - If strict JSON fails, extract the first balanced {...} block and parse that.
+ * - Also tries to remove trailing commas.
+ */
+function safeJsonParseAggressive(s: string) {
+  // 1) try direct
+  const direct = tryJson(s);
+  if (direct) return direct;
 
-  // 2) Salvage: take the outermost {...} region
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error("NO_JSON_OBJECT_FOUND");
+  // 2) extract first balanced JSON object
+  const extracted = extractFirstBalancedObject(s);
+  if (extracted) {
+    const fixed = removeTrailingCommas(extracted);
+    const parsed = tryJson(fixed);
+    if (parsed) return parsed;
   }
 
-  const candidate = raw.slice(start, end + 1);
-  return JSON.parse(candidate);
+  // 3) last resort: take substring from first { to last } and retry
+  const start = s.indexOf("{");
+  const end = s.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    const slice = removeTrailingCommas(s.slice(start, end + 1));
+    const parsed = tryJson(slice);
+    if (parsed) return parsed;
+  }
+
+  return null;
+}
+
+function tryJson(s: string) {
+  try {
+    return JSON.parse(removeTrailingCommas(s));
+  } catch {
+    return null;
+  }
+}
+
+// Removes trailing commas like: { "a": 1, } or [1,2,]
+function removeTrailingCommas(s: string) {
+  return s
+    .replace(/,\s*}/g, "}")
+    .replace(/,\s*]/g, "]");
+}
+
+function extractFirstBalancedObject(s: string) {
+  const first = s.indexOf("{");
+  if (first < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+
+  for (let i = first; i < s.length; i++) {
+    const ch = s[i];
+
+    if (inString) {
+      if (escape) {
+        escape = false;
+      } else if (ch === "\\") {
+        escape = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+
+    if (ch === "{") depth++;
+    if (ch === "}") depth--;
+
+    if (depth === 0) {
+      return s.slice(first, i + 1);
+    }
+  }
+
+  return null;
 }
 
 function buildPrompt(input: { slug: string; depth: string; category?: string }) {
@@ -174,11 +253,8 @@ function buildPrompt(input: { slug: string; depth: string; category?: string }) 
   return `
 You are generating an audit response for Actual.fyi.
 
-Return STRICT JSON only.
-No markdown.
-No commentary.
-No code fences.
-No leading or trailing text.
+Return STRICT JSON only. No markdown. No commentary. No code fences. No extra text.
+Return exactly ONE JSON object.
 
 Inputs:
 - slug: "${slug}"
@@ -209,8 +285,9 @@ Output schema (must match exactly):
 }
 
 Rules:
-- If you don't have enough info, set truth_index to null, is_verified to false, and include a discrepancy titled "Insufficient evidence".
-- confidence must be 0 to 1.
-- Keep claims list between 5 and 12 items for summary depth, 10 to 20 for forensic depth.
-`;
+- If you don't have enough info, set truth_index to null, is_verified to false,
+  and include a discrepancy titled "Insufficient evidence".
+- confidence must be a number from 0 to 1.
+- claims list: 5-12 for summary, 10-20 for forensic.
+`.trim();
 }
