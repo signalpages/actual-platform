@@ -6,10 +6,10 @@ export default defineConfig({
   integrations: [react()],
   srcDir: '.',
   publicDir: './public',
+
+  // ❌ DO NOT expose env vars to the client
+  // Secrets must ONLY be accessed inside /functions/*
   vite: {
-    define: {
-      // Mapping the dashboard secret to the internal SDK requirement
-      'process.env.API_KEY': JSON.stringify(process.env.GOOGLE_AI_STUDIO_KEY || process.env.API_KEY)
-    }
+    define: {}
   }
 });
