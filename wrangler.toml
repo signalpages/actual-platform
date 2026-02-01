@@ -2,4 +2,4 @@ name = "actual-fyi"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
-pages_build_output_dir = "__next-on-pages-dist__"
+pages_build_output_dir = ".vercel/output/static"
