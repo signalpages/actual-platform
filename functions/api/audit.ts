@@ -1,17 +1,17 @@
 // functions/api/audit.ts
+import type { PagesFunction } from "@cloudflare/workers-types";
+
 export const onRequestOptions: PagesFunction = async (ctx) => {
   const origin = ctx.request.headers.get("Origin") || "*";
-  return new Response(null, {
-    status: 204,
-    headers: corsHeaders(origin),
-  });
+  return new Response(null, { status: 204, headers: corsHeaders(origin) });
 };
 
 export const onRequestGet: PagesFunction = async (ctx) => {
   const origin = ctx.request.headers.get("Origin") || "*";
-  return new Response(
-    JSON.stringify({ ok: false, error: "METHOD_NOT_ALLOWED", hint: "POST /api/audit" }),
-    { status: 405, headers: { "content-type": "application/json", ...corsHeaders(origin) } }
+  return json(
+    { ok: false, error: "METHOD_NOT_ALLOWED", hint: "POST /api/audit" },
+    405,
+    origin
   );
 };
 
@@ -19,13 +19,7 @@ export const onRequestPost: PagesFunction = async (ctx) => {
   const origin = ctx.request.headers.get("Origin") || "*";
 
   const key = (ctx.env.GOOGLE_AI_STUDIO_KEY as string | undefined)?.trim();
-  if (!key) {
-    return json(
-      { ok: false, error: "MISSING_SERVER_KEY" },
-      500,
-      origin
-    );
-  }
+  if (!key) return json({ ok: false, error: "MISSING_SERVER_KEY" }, 500, origin);
 
   // Parse request
   let body: any;
@@ -38,11 +32,10 @@ export const onRequestPost: PagesFunction = async (ctx) => {
   const slug = String(body?.slug || "").trim();
   const depth = String(body?.depth || "summary").trim(); // "summary" | "forensic"
   const category = String(body?.category || "").trim();  // optional
-
   if (!slug) return json({ ok: false, error: "MISSING_SLUG" }, 400, origin);
 
-  // ---- Server-only Gemini call via REST (no client leakage) ----
-  // You can swap models later; this is a reasonable default.
+  // ---- Server-only Gemini call via REST ----
+  // ✅ keep your model unchanged
   const model = "gemini-3-flash-preview";
 
   const prompt = buildPrompt({ slug, depth, category });
@@ -57,16 +50,12 @@ export const onRequestPost: PagesFunction = async (ctx) => {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [{ text: prompt }],
-            },
-          ],
-          // Encourage deterministic-ish output.
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 0.2,
             maxOutputTokens: depth === "forensic" ? 2500 : 1400,
+            // ✅ helps, but we STILL salvage if it leaks text
+            responseMimeType: "application/json",
           },
         }),
       }
@@ -75,36 +64,46 @@ export const onRequestPost: PagesFunction = async (ctx) => {
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
       return json(
-        { ok: false, error: "GEMINI_HTTP_ERROR", status: resp.status, details: errText.slice(0, 800) },
+        {
+          ok: false,
+          error: "GEMINI_HTTP_ERROR",
+          status: resp.status,
+          details: errText.slice(0, 1200),
+        },
         502,
         origin
       );
     }
 
     const data: any = await resp.json();
+
+    // candidates[0].content.parts[].text is the usual shape
     rawText =
-      data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join("") ||
-      "";
+      data?.candidates?.[0]?.content?.parts
+        ?.map((p: any) => p?.text)
+        .filter(Boolean)
+        .join("") || "";
   } catch (e: any) {
     return json(
-      { ok: false, error: "GEMINI_FETCH_FAILED", details: String(e?.message || e).slice(0, 500) },
+      { ok: false, error: "GEMINI_FETCH_FAILED", details: String(e?.message || e).slice(0, 800) },
       502,
       origin
     );
   }
 
-  // Enforce JSON response (strip common fences)
+  // ---- Strict JSON enforcement (server-side) ----
   const cleaned = stripCodeFences(rawText).trim();
-  const parsed = safeJsonParse(cleaned);
 
-  if (!parsed) {
-    // Fail safe: return raw text for debugging WITHOUT key, truncated.
+  let parsed: any;
+  try {
+    parsed = extractJsonObject(cleaned);
+  } catch {
     return json(
       {
         ok: false,
         error: "MODEL_RETURNED_NON_JSON",
         hint: "Model must return strict JSON only.",
-        sample: cleaned.slice(0, 1200),
+        sample: cleaned.slice(0, 1400),
       },
       502,
       origin
@@ -145,39 +144,41 @@ function json(payload: unknown, status: number, origin: string) {
 }
 
 function stripCodeFences(s: string) {
-  // removes ```json ... ``` and ``` ... ```
-  return s.replace(/```json\s*/gi, "```").replace(/```[\s\S]*?```/g, (m) => {
-    return m.replace(/^```/, "").replace(/```$/, "");
-  });
+  // Remove ```json ... ``` or ``` ... ``` wrappers, keep content
+  // (If there are multiple fenced blocks, we keep them but remove fences.)
+  return s
+    .replace(/```json\s*/gi, "```")
+    .replace(/```([\s\S]*?)```/g, (_m, inner) => String(inner ?? ""));
 }
 
-function safeJsonParse(s: string) {
+function extractJsonObject(raw: string) {
+  // 1) Try direct parse
   try {
-    return JSON.parse(s);
-  } catch {
-    // try to salvage if model included leading/trailing text
-    const start = s.indexOf("{");
-    const end = s.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      try {
-        return JSON.parse(s.slice(start, end + 1));
-      } catch {}
-    }
-    return null;
+    return JSON.parse(raw);
+  } catch {}
+
+  // 2) Salvage: take the outermost {...} region
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error("NO_JSON_OBJECT_FOUND");
   }
+
+  const candidate = raw.slice(start, end + 1);
+  return JSON.parse(candidate);
 }
 
 function buildPrompt(input: { slug: string; depth: string; category?: string }) {
   const { slug, depth, category } = input;
 
-  // IMPORTANT: we are not browsing the web here; we’re producing a structured response.
-  // You can later replace this prompt with the real “fetch sources + summarize” pipeline.
-  // For now: return a stable JSON shape your UI can render.
-
   return `
 You are generating an audit response for Actual.fyi.
 
-Return STRICT JSON only. No markdown. No commentary. No code fences.
+Return STRICT JSON only.
+No markdown.
+No commentary.
+No code fences.
+No leading or trailing text.
 
 Inputs:
 - slug: "${slug}"
@@ -208,7 +209,7 @@ Output schema (must match exactly):
 }
 
 Rules:
-- If you don't have enough info, set truth_index to null, is_verified to false, and include a discrepancy saying "Insufficient evidence".
+- If you don't have enough info, set truth_index to null, is_verified to false, and include a discrepancy titled "Insufficient evidence".
 - confidence must be 0 to 1.
 - Keep claims list between 5 and 12 items for summary depth, 10 to 20 for forensic depth.
 `;
