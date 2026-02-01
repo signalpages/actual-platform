@@ -43,7 +43,7 @@ export const onRequestPost: PagesFunction = async (ctx) => {
 
   // ---- Server-only Gemini call via REST (no client leakage) ----
   // You can swap models later; this is a reasonable default.
-  const model = "gemini-1.5-flash";
+  const model = "gemini-3-flash-preview";
 
   const prompt = buildPrompt({ slug, depth, category });
 
