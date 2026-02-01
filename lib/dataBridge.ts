@@ -118,48 +118,19 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
 
 // --- Client-Side Helpers (Browser/UI) ---
 
-// Helper to get client env (strictly import.meta.env for Vite)
-const getClientEnv = (key: string) => {
-  // @ts-ignore
-  return typeof import.meta !== "undefined" && import.meta.env ? import.meta.env[`VITE_${key}`] : undefined;
-};
-
 // Lazy-init singleton for client to avoid top-level side effects during server build
 let _publicClient: SupabaseClient | null = null;
 
 function getPublicClient() {
   if (_publicClient) return _publicClient;
 
-  const url = getClientEnv("SUPABASE_URL");
-  const key = getClientEnv("SUPABASE_ANON_KEY");
+  // CRITICAL: Must use explicit property access for Vite to statically replace these at build time.
+  // Dynamic access (import.meta.env[`VITE_${key}`]) does NOT work.
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     console.warn("Missing Supabase Client Env (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Inventory will be empty.");
-    // Return a dummy object to strictly prevent crash, but operations will fail.
-    // Or we can return a valid client pointing to nowhere? 
-    // Best to return a client that throws a clear error on use?
-    // Actually, createClient("", "") throws "supabaseUrl is required".
-    // So we MUST NOT call createClient if url is missing.
-    // Let's return a dummy that conforms to the shape we use? 
-    // Too complex to mock valid SupabaseClient. 
-    // Better strategy: Throw a controlled error ONLY when used? 
-    // Or just return null and let callers handle it? 
-    // The previous code called createClient(url || "", key || "") which crashed.
-    // Let's try to return a dummy that simply logs errors on query.
-    // But callers expect a SupabaseClient.
-    // Simplest fix: If missing, throw a clean error here? 
-    // User asked: "Fail gracefully with a console warning (not a hard crash)."
-    // If I throw here, the component catches it? Assuming callers use await.
-    // But `searchAssets` waits on `getPublicClient()`.
-    // Let's return null here and update callers to check?
-    // No, that requires changing all callers.
-    // Let's use a proxy?
-    // Actually, let's just make sure we don't crash the *module load*. 
-    // If we call this function, we ARE executing logic. 
-    // If we throw here, it's a runtime error in the async function, so the promise rejects.
-    // That IS graceful enough for the UI (it handles error state?).
-    // But "supabaseUrl is required" is the error user sees.
-    // Let's provide a better error.
     throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Check Cloudflare Pages settings.");
   }
 
