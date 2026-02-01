@@ -1,8 +1,8 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
+  "/compare/[slugPair]/page": "app/compare/[slugPair]/page.js",
   "/page": "app/page.js",
   "/specs/[slug]/page": "app/specs/[slug]/page.js",
-  "/compare/[slugPair]/page": "app/compare/[slugPair]/page.js",
   "/specs/page": "app/specs/page.js",
   "/api/audit/route": "app/api/audit/route.js"
 }
