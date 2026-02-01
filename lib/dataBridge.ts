@@ -239,11 +239,11 @@ export const getAllAssets = async (): Promise<Asset[]> => {
   }
 };
 
-export const runAudit = async (slug: string): Promise<AuditResult> => {
+export const runAudit = async (payload: { slug: string, depth?: number }): Promise<AuditResult> => {
   const resp = await fetch("/api/audit", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ slug }),
+    body: JSON.stringify({ slug: payload.slug }),
   });
 
   const data = await resp.json();
