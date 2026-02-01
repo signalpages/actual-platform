@@ -1,6 +1,5 @@
 import { Asset, AuditResult, Category, ComparisonResult, ProductCategory, VerificationStatus } from '../types';
 import seedDataRaw from '../seed.products';
-import { GoogleGenAI, Type } from "@google/genai";
 import { 
   isSupabaseConfigured, 
   supabaseFetchAll, 
