@@ -1,3 +1,7 @@
+---
+import App from "../App";
+---
+
 <!doctype html>
 <html lang="en">
   <head>
@@ -5,8 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Actual.fyi</title>
   </head>
-  <body style="font-family: system-ui; padding: 40px;">
-    <h1>Actual.fyi is deploying</h1>
-    <p>If you can see this, Cloudflare Pages is serving dist/index.html correctly.</p>
+  <body>
+    <App client:only="react" />
   </body>
 </html>
