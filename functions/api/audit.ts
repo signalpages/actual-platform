@@ -1,28 +1,22 @@
-// functions/api/audit.ts
-// Cloudflare Pages Functions
-// Server-only Gemini call. Model unchanged (gemini-3-flash-preview).
-
-export const onRequestOptions: PagesFunction = async (ctx) => {
-  const origin = ctx.request.headers.get("Origin") || "*";
-  return new Response(null, { status: 204, headers: corsHeaders(origin) });
-};
-
-export const onRequestGet: PagesFunction = async (ctx) => {
-  const origin = ctx.request.headers.get("Origin") || "*";
-  return json(
-    { ok: false, error: "METHOD_NOT_ALLOWED", hint: "POST /api/audit" },
-    405,
-    origin
-  );
-};
+import { createClient } from "@supabase/supabase-js";
+import { getProductBySlug, getAudit, saveAudit, mapShadowToResult } from "../../lib/dataBridge";
+import { KNOWLEDGE_CANONICAL } from "../../lib/canonical";
 
 export const onRequestPost: PagesFunction = async (ctx) => {
   const origin = ctx.request.headers.get("Origin") || "*";
 
-  const key = (ctx.env.GOOGLE_AI_STUDIO_KEY as string | undefined)?.trim();
-  if (!key) return json({ ok: false, error: "MISSING_SERVER_KEY" }, 500, origin);
+  // 1. Env & Setup
+  const supabaseUrl = ctx.env.SUPABASE_URL as string;
+  const supabaseKey = ctx.env.SUPABASE_SERVICE_ROLE_KEY as string; // Must be service role for write access usually, or anon if RLS permits
+  const geminiKey = ctx.env.GOOGLE_AI_STUDIO_KEY as string;
 
-  // Parse request
+  if (!supabaseUrl || !supabaseKey || !geminiKey) {
+    return json({ ok: false, error: "SERVER_CONFIG_ERROR" }, 500, origin);
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // 2. Parse Input
   let body: any;
   try {
     body = await ctx.request.json();
@@ -31,25 +25,34 @@ export const onRequestPost: PagesFunction = async (ctx) => {
   }
 
   const slug = String(body?.slug || "").trim();
-  const depth = String(body?.depth || "summary").trim(); // "summary" | "forensic"
-  const category = String(body?.category || "").trim();  // optional
+  if (!slug) return json({ ok: false, error: "MISSING_SLUG" }, 200, origin);
 
-  if (!slug) return json({ ok: false, error: "MISSING_SLUG" }, 400, origin);
+  // 3. Resolve Product
+  // Rule: Audit must be grounded in an existing DB product
+  const product = await getProductBySlug(supabase, slug);
+  if (!product) {
+    return json({ ok: false, error: "ASSET_NOT_FOUND", slug }, 200, origin);
+  }
 
-  // ✅ Do NOT change model
+  // 4. Check Cache
+  const cached = await getAudit(supabase, product.id);
+  if (cached) {
+    // If verified or simply exists, return it to save tokens/time for V1
+    return json({ ok: true, audit: mapShadowToResult(cached), cached: true }, 200, origin);
+  }
+
+  // 5. Build Prompt
+  // Rule: Grounded inputs only.
+  const prompt = buildGroundedPrompt(product);
+
+  // 6. Call Gemini
   const model = "gemini-3-flash-preview";
-
-  // Prompt: make it harder for Gemini to “chat”
-  const prompt = buildPrompt({ slug, depth, category });
-
-  let rawText = "";
-  let upstreamStatus = 0;
-  let upstreamDetails = "";
+  let payload: any = null;
 
   try {
     const resp = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-        key
+        geminiKey
       )}`,
       {
         method: "POST",
@@ -57,303 +60,108 @@ export const onRequestPost: PagesFunction = async (ctx) => {
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.1, // slightly lower = less “creative”
-            maxOutputTokens: depth === "forensic" ? 2500 : 1400,
-            // ✅ Strong hint to return JSON (supported on v1beta)
+            temperature: 0.1,
             responseMimeType: "application/json",
-            responseSchema: AUDIT_SCHEMA
+            responseSchema: AUDIT_SCHEMA,
           },
         }),
       }
     );
 
-    upstreamStatus = resp.status;
-
     if (!resp.ok) {
-      const errText = await resp.text().catch(() => "");
-      upstreamDetails = errText.slice(0, 1600);
-      return json(
-        {
-          ok: false,
-          error: "GEMINI_HTTP_ERROR",
-          status: upstreamStatus,
-          details: upstreamDetails,
-        },
-        502,
-        origin
-      );
+      // Rule: No 502s. We treat this as a failed audit entry.
+      // We will create a "failed" persistence record below.
+      console.error("Gemini API Error", await resp.text());
+    } else {
+      const data: any = await resp.json();
+      const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+      payload = tryJson(rawText);
     }
-
-    const data: any = await resp.json();
-
-    // Improve extraction to handle multiple candidates/parts
-    const candidate = data?.candidates?.[0];
-    if (candidate?.content?.parts?.length) {
-      rawText = candidate.content.parts.map((p: any) => p.text || "").join("");
-    }
-
-    // Some responses include safety or other blocks; capture minimal debug if needed
-    if (!rawText) {
-      upstreamDetails = JSON.stringify(data)?.slice(0, 1600) || "";
-      return json(
-        {
-          ok: false,
-          error: "EMPTY_MODEL_TEXT",
-          status: upstreamStatus,
-          details: upstreamDetails,
-        },
-        502,
-        origin
-      );
-    }
-  } catch (e: any) {
-    return json(
-      {
-        ok: false,
-        error: "GEMINI_FETCH_FAILED",
-        details: String(e?.message || e).slice(0, 800),
-      },
-      502,
-      origin
-    );
+  } catch (e) {
+    console.error("Gemini Network/Parse Error", e);
   }
 
-  // ---- Strict JSON enforcement + salvage ----
-  const cleaned = normalizeModelText(rawText);
+  // 7. Persist Result (Success or Failure)
+  const isSuccess = payload && typeof payload === "object";
 
-  // 1) Try strict
-  let parsed = tryJson(cleaned);
-
-  // 2) Try extracting the first balanced JSON object (handles “Here’s the JSON: …”)
-  if (!parsed) {
-    const extracted = extractFirstBalancedObject(cleaned);
-    if (extracted) parsed = tryJson(extracted);
-  }
-
-  // 3) Try substring from first "{" to last "}" as last resort
-  if (!parsed) {
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start >= 0 && end > start) {
-      parsed = tryJson(cleaned.slice(start, end + 1));
-    }
-  }
-
-  if (!parsed || typeof parsed !== "object") {
-    // Only return 502 if truly nothing salvagable
-    return json(
-      {
-        ok: false,
-        error: "MODEL_RETURNED_NON_JSON",
-        hint: "Model must return strict JSON only (single object).",
-        status: upstreamStatus || 502,
-        sample: cleaned.slice(0, 1500),
-      },
-      502,
-      origin
-    );
-  }
-
-  // Optional: hard-validate expected keys exist (prevents half-baked objects)
-  const requiredKeys = ["verdict", "truth_index", "is_verified", "summary", "claims", "discrepancies"];
-  const missing = requiredKeys.filter((k) => !(k in (parsed as any)));
-
-  if (missing.length) {
-    return json(
-      {
-        ok: false,
-        error: "JSON_SCHEMA_MISMATCH",
-        hint: "Model returned JSON but missing required keys.",
-        missing,
-        sample: JSON.stringify(parsed).slice(0, 1500),
-      },
-      502,
-      origin
-    );
-  }
-
-  // Add metadata (useful for UI + caching)
-  const result = {
-    ...(parsed as any),
-    meta: {
-      slug,
-      depth,
-      category: category || null,
-      generatedAt: new Date().toISOString(),
-      model,
-    },
+  const auditEntry = {
+    product_id: product.id,
+    claimed_specs: isSuccess ? payload.claims : [], // Mapping schema "claims" -> DB "claimed_specs"
+    actual_specs: isSuccess ? payload.actuals : [], // see schema below
+    // Schema mismatch note: AUDIT_SCHEMA below uses "claims", "discrepancies". 
+    // DB uses "claimed_specs", "actual_specs", "red_flags".
+    // We strictly map here.
+    red_flags: isSuccess ? payload.discrepancies : [{ issue: "System Failure", description: "Audit generation failed or network error." }],
+    truth_score: isSuccess ? payload.truth_index : null,
+    source_urls: [],
+    is_verified: isSuccess && payload.is_verified === true && typeof payload.truth_index === 'number',
   };
 
-  return json({ ok: true, result }, 200, origin);
+  const saved = await saveAudit(supabase, product.id, auditEntry);
+
+  if (!saved) {
+    return json({ ok: false, error: "DB_WRITE_FAILED" }, 500, origin);
+  }
+
+  return json({ ok: true, audit: mapShadowToResult(saved), cached: false }, 200, origin);
 };
 
-// ---------------- helpers ----------------
+// ---------------- Helpers ----------------
 
-function corsHeaders(origin: string) {
-  return {
-    "access-control-allow-origin": origin,
-    "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type",
-    "access-control-max-age": "86400",
-    // helps avoid weird caching while debugging
-    "cache-control": "no-store",
-  };
-}
-
-function json(payload: unknown, status: number, origin: string) {
-  return new Response(JSON.stringify(payload), {
+function json(data: any, status: number, origin: string) {
+  return new Response(JSON.stringify(data), {
     status,
-    headers: { "content-type": "application/json", ...corsHeaders(origin) },
+    headers: {
+      "content-type": "application/json",
+      "access-control-allow-origin": origin,
+      "access-control-allow-methods": "POST,OPTIONS",
+    },
   });
 }
 
-function normalizeModelText(s: string) {
-  if (!s) return "";
+function buildGroundedPrompt(p: any) {
+  return `
+You are an expert forensic auditor.
+Analyze this product data and produce a structured audit.
 
-  // Remove common code fences
-  let out = s.replace(/```json/gi, "```").replace(/```/g, "");
+Product: ${p.brand} ${p.model_name}
+Category: ${p.category}
+Tech Specs: ${JSON.stringify(p.technical_specs || {})}
 
-  // Normalize smart quotes
-  out = out.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+Canonical Claims to Extract:
+${KNOWLEDGE_CANONICAL.map(c => `- ${c}`).join("\n")}
 
-  // Normalize non-breaking spaces
-  out = out.replace(/\u00A0/g, " ");
-
-  return out.trim();
+Return STRICT JSON.
+  `.trim();
 }
 
 function tryJson(s: string) {
-  try {
-    const fixed = removeTrailingCommas(s);
-    return JSON.parse(fixed);
-  } catch {
-    // Attempt simple repairs
-    try {
-      // Fix standard "missing quote" issues or "NaN"
-      const relaxed = s.replace(/:\s*NaN/g, ': null').replace(/:\s*Infinity/g, ': null');
-      return JSON.parse(removeTrailingCommas(relaxed));
-    } catch {
-      return null;
-    }
-  }
+  try { return JSON.parse(s); } catch { return null; }
 }
 
-// Removes trailing commas like: { "a": 1, } or [1,2,]
-function removeTrailingCommas(s: string) {
-  // This is intentionally conservative; it won’t rewrite valid strings.
-  return s.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
-}
-
-/**
- * Extract the first balanced {...} block, respecting strings/escapes.
- * This catches “Here is the JSON: { ... } thanks!”
- */
-function extractFirstBalancedObject(s: string) {
-  const first = s.indexOf("{");
-  if (first < 0) return null;
-
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-
-  for (let i = first; i < s.length; i++) {
-    const ch = s[i];
-
-    if (inString) {
-      if (escape) {
-        escape = false;
-      } else if (ch === "\\") {
-        escape = true;
-      } else if (ch === '"') {
-        inString = false;
-      }
-      continue;
-    }
-
-    if (ch === '"') {
-      inString = true;
-      continue;
-    }
-
-    if (ch === "{") depth++;
-    if (ch === "}") depth--;
-
-    if (depth === 0) {
-      return s.slice(first, i + 1);
-    }
-  }
-
-  return null;
-}
-
-function buildPrompt(input: { slug: string; depth: string; category?: string }) {
-  const { slug, depth, category } = input;
-
-  const nMin = depth === "forensic" ? 10 : 5;
-  const nMax = depth === "forensic" ? 20 : 12;
-
-  return `
-Return STRICT JSON only. No markdown. No code fences. No explanation. No extra text.
-Return exactly ONE JSON object.
-
-You are generating an audit response for Actual.fyi.
-
-Inputs:
-- slug: "${slug}"
-- category: "${category || ""}"
-- depth: "${depth}"
-
-Output schema (MUST match exactly):
-{
-  "verdict": "string",
-  "truth_index": number|null,
-  "is_verified": boolean,
-  "summary": "string",
-  "claims": [
-    {
-      "claim": "string",
-      "reality": "string",
-      "evidence": "string",
-      "confidence": number
-    }
-  ],
-  "discrepancies": [
-    {
-      "title": "string",
-      "detail": "string",
-      "severity": "low"|"medium"|"high"
-    }
-  ]
-}
-
-Rules:
-- confidence is a number from 0 to 1.
-- claims must have between ${nMin} and ${nMax} items.
-- If insufficient evidence: truth_index=null, is_verified=false, and discrepancies must include:
-  { "title": "Insufficient evidence", ... }
-- Do not include trailing commas.
-`.trim();
-}
-
-// Define Schema for Gemini
 const AUDIT_SCHEMA = {
   type: "OBJECT",
   properties: {
-    verdict: { type: "STRING" },
     truth_index: { type: "NUMBER", nullable: true },
     is_verified: { type: "BOOLEAN" },
-    summary: { type: "STRING" },
     claims: {
       type: "ARRAY",
       items: {
         type: "OBJECT",
         properties: {
-          claim: { type: "STRING" },
-          reality: { type: "STRING" },
-          evidence: { type: "STRING", nullable: true },
-          confidence: { type: "NUMBER" }
-        },
-        required: ["claim", "reality", "confidence"]
+          label: { type: "STRING" }, // Mapping to canonical
+          value: { type: "STRING" }
+        }
+      }
+    },
+    actuals: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          label: { type: "STRING" },
+          value: { type: "STRING" }
+        }
       }
     },
     discrepancies: {
@@ -361,13 +169,11 @@ const AUDIT_SCHEMA = {
       items: {
         type: "OBJECT",
         properties: {
-          title: { type: "STRING" },
-          detail: { type: "STRING" },
-          severity: { type: "STRING", enum: ["low", "medium", "high"] }
-        },
-        required: ["title", "detail", "severity"]
+          issue: { type: "STRING" },
+          description: { type: "STRING" }
+        }
       }
     }
   },
-  required: ["verdict", "truth_index", "is_verified", "summary", "claims", "discrepancies"]
+  required: ["truth_index", "is_verified", "claims", "actuals", "discrepancies"]
 };
