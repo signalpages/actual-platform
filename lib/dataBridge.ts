@@ -147,16 +147,32 @@ export const listCategories = (): Category[] => [
   { id: 'charge_controller', label: 'Charge Controllers' },
 ];
 
-export const searchAssets = async (query: string, category: string): Promise<Product[]> => {
+export const searchAssets = async (query: string, category: string = "all", brand: string = "all"): Promise<Asset[]> => {
   try {
     const client = getPublicClient();
-    const { data } = await client
-      .from('products')
-      .select('*')
-      .eq('category', category)
-      .ilike('model_name', `%${query}%`)
-      .limit(20);
-    return (data as Product[]) || [];
+    let builder = client.from('products').select('*');
+
+    if (category !== "all") {
+      builder = builder.eq('category', category);
+    }
+
+    if (brand !== "all") {
+      builder = builder.eq('brand', brand);
+    }
+
+    if (query && query.trim().length > 0) {
+      builder = builder.ilike('model_name', `%${query}%`);
+    }
+
+    const { data } = await builder.limit(200);
+
+    if (!data) return [];
+
+    return data.map(d => ({
+      ...d,
+      verified: d.is_audited,
+      verification_status: d.is_audited ? 'verified' : 'provisional'
+    })) as Asset[];
   } catch (e) {
     console.warn("Supabase search failed:", e);
     return [];
@@ -210,11 +226,16 @@ export const getAllAssets = async (): Promise<Asset[]> => {
   }
 };
 
-export const runAudit = async (payload: { slug: string, depth?: number }): Promise<AuditResult> => {
+export const runAudit = async (payload: string | { slug: string, depth?: number }): Promise<AuditResult> => {
+  const slug = typeof payload === "string" ? payload : payload.slug;
+  // const depth = typeof payload === "string" ? undefined : payload.depth; // Depth ignored in V1
+
+  if (!slug) throw new Error("Missing slug for audit");
+
   const resp = await fetch("/api/audit", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ slug: payload.slug }),
+    body: JSON.stringify({ slug }),
   });
 
   const data = await resp.json();

@@ -12,7 +12,7 @@ const ProductDetail: React.FC = () => {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const auditProcessed = useRef<string | null>(null);
-  
+
   const [asset, setAsset] = useState<Asset | null>(null);
   const [audit, setAudit] = useState<AuditResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -28,7 +28,7 @@ const ProductDetail: React.FC = () => {
     if (!targetAsset || isScanning) return;
     setIsScanning(true);
     setScanLogs(["System Boot: Forensic Truth Engine V2.6", "PROTOCOL: LIVE SYNTHESIS ACTIVE..."]);
-    
+
     const steps = [
       "Accessing High-Friction Search Grounds...",
       "Normalizing Owner Troubleshooting Logs...",
@@ -45,15 +45,15 @@ const ProductDetail: React.FC = () => {
     }
 
     try {
-      const result = await runAudit(targetAsset.slug);
+      const result = await runAudit({ slug: targetAsset.slug });
       setAudit(result);
       setScanLogs(prev => [...prev, "SYNTHESIS COMPLETE."]);
-      
+
       // If provisional and result is empty/failed, trigger submission flow
       if (targetAsset.verification_status === 'provisional' && (result.analysis.status === 'failed' || result.claim_profile.length === 0)) {
         setShowSubmissionFlow(true);
       }
-      
+
       setTimeout(() => setIsScanning(false), 800);
     } catch (e) {
       setScanLogs(prev => [...prev, "CRITICAL ERROR: Protocol rejected."]);
@@ -68,12 +68,12 @@ const ProductDetail: React.FC = () => {
       setLoading(true);
       const data = await getAssetBySlug(slug);
       setAsset(data);
-      
+
       const storedAudits = JSON.parse(sessionStorage.getItem('actual_fyi_audits') || '{}');
       if (storedAudits[slug.toLowerCase()]) {
         setAudit(storedAudits[slug.toLowerCase()]);
       }
-      
+
       setLoading(false);
 
       if (data && auditProcessed.current !== slug) {
@@ -107,7 +107,7 @@ const ProductDetail: React.FC = () => {
   const isVerifiedAudit = hasClaims && !!(audit?.truth_index);
   const isProvisional = asset.verification_status === 'provisional';
   const noDataFound = isProvisional && !isScanning && (!audit || audit.analysis.status === 'failed' || audit.claim_profile.length === 0);
-  
+
   let auditStatusLabel = "Verified Ledger Entry";
   if (isScanning) auditStatusLabel = "Forensic extraction in progress";
   else if (isProvisional) auditStatusLabel = "Preliminary synthesis required";
@@ -120,13 +120,13 @@ const ProductDetail: React.FC = () => {
       {isScanning && (
         <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-6 font-mono text-emerald-400">
           <div className="w-full max-w-xl bg-black border border-slate-700 rounded-xl p-8 shadow-2xl overflow-hidden">
-             <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-4">
-                <span className="text-[10px] uppercase font-black tracking-widest text-emerald-500">Active Forensic Synthesis</span>
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-             </div>
-             <div className="h-60 overflow-y-auto space-y-1 text-[11px]">
-               {scanLogs.map((log, i) => <p key={i}> {log}</p>)}
-             </div>
+            <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-4">
+              <span className="text-[10px] uppercase font-black tracking-widest text-emerald-500">Active Forensic Synthesis</span>
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+            </div>
+            <div className="h-60 overflow-y-auto space-y-1 text-[11px]">
+              {scanLogs.map((log, i) => <p key={i}> {log}</p>)}
+            </div>
           </div>
         </div>
       )}
@@ -164,13 +164,13 @@ const ProductDetail: React.FC = () => {
             ) : (
               <div className="max-w-2xl mx-auto">
                 <div className="mb-10 text-center">
-                   <div className="w-16 h-16 bg-white border border-slate-200 rounded-3xl flex items-center justify-center text-slate-300 mx-auto mb-6 shadow-sm">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                   </div>
-                   <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-3">Missing Asset Protocol</h2>
-                   <p className="text-sm text-slate-500 font-medium">Our forensic engine was unable to synthesize a reliable Truth Index for this asset. Please submit official documentation or technical specs to initiate a manual audit.</p>
+                  <div className="w-16 h-16 bg-white border border-slate-200 rounded-3xl flex items-center justify-center text-slate-300 mx-auto mb-6 shadow-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-3">Missing Asset Protocol</h2>
+                  <p className="text-sm text-slate-500 font-medium">Our forensic engine was unable to synthesize a reliable Truth Index for this asset. Please submit official documentation or technical specs to initiate a manual audit.</p>
                 </div>
 
                 <div className="bg-white border border-slate-200 p-8 rounded-[2rem] shadow-sm">
@@ -188,7 +188,7 @@ const ProductDetail: React.FC = () => {
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Notes on Discrepancies</label>
                       <textarea placeholder="Describe any technical inaccuracies you've observed..." className="w-full h-32 p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium outline-none focus:border-blue-600 transition-all resize-none"></textarea>
                     </div>
-                    <button 
+                    <button
                       onClick={() => setFormSubmitted(true)}
                       className="w-full bg-slate-900 text-white py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg"
                     >
@@ -264,16 +264,16 @@ const ProductDetail: React.FC = () => {
           </button>
         ) : (
           <div className="max-w-xl mx-auto space-y-6 animate-in fade-in slide-in-from-top-4">
-             <div className="flex items-center justify-between">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Compare {asset.brand} with:</p>
-                <button onClick={() => setIsComparisonOpen(false)} className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest">Cancel</button>
-             </div>
-             <AssetSelector 
-               category={asset.category} 
-               onSelect={(target) => navigate(`/compare/${asset.slug}-vs-${target.slug}`)} 
-               placeholder={`Search competitor ${asset.category.replace(/_/g, ' ')}...`} 
-               className="text-left" 
-             />
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Compare {asset.brand} with:</p>
+              <button onClick={() => setIsComparisonOpen(false)} className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest">Cancel</button>
+            </div>
+            <AssetSelector
+              category={asset.category}
+              onSelect={(target) => navigate(`/compare/${asset.slug}-vs-${target.slug}`)}
+              placeholder={`Search competitor ${asset.category.replace(/_/g, ' ')}...`}
+              className="text-left"
+            />
           </div>
         )}
       </div>

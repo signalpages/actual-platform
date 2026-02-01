@@ -45,7 +45,7 @@ const Comparison: React.FC = () => {
     setAuditStatuses(prev => { const n = [...prev] as [AuditState, AuditState]; n[index] = 'running'; return n; });
 
     try {
-      const result = await runAudit(targetAsset.slug);
+      const result = await runAudit({ slug: targetAsset.slug });
       setAudits(prev => { const n = [...prev] as [AuditResult | null, AuditResult | null]; n[index] = result; return n; });
       setAuditStatuses(prev => { const n = [...prev] as [AuditState, AuditState]; n[index] = 'ready'; return n; });
     } catch (e) {
@@ -109,12 +109,12 @@ const Comparison: React.FC = () => {
 
   const getDivergences = () => {
     if (auditStatuses[0] !== 'ready' || auditStatuses[1] !== 'ready' || !audits[0] || !audits[1]) return [];
-    
+
     const divergences: string[] = [];
     const realityA = audits[0].reality_ledger;
     const realityB = audits[1].reality_ledger;
 
-    const findVal = (ledger: AuditItem[], label: string) => 
+    const findVal = (ledger: AuditItem[], label: string) =>
       ledger.find(r => r.label.toLowerCase().includes(label.toLowerCase()))?.value;
 
     const capA = findVal(realityA, 'capacity') || findVal(realityA, 'wh');
@@ -159,22 +159,22 @@ const Comparison: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 relative mb-12 items-start">
         <div className="hidden lg:flex absolute left-1/2 top-32 -translate-x-1/2 w-12 h-12 bg-slate-900 text-white rounded-full items-center justify-center font-black text-xs z-20 shadow-xl border-4 border-[#f8fafc]">VS</div>
-        
+
         {[0, 1].map(idx => (
           <div key={idx} className="flex flex-col h-full">
             {assets[idx] ? (
-              <AssetColumn 
-                asset={assets[idx]!} 
-                audit={audits[idx]} 
-                status={auditStatuses[idx]} 
-                onRetry={() => handleDeepScan(idx as 0|1, assets[idx]!)}
+              <AssetColumn
+                asset={assets[idx]!}
+                audit={audits[idx]}
+                status={auditStatuses[idx]}
+                onRetry={() => handleDeepScan(idx as 0 | 1, assets[idx]!)}
                 visibleClaims={visibleClaims}
                 visibleLedger={visibleLedger}
               />
             ) : (
               <div className="h-full bg-white border border-slate-200 rounded-[2.5rem] p-12 flex flex-col items-center justify-center text-center shadow-sm min-h-[600px]">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Slot {idx + 1} Open for Comparison</p>
-                {assets[1-idx] && <AssetSelector category={assets[1-idx]!.category} onSelect={(a) => handleReplacement(idx as 0|1, a)} placeholder="Select comparison asset..." className="max-w-xs" />}
+                {assets[1 - idx] && <AssetSelector category={assets[1 - idx]!.category} onSelect={(a) => handleReplacement(idx as 0 | 1, a)} placeholder="Select comparison asset..." className="max-w-xs" />}
               </div>
             )}
           </div>
@@ -184,7 +184,7 @@ const Comparison: React.FC = () => {
       {divergences.length > 0 && (
         <section className="bg-white border border-slate-200 rounded-[2.5rem] p-10 md:p-14 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-500">
           <h3 className="text-[11px] font-black text-blue-600 uppercase tracking-widest mb-8 flex items-center gap-3">
-            <span className="w-4 h-[1.5px] bg-blue-600"></span> 
+            <span className="w-4 h-[1.5px] bg-blue-600"></span>
             Key Observed Divergences
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -214,10 +214,10 @@ const AssetColumn: React.FC<AssetColumnProps> = ({ asset, audit, status, onRetry
   const isReady = status === 'ready';
   const isRunning = status === 'running';
   const isError = status === 'error';
-  
+
   const isVerifiedAudit = isReady && !!(audit?.truth_index);
   const isProvisional = asset.verification_status === 'provisional';
-  
+
   const truthColor = isVerifiedAudit ? ((audit?.truth_index || 0) >= 90 ? 'text-emerald-500' : 'text-blue-600') : 'text-slate-200';
 
   let auditStatusLabel = "Verified Ledger Entry";
@@ -251,7 +251,7 @@ const AssetColumn: React.FC<AssetColumnProps> = ({ asset, audit, status, onRetry
               {auditStatusLabel}
             </p>
           </div>
-          
+
           <div className="flex items-end justify-between">
             <div>
               <div className={`text-6xl font-black ${truthColor} leading-none`}>
@@ -270,8 +270,8 @@ const AssetColumn: React.FC<AssetColumnProps> = ({ asset, audit, status, onRetry
       <div className="flex-grow">
         {isRunning ? (
           <div className="p-12 flex flex-col items-center justify-center h-full text-center min-h-[400px]">
-             <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
-             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse">Consulting Forensic Grounds...</p>
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-6"></div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 animate-pulse">Consulting Forensic Grounds...</p>
           </div>
         ) : isReady ? (
           <>
