@@ -24,7 +24,7 @@ export const getEnv = (key: string) => {
   // @ts-ignore
   const procEnv = typeof process !== "undefined" ? process.env : {};
 
-  if (key === "API_KEY") {
+  if (key === "API_KEY" || key === "GOOGLE_AI_STUDIO_KEY") {
     // Client-side access to AI keys is forbidden.
     return undefined;
   }
@@ -354,8 +354,8 @@ export const runAudit = async (slug: string): Promise<AuditResult> => {
         typeof apiResult?.truth_index === "number"
           ? Math.round(apiResult.truth_index)
           : typeof apiResult?.truth_score === "number"
-          ? Math.round(apiResult.truth_score)
-          : null,
+            ? Math.round(apiResult.truth_score)
+            : null,
     };
 
     // Persist
