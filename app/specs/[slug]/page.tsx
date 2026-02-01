@@ -3,8 +3,7 @@ import { getProductBySlug, getAudit } from "@/lib/dataBridge.server";
 import { mapShadowToResult } from "@/lib/dataBridge.server";
 import ProductDetailView from '@/components/ProductDetailView';
 
-// Removed: export const runtime = 'edge'; 
-// Using nodejs_compat instead for Cloudflare compatibility
+export const runtime = 'edge';
 
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
     // In Next.js 15+, params is strictly async.
