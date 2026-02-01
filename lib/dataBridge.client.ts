@@ -111,15 +111,16 @@ export const getAllAssets = async (): Promise<Asset[]> => {
     }
 };
 
-export const runAudit = async (payload: string | { slug: string, depth?: number }): Promise<AuditResult> => {
+export const runAudit = async (payload: string | { slug: string, depth?: number, forceRefresh?: boolean }): Promise<AuditResult> => {
     const slug = typeof payload === "string" ? payload : payload.slug;
+    const forceRefresh = typeof payload === "object" ? payload.forceRefresh : false;
 
     if (!slug) throw new Error("Missing slug for audit");
 
     const resp = await fetch("/api/audit", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slug }),
+        body: JSON.stringify({ slug, forceRefresh }),
     });
 
     const data = await resp.json();

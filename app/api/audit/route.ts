@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
         }
 
         const slug = String(body?.slug || "").trim();
+        const forceRefresh = body?.forceRefresh === true;
         if (!slug) return NextResponse.json({ ok: false, error: "MISSING_SLUG" }, { status: 200 });
 
         // 3. Resolve Product (Server Bridge)
@@ -39,10 +40,18 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "ASSET_NOT_FOUND", slug }, { status: 200 });
         }
 
-        // 4. Check Cache
-        const cached = await getAudit(product.id);
-        if (cached) {
-            return NextResponse.json({ ok: true, audit: mapShadowToResult(cached), cached: true }, { status: 200 });
+        // 4. Check Cache (skip if forceRefresh requested)
+        if (!forceRefresh) {
+            const cached = await getAudit(product.id);
+            if (cached) {
+                // Only return cached if it was successful, otherwise allow re-run
+                const isCachedSuccess = cached.claimed_specs && cached.claimed_specs.length > 0;
+                if (isCachedSuccess) {
+                    return NextResponse.json({ ok: true, audit: mapShadowToResult(cached), cached: true }, { status: 200 });
+                }
+                // If cached audit failed, proceed to new analysis
+                console.log("Cached audit was empty/failed, running fresh analysis");
+            }
         }
 
         // 5. Build Prompt

@@ -51,7 +51,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     }, [audit, slug]);
 
 
-    const handleDeepScan = useCallback(async (targetAsset: Asset) => {
+    const handleDeepScan = useCallback(async (targetAsset: Asset, forceRefresh = false) => {
         if (!targetAsset || isScanning) return;
         setIsScanning(true);
         setScanLogs(["System Boot: Forensic Truth Engine V2.6", "PROTOCOL: LIVE SYNTHESIS ACTIVE..."]);
@@ -72,7 +72,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         }
 
         try {
-            const result = await runAudit({ slug: targetAsset.slug });
+            const result = await runAudit({ slug: targetAsset.slug, forceRefresh });
             setAudit(result);
             setScanLogs(prev => [...prev, "SYNTHESIS COMPLETE."]);
 
@@ -81,8 +81,8 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             current[targetAsset.slug.toLowerCase()] = result;
             sessionStorage.setItem('actual_fyi_audits', JSON.stringify(current));
 
-            // If provisional and result is empty/failed, trigger submission flow
-            if (targetAsset.verification_status === 'provisional' && (result.analysis.status === 'failed' || result.claim_profile.length === 0)) {
+            // Show submission flow only if result is still empty after fresh analysis
+            if (result.analysis.status === 'failed' || result.claim_profile.length === 0) {
                 setShowSubmissionFlow(true);
             }
 
@@ -167,8 +167,13 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                                     {isVerifiedAudit ? 'Truth Index' : 'Pending Verification'}
                                 </p>
                             </div>
-                            {!isVerifiedAudit && !isScanning && !noDataFound && (
-                                <button onClick={() => handleDeepScan(asset)} className="w-full bg-blue-600 text-white font-black uppercase px-6 py-4 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-xs tracking-widest">▶ Run Forensic Analysis</button>
+                            {!isVerifiedAudit && !isScanning && (
+                                <button
+                                    onClick={() => handleDeepScan(asset, true)}
+                                    className="w-full bg-blue-600 text-white font-black uppercase px-6 py-4 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-xs tracking-widest"
+                                >
+                                    ▶ Run Forensic Analysis
+                                </button>
                             )}
                         </div>
                     </div>
