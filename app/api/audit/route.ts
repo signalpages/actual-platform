@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
         const prompt = buildGroundedPrompt(product);
 
         // 6. Call Gemini
-        const modelName = "gemini-1.5-flash";
+        const modelName = "gemini-3-flash-preview";
         const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
 
         if (!apiKey) {
