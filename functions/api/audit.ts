@@ -1,5 +1,6 @@
 // functions/api/audit.ts
 // Cloudflare Pages Functions
+// Server-only Gemini call. Model unchanged (gemini-3-flash-preview).
 
 export const onRequestOptions: PagesFunction = async (ctx) => {
   const origin = ctx.request.headers.get("Origin") || "*";
@@ -35,13 +36,15 @@ export const onRequestPost: PagesFunction = async (ctx) => {
 
   if (!slug) return json({ ok: false, error: "MISSING_SLUG" }, 400, origin);
 
-  // ✅ Do NOT change model (per your request)
+  // ✅ Do NOT change model
   const model = "gemini-3-flash-preview";
 
+  // Prompt: make it harder for Gemini to “chat”
   const prompt = buildPrompt({ slug, depth, category });
 
   let rawText = "";
-  let httpStatus = 0;
+  let upstreamStatus = 0;
+  let upstreamDetails = "";
 
   try {
     const resp = await fetch(
@@ -54,27 +57,26 @@ export const onRequestPost: PagesFunction = async (ctx) => {
         body: JSON.stringify({
           contents: [{ role: "user", parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.2,
+            temperature: 0.1, // slightly lower = less “creative”
             maxOutputTokens: depth === "forensic" ? 2500 : 1400,
-
-            // ✅ Some Gemini endpoints honor this and will stop the chatter.
-            // If Google rejects it, just remove this line.
+            // ✅ Strong hint to return JSON (supported on v1beta)
             responseMimeType: "application/json",
           },
         }),
       }
     );
 
-    httpStatus = resp.status;
+    upstreamStatus = resp.status;
 
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "");
+      upstreamDetails = errText.slice(0, 1600);
       return json(
         {
           ok: false,
           error: "GEMINI_HTTP_ERROR",
-          status: httpStatus,
-          details: errText.slice(0, 1200),
+          status: upstreamStatus,
+          details: upstreamDetails,
         },
         502,
         origin
@@ -89,26 +91,78 @@ export const onRequestPost: PagesFunction = async (ctx) => {
         .filter(Boolean)
         .join("") || "";
 
+    // Some responses include safety or other blocks; capture minimal debug if needed
+    if (!rawText) {
+      upstreamDetails = JSON.stringify(data)?.slice(0, 1600) || "";
+      return json(
+        {
+          ok: false,
+          error: "EMPTY_MODEL_TEXT",
+          status: upstreamStatus,
+          details: upstreamDetails,
+        },
+        502,
+        origin
+      );
+    }
   } catch (e: any) {
     return json(
-      { ok: false, error: "GEMINI_FETCH_FAILED", details: String(e?.message || e).slice(0, 800) },
+      {
+        ok: false,
+        error: "GEMINI_FETCH_FAILED",
+        details: String(e?.message || e).slice(0, 800),
+      },
       502,
       origin
     );
   }
 
-  // ---- Strict JSON enforcement with salvage ----
+  // ---- Strict JSON enforcement + salvage ----
   const cleaned = normalizeModelText(rawText);
-  const parsed = safeJsonParseAggressive(cleaned);
 
+  // 1) Try strict
+  let parsed = tryJson(cleaned);
+
+  // 2) Try extracting the first balanced JSON object (handles “Here’s the JSON: …”)
   if (!parsed) {
+    const extracted = extractFirstBalancedObject(cleaned);
+    if (extracted) parsed = tryJson(extracted);
+  }
+
+  // 3) Try substring from first "{" to last "}" as last resort
+  if (!parsed) {
+    const start = cleaned.indexOf("{");
+    const end = cleaned.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      parsed = tryJson(cleaned.slice(start, end + 1));
+    }
+  }
+
+  if (!parsed || typeof parsed !== "object") {
     return json(
       {
         ok: false,
         error: "MODEL_RETURNED_NON_JSON",
-        hint: "Model must return strict JSON only.",
-        status: httpStatus || 502,
+        hint: "Model must return strict JSON only (single object).",
+        status: upstreamStatus || 502,
         sample: cleaned.slice(0, 1500),
+      },
+      502,
+      origin
+    );
+  }
+
+  // Optional: hard-validate expected keys exist (prevents half-baked objects)
+  const requiredKeys = ["verdict", "truth_index", "is_verified", "summary", "claims", "discrepancies"];
+  const missing = requiredKeys.filter((k) => !(k in (parsed as any)));
+  if (missing.length) {
+    return json(
+      {
+        ok: false,
+        error: "JSON_SCHEMA_MISMATCH",
+        hint: "Model returned JSON but missing required keys.",
+        missing,
+        sample: JSON.stringify(parsed).slice(0, 1500),
       },
       502,
       origin
@@ -117,7 +171,7 @@ export const onRequestPost: PagesFunction = async (ctx) => {
 
   // Add metadata (useful for UI + caching)
   const result = {
-    ...parsed,
+    ...(parsed as any),
     meta: {
       slug,
       depth,
@@ -138,6 +192,8 @@ function corsHeaders(origin: string) {
     "access-control-allow-methods": "GET,POST,OPTIONS",
     "access-control-allow-headers": "content-type",
     "access-control-max-age": "86400",
+    // helps avoid weird caching while debugging
+    "cache-control": "no-store",
   };
 }
 
@@ -151,52 +207,23 @@ function json(payload: unknown, status: number, origin: string) {
 function normalizeModelText(s: string) {
   if (!s) return "";
 
-  // remove code fences if present
+  // Remove common code fences
   let out = s.replace(/```json/gi, "```").replace(/```/g, "");
 
-  // normalize “smart quotes” to ASCII quotes (common JSON.parse killer)
-  out = out
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .replace(/\u00A0/g, " "); // nbsp
+  // Normalize smart quotes
+  out = out.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
 
-  // trim
+  // Normalize non-breaking spaces
+  out = out.replace(/\u00A0/g, " ");
+
+  // Trim junk around it
   return out.trim();
-}
-
-/**
- * Aggressive salvage:
- * - If strict JSON fails, extract the first balanced {...} block and parse that.
- * - Also tries to remove trailing commas.
- */
-function safeJsonParseAggressive(s: string) {
-  // 1) try direct
-  const direct = tryJson(s);
-  if (direct) return direct;
-
-  // 2) extract first balanced JSON object
-  const extracted = extractFirstBalancedObject(s);
-  if (extracted) {
-    const fixed = removeTrailingCommas(extracted);
-    const parsed = tryJson(fixed);
-    if (parsed) return parsed;
-  }
-
-  // 3) last resort: take substring from first { to last } and retry
-  const start = s.indexOf("{");
-  const end = s.lastIndexOf("}");
-  if (start >= 0 && end > start) {
-    const slice = removeTrailingCommas(s.slice(start, end + 1));
-    const parsed = tryJson(slice);
-    if (parsed) return parsed;
-  }
-
-  return null;
 }
 
 function tryJson(s: string) {
   try {
-    return JSON.parse(removeTrailingCommas(s));
+    const fixed = removeTrailingCommas(s);
+    return JSON.parse(fixed);
   } catch {
     return null;
   }
@@ -204,11 +231,14 @@ function tryJson(s: string) {
 
 // Removes trailing commas like: { "a": 1, } or [1,2,]
 function removeTrailingCommas(s: string) {
-  return s
-    .replace(/,\s*}/g, "}")
-    .replace(/,\s*]/g, "]");
+  // This is intentionally conservative; it won’t rewrite valid strings.
+  return s.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]");
 }
 
+/**
+ * Extract the first balanced {...} block, respecting strings/escapes.
+ * This catches “Here is the JSON: { ... } thanks!”
+ */
 function extractFirstBalancedObject(s: string) {
   const first = s.indexOf("{");
   if (first < 0) return null;
@@ -250,18 +280,21 @@ function extractFirstBalancedObject(s: string) {
 function buildPrompt(input: { slug: string; depth: string; category?: string }) {
   const { slug, depth, category } = input;
 
-  return `
-You are generating an audit response for Actual.fyi.
+  const nMin = depth === "forensic" ? 10 : 5;
+  const nMax = depth === "forensic" ? 20 : 12;
 
-Return STRICT JSON only. No markdown. No commentary. No code fences. No extra text.
+  return `
+Return STRICT JSON only. No markdown. No code fences. No explanation. No extra text.
 Return exactly ONE JSON object.
+
+You are generating an audit response for Actual.fyi.
 
 Inputs:
 - slug: "${slug}"
 - category: "${category || ""}"
 - depth: "${depth}"
 
-Output schema (must match exactly):
+Output schema (MUST match exactly):
 {
   "verdict": "string",
   "truth_index": number|null,
@@ -285,9 +318,10 @@ Output schema (must match exactly):
 }
 
 Rules:
-- If you don't have enough info, set truth_index to null, is_verified to false,
-  and include a discrepancy titled "Insufficient evidence".
-- confidence must be a number from 0 to 1.
-- claims list: 5-12 for summary, 10-20 for forensic.
+- confidence is a number from 0 to 1.
+- claims must have between ${nMin} and ${nMax} items.
+- If insufficient evidence: truth_index=null, is_verified=false, and discrepancies must include:
+  { "title": "Insufficient evidence", ... }
+- Do not include trailing commas.
 `.trim();
 }
