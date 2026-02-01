@@ -89,7 +89,7 @@ export const onRequestPost: PagesFunction = async (ctx) => {
     // Improve extraction to handle multiple candidates/parts
     const candidate = data?.candidates?.[0];
     if (candidate?.content?.parts?.length) {
-        rawText = candidate.content.parts.map((p: any) => p.text || "").join("");
+      rawText = candidate.content.parts.map((p: any) => p.text || "").join("");
     }
 
     // Some responses include safety or other blocks; capture minimal debug if needed
@@ -157,7 +157,7 @@ export const onRequestPost: PagesFunction = async (ctx) => {
   // Optional: hard-validate expected keys exist (prevents half-baked objects)
   const requiredKeys = ["verdict", "truth_index", "is_verified", "summary", "claims", "discrepancies"];
   const missing = requiredKeys.filter((k) => !(k in (parsed as any)));
-  
+
   if (missing.length) {
     return json(
       {
@@ -219,7 +219,6 @@ function normalizeModelText(s: string) {
   // Normalize non-breaking spaces
   out = out.replace(/\u00A0/g, " ");
 
-  // Trim junk around it
   return out.trim();
 }
 
@@ -228,7 +227,14 @@ function tryJson(s: string) {
     const fixed = removeTrailingCommas(s);
     return JSON.parse(fixed);
   } catch {
-    return null;
+    // Attempt simple repairs
+    try {
+      // Fix standard "missing quote" issues or "NaN"
+      const relaxed = s.replace(/:\s*NaN/g, ': null').replace(/:\s*Infinity/g, ': null');
+      return JSON.parse(removeTrailingCommas(relaxed));
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -334,7 +340,7 @@ const AUDIT_SCHEMA = {
   type: "OBJECT",
   properties: {
     verdict: { type: "STRING" },
-    truth_index: { type: "NUMBER" },
+    truth_index: { type: "NUMBER", nullable: true },
     is_verified: { type: "BOOLEAN" },
     summary: { type: "STRING" },
     claims: {
@@ -344,10 +350,10 @@ const AUDIT_SCHEMA = {
         properties: {
           claim: { type: "STRING" },
           reality: { type: "STRING" },
-          evidence: { type: "STRING" },
+          evidence: { type: "STRING", nullable: true },
           confidence: { type: "NUMBER" }
         },
-        required: ["claim", "reality", "evidence", "confidence"]
+        required: ["claim", "reality", "confidence"]
       }
     },
     discrepancies: {
