@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { listCategories, searchAssets, createProvisionalAsset } from '../lib/dataBridge';
-import { Asset, Category, ProductCategory } from '../types';
+import { useRouter } from 'next/navigation';
+import { listCategories, searchAssets, createProvisionalAsset } from '@/lib/dataBridge.client';
+import { Asset, Category, ProductCategory } from '@/types';
 
 export const AssetSelector: React.FC<{
   category: ProductCategory;
@@ -61,19 +61,19 @@ export const AssetSelector: React.FC<{
         placeholder={placeholder}
         className="w-full p-4 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-900 outline-none focus:border-blue-600 transition-all"
       />
-      
+
       {isOpen && (
         <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-1">
           <div className="max-h-60 overflow-y-auto">
             {results.length > 0 ? (
               results.map(a => (
-                <button 
-                  key={a.id} 
+                <button
+                  key={a.id}
                   type="button"
                   onClick={() => {
                     onSelect(a);
                     setIsOpen(false);
-                  }} 
+                  }}
                   className="w-full p-4 text-left hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-0 group"
                 >
                   <div>
@@ -92,8 +92,8 @@ export const AssetSelector: React.FC<{
             )}
           </div>
           {query.length > 2 && (
-            <button 
-              type="button" 
+            <button
+              type="button"
               onClick={handleProvisional}
               disabled={isSubmitting}
               className="w-full p-3 bg-slate-50 border-t border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest hover:bg-amber-50 hover:text-amber-600 transition-all text-center"
@@ -111,9 +111,13 @@ export const AssetSelector: React.FC<{
 const ComparisonPicker: React.FC = () => {
   const [categories] = useState<Category[]>(listCategories());
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>(() => {
-    return (sessionStorage.getItem('actual_fyi_last_category') as ProductCategory) || 'portable_power_station';
+    // Check if window is defined (client-side)
+    if (typeof window !== 'undefined') {
+      return (sessionStorage.getItem('actual_fyi_last_category') as ProductCategory) || 'portable_power_station';
+    }
+    return 'portable_power_station';
   });
-  const navigate = useNavigate();
+  const router = useRouter();
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value as ProductCategory;
@@ -125,12 +129,12 @@ const ComparisonPicker: React.FC = () => {
     <section className="w-full max-w-2xl mx-auto px-4">
       <div className="p-8 md:p-12 bg-white border border-slate-200 rounded-[2.5rem] shadow-sm">
         <h2 className="text-lg font-black uppercase tracking-tighter mb-8 text-slate-900 text-center">Initiate Forensic Audit</h2>
-        
+
         <div className="flex flex-col gap-4">
           <div className="space-y-2">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Select Domain</label>
-            <select 
-              value={selectedCategory} 
+            <select
+              value={selectedCategory}
               onChange={handleCategoryChange}
               className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl text-sm font-bold text-slate-900 outline-none focus:border-blue-600 transition-all appearance-none"
             >
@@ -140,9 +144,9 @@ const ComparisonPicker: React.FC = () => {
 
           <div className="space-y-2">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Search Asset</label>
-            <AssetSelector 
-              category={selectedCategory} 
-              onSelect={(asset) => navigate(`/specs/${asset.slug}?autoRun=true`)} 
+            <AssetSelector
+              category={selectedCategory}
+              onSelect={(asset) => router.push(`/specs/${asset.slug}?autoRun=true`)}
               placeholder={`Search ${categories.find(c => c.id === selectedCategory)?.label}...`}
             />
           </div>

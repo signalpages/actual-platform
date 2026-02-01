@@ -1,0 +1,9 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/audit/route": "app-edge-has-no-entrypoint",
+  "/compare/[slugPair]/page": "app/compare/[slugPair]/page.js",
+  "/page": "app/page.js",
+  "/specs/[slug]/page": "app/specs/[slug]/page.js",
+  "/specs/page": "app/specs/page.js"
+}
