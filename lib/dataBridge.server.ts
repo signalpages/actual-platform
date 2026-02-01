@@ -119,10 +119,18 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
 
 // Helper: Convert ShadowSpecs -> App-Level AuditResult
 export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
+    // Derive status from truth_score
+    let status: "ready" | "provisional" | "failed" = "failed";
+    if (specs.is_verified && specs.truth_score && specs.truth_score >= 80) {
+        status = "ready";
+    } else if (specs.truth_score && specs.truth_score >= 40) {
+        status = "provisional";
+    }
+
     return {
         assetId: specs.product_id,
         analysis: {
-            status: specs.is_verified ? "ready" : "failed",
+            status,
             last_run_at: specs.created_at,
         },
         claim_profile: Array.isArray(specs.claimed_specs) ? specs.claimed_specs : [],

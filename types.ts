@@ -1,5 +1,5 @@
 
-export type ProductCategory = 
+export type ProductCategory =
   | 'portable_power_station'
   | 'solar_generator_kit'
   | 'solar_panel'
@@ -66,7 +66,7 @@ export interface Discrepancy {
 export interface AuditResult {
   assetId: string;
   analysis: {
-    status: 'identified' | 'analyzing' | 'ready' | 'failed';
+    status: 'identified' | 'analyzing' | 'ready' | 'provisional' | 'failed';
     last_run_at: string | null;
   };
   claim_profile: AuditItem[];

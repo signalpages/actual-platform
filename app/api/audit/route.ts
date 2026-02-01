@@ -106,14 +106,25 @@ export async function POST(req: NextRequest) {
         // If payload exists and is object, success. Otherwise, failure.
         const isSuccess = !aiError && payload && typeof payload === "object";
 
+        // Enhance and validate Gemini's synthesis
+        if (isSuccess && payload) {
+            payload = enhanceAuditSynthesis(payload, product);
+        }
+
+        // Normalize truth_score to integer 0-100
+        const normalizedTruthScore = isSuccess ? normalizeTruthIndex(payload.truth_score) : null;
+
         const auditEntry = {
             product_id: product.id,
-            claimed_specs: isSuccess ? payload.claims : [],
-            actual_specs: isSuccess ? payload.actuals : [],
+            claimed_specs: isSuccess ? payload.advertised_claims : [],
+            actual_specs: isSuccess ? payload.reality_ledger : [],
             red_flags: isSuccess ? payload.discrepancies : [{ issue: "Audit Synthesis Failed", description: aiError || "Unknown Model Error" }],
-            truth_score: isSuccess ? payload.truth_index : null,
+            truth_score: normalizedTruthScore,
             source_urls: [],
-            is_verified: isSuccess && payload.is_verified === true && typeof payload.truth_index === 'number',
+            is_verified: isSuccess &&
+                normalizedTruthScore !== null &&
+                normalizedTruthScore >= 80 &&
+                (payload.discrepancies?.length || 0) <= 3,
         };
 
         const saved = await saveAudit(product.id, auditEntry);
@@ -142,20 +153,135 @@ export async function POST(req: NextRequest) {
 
 // ---------------- Helpers ----------------
 
+function normalizeTruthIndex(raw: unknown): number | null {
+    if (typeof raw !== "number" || Number.isNaN(raw)) return null;
+
+    // Accept 0–1 decimals and convert
+    if (raw > 0 && raw <= 1) return Math.round(raw * 100);
+
+    // Accept 0–100 numbers (int or float) and round
+    if (raw >= 0 && raw <= 100) return Math.round(raw);
+
+    return null;
+}
+
+/**
+ * Validate and enhance Gemini's audit synthesis
+ */
+function enhanceAuditSynthesis(payload: any, product: any): any {
+    // Ensure arrays exist
+    if (!Array.isArray(payload.advertised_claims)) payload.advertised_claims = [];
+    if (!Array.isArray(payload.reality_ledger)) payload.reality_ledger = [];
+    if (!Array.isArray(payload.discrepancies)) payload.discrepancies = [];
+
+    // Validate truth_score
+    const validatedScore = validateTruthScore(
+        payload.truth_score,
+        payload.advertised_claims,
+        payload.reality_ledger,
+        payload.discrepancies
+    );
+    payload.truth_score = validatedScore;
+
+    // Ensure minimum discrepancies (prompt asks for 4 minimum)
+    if (payload.discrepancies.length < 2) {
+        // Add generic fallback discrepancy
+        payload.discrepancies.push({
+            issue: "Limited Verification Data",
+            description: "Insufficient independent test data available for comprehensive verification."
+        });
+    }
+
+    return payload;
+}
+
+/**
+ * Validate or calculate truth_score with fallback logic
+ */
+function validateTruthScore(
+    score: number | null | undefined,
+    advertised: any[],
+    reality: any[],
+    discrepancies: any[]
+): number {
+    // If Gemini provided valid score, use it (with some validation)
+    if (typeof score === 'number' && score >= 0 && score <= 100) {
+        // Accept Gemini's score if it seems reasonable
+        return score;
+    }
+
+    // Fallback calculation
+    let truthScore = 100;
+
+    // Penalize based on discrepancies
+    discrepancies.forEach((d: any) => {
+        const severity = d.severity?.toLowerCase();
+        if (severity === 'high') truthScore -= 15;
+        else if (severity === 'med' || severity === 'medium') truthScore -= 10;
+        else truthScore -= 5;
+    });
+
+    // Penalize if reality data is significantly less than advertised
+    const realityRatio = advertised.length > 0 ? reality.length / advertised.length : 1;
+    if (realityRatio < 0.5) truthScore -= 20;
+    else if (realityRatio < 0.7) truthScore -= 10;
+
+    // Penalize if no claims found
+    if (advertised.length === 0) truthScore -= 30;
+
+    return Math.max(0, Math.min(100, Math.round(truthScore)));
+}
+
 function buildGroundedPrompt(p: any) {
     return `
-You are an expert forensic auditor.
-Analyze this product data and produce a structured audit.
+Perform a deep-dive technical audit on the ${p.brand} ${p.model_name} (${p.category}).
 
-Product: ${p.brand} ${p.model_name}
-Category: ${p.category}
-Tech Specs: ${JSON.stringify(p.technical_specs || {})}
+Core Model (do not break this):
+- Every entry is CLAIM vs REALITY.
 
-Canonical Claims to Extract:
-${KNOWLEDGE_CANONICAL.map(c => `- ${c}`).join("\n")}
+Rules:
+- Prefer independent tests, manuals, spec sheets, teardown data, and measured results.
+- Return audit results as maximum two sentences for each claim_profile and Reality_ledger item
+- If a value cannot be found, use "Not publicly specified" but still include the line.
+- REDDIT FORENSICS: Query r/Solar, r/Preppers, and r/PortablePower for owner troubleshoot logs.
+- TECHNICAL DISCHARGE TESTS: Find measured Wh (Watt-hours) and surge peaks.
+- PDF MANUAL SCRAPE: Extract peak surge duration and thermal cut-off points.
+- FCC ID LOOKUP: Check for hardware revisions.
 
-Return STRICT JSON.
-  `.trim();
+Return STRICT JSON with:
+- truth_score: 0–100 integer (no decimals)
+- advertised_claims: no more than 8 items (label + value) — manufacturer statements
+- reality_ledger: no more than 8 (label + value) — measured reality with conditions/ranges
+- key_wins: Minimum 2 items (label + value)
+- key_divergences: Minimum 2 items (label + value) — the biggest expectation gaps
+- discrepancies: 4 items minimum, each with issue + description
+
+CRITICAL: Also return a "forensic" object.
+
+forensic.claim_cards:
+- MUST be 8–10 items (no duplicates).
+
+Pressure rules:
+- Use CONFIRMED by default when the marketing claim matches reality under normal conditions.
+- Use CONDITIONAL only when a clear boundary is required (voltage, temperature, load, wiring, firmware).
+- Use MISLEADING only when marketing implication would cause a buyer to expect something materially different.
+
+Field rules:
+- If pressure is CONFIRMED, OMIT condition/delta/mechanism/impact (do not include them).
+- If pressure is CONDITIONAL, include ONLY condition (required) and delta (optional).
+- If pressure is MISLEADING, include condition + delta + mechanism + impact.
+
+Delta rules:
+- Delta MUST be quantified (%, W, kW, ms, °C, dB, A, V, Wh, etc).
+- If no meaningful delta exists, OMIT delta entirely.
+
+forensic.discrepancy_cards:
+- MUST be 4–10 items.
+- Each item: title, summary (2–4 sentences), severity (low|med|high), linked_claim_keys (optional).
+
+Product Data:
+${JSON.stringify(p.technical_specs || {}, null, 2)}
+`.trim();
 }
 
 function tryJson(s: string) {
