@@ -70,22 +70,45 @@ export const getAudit = async (productId: string): Promise<ShadowSpecs | null> =
 export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>): Promise<ShadowSpecs | null> => {
     const supabase = getSupabase();
 
-    const { data, error } = await supabase
+    // Check if audit already exists for this product
+    const { data: existing } = await supabase
         .from("shadow_specs")
-        .upsert(
-            {
-                product_id: productId,
-                claimed_specs: payload.claimed_specs || {},
-                actual_specs: payload.actual_specs || {},
-                red_flags: payload.red_flags || [],
-                truth_score: payload.truth_score,
-                source_urls: payload.source_urls || [],
-                is_verified: !!payload.is_verified,
-            },
-            { onConflict: "product_id" }
-        )
-        .select()
-        .single();
+        .select("id")
+        .eq("product_id", productId)
+        .maybeSingle();
+
+    const auditData = {
+        product_id: productId,
+        claimed_specs: payload.claimed_specs || [],
+        actual_specs: payload.actual_specs || [],
+        red_flags: payload.red_flags || [],
+        truth_score: payload.truth_score,
+        source_urls: payload.source_urls || [],
+        is_verified: !!payload.is_verified,
+    };
+
+    let data, error;
+
+    if (existing) {
+        // Update existing audit
+        const result = await supabase
+            .from("shadow_specs")
+            .update(auditData)
+            .eq("id", existing.id)
+            .select()
+            .single();
+        data = result.data;
+        error = result.error;
+    } else {
+        // Insert new audit
+        const result = await supabase
+            .from("shadow_specs")
+            .insert(auditData)
+            .select()
+            .single();
+        data = result.data;
+        error = result.error;
+    }
 
     if (error) {
         console.error("Failed to save audit:", error);
