@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "pages:build": "vercel build",
+    "pages:build": "npx @cloudflare/next-on-pages",
     "preview": "wrangler pages dev .vercel/output/static --compatibility-date=2024-11-01 --compatibility-flags nodejs_compat",
     "lint": "next lint"
   },
@@ -25,7 +25,7 @@
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.9.3",
-    "vercel": "^50.9.6",
+    "vercel": "47.0.4",
     "wrangler": "^3.101.0"
   }
 }
