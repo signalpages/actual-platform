@@ -10,6 +10,7 @@ export default defineConfig({
   // ❌ DO NOT expose env vars to the client
   // Secrets must ONLY be accessed inside /functions/*
   vite: {
+    envPrefix: ['VITE_', 'PUBLIC_'],
     define: {
       "process.env.API_KEY": "undefined",
       "process.env.GOOGLE_AI_STUDIO_KEY": "undefined",
