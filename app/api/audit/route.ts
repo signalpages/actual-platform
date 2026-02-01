@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
         }
 
         let payload: any = null;
+        let aiError: string | null = null;
 
         try {
             const resp = await fetch(
@@ -78,25 +79,29 @@ export async function POST(req: NextRequest) {
             if (!resp.ok) {
                 const errorText = await resp.text();
                 console.error("Gemini API Error", errorText);
-                return NextResponse.json({ ok: false, error: "AI_PROVIDER_ERROR", details: errorText }, { status: 500 });
+                aiError = `Provider Error: ${errorText.slice(0, 100)}`;
             } else {
                 const data: any = await resp.json();
                 const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
                 payload = tryJson(rawText);
+                if (!payload) {
+                    aiError = "Invalid JSON response from model";
+                }
             }
         } catch (e) {
             console.error("Gemini Network/Parse Error", e);
-            return NextResponse.json({ ok: false, error: "AI_NETWORK_ERROR" }, { status: 500 });
+            aiError = `Network/Execution Error: ${String(e).slice(0, 100)}`;
         }
 
-        // 7. Persist Result
-        const isSuccess = payload && typeof payload === "object";
+        // 7. Persist Result (Success or Failure)
+        // If payload exists and is object, success. Otherwise, failure.
+        const isSuccess = !aiError && payload && typeof payload === "object";
 
         const auditEntry = {
             product_id: product.id,
             claimed_specs: isSuccess ? payload.claims : [],
             actual_specs: isSuccess ? payload.actuals : [],
-            red_flags: isSuccess ? payload.discrepancies : [{ issue: "System Failure", description: "Audit generation failed or network error." }],
+            red_flags: isSuccess ? payload.discrepancies : [{ issue: "Audit Synthesis Failed", description: aiError || "Unknown Model Error" }],
             truth_score: isSuccess ? payload.truth_index : null,
             source_urls: [],
             is_verified: isSuccess && payload.is_verified === true && typeof payload.truth_index === 'number',
@@ -106,11 +111,10 @@ export async function POST(req: NextRequest) {
 
         if (!saved) {
             console.error("DB Write Failed for product:", product.id);
-            // We return 500 to alert client, but could theoretically return the audit result anyway. 
-            // Better to fail safe.
             return NextResponse.json({ ok: false, error: "DB_WRITE_FAILED" }, { status: 500 });
         }
 
+        // Return 200 OK even if audit failed (it's a valid "failed" audit)
         return NextResponse.json({ ok: true, audit: mapShadowToResult(saved), cached: false }, { status: 200 });
 
     } catch (err: any) {

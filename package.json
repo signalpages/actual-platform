@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "pages:build": "npx @cloudflare/next-on-pages",
-    "preview": "npm run pages:build && wrangler pages dev .vercel/output/static --compatibility-date=2024-11-01"
+    "preview": "npm run pages:build && wrangler pages dev .vercel/output/static --compatibility-date=2024-11-01",
+    "zip": "node scripts/make-zip.mjs"
   },
   "dependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",
