@@ -37,19 +37,53 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "ASSET_NOT_FOUND", slug }, { status: 404 });
         }
 
-        // 4. Check for cached completed audit
-        if (!forceRefresh) {
-            const cached = await getAudit(product.id);
-            if (cached) {
-                // Only return if it's a successful audit
-                const isCachedSuccess = cached.claimed_specs && cached.claimed_specs.length > 0;
-                if (isCachedSuccess) {
+        // 4. Check for cached completed audit (cache-first serving)
+        const FRESHNESS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
+        const COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+
+        const cached = await getAudit(product.id);
+
+        if (cached && cached.claimed_specs && cached.claimed_specs.length > 0) {
+            const lastRunAt = new Date(cached.last_run_at || cached.created_at).getTime();
+            const now = Date.now();
+            const age = now - lastRunAt;
+            const isFresh = age < FRESHNESS_WINDOW_MS;
+
+            // Calculate cache metadata
+            const cacheMetadata = {
+                hit: true,
+                last_synced_at: cached.last_run_at || cached.created_at,
+                age_days: Math.floor(age / (24 * 60 * 60 * 1000)),
+                refresh_available_at: new Date(lastRunAt + COOLDOWN_MS).toISOString(),
+                sources_count: cached.source_urls?.length || 0
+            };
+
+            // If fresh and not forcing refresh, return cached
+            if (isFresh && !forceRefresh) {
+                return NextResponse.json({
+                    ok: true,
+                    cached: true,
+                    audit: mapShadowToResult(cached),
+                    cache: cacheMetadata
+                });
+            }
+
+            // If forcing refresh, check cooldown
+            if (forceRefresh) {
+                const cooldownRemaining = COOLDOWN_MS - age;
+                if (cooldownRemaining > 0) {
+                    // Still in cooldown, return cached
                     return NextResponse.json({
                         ok: true,
+                        cached: true,
                         audit: mapShadowToResult(cached),
-                        cached: true
+                        cache: {
+                            ...cacheMetadata,
+                            cooldown_remaining_ms: cooldownRemaining
+                        }
                     });
                 }
+                // Cooldown expired, allow refresh to proceed
             }
         }
 

@@ -38,13 +38,15 @@ export interface Product {
 export interface ShadowSpecs {
   id: string;
   product_id: string;
-  claimed_specs: any; // JSONB
-  actual_specs: any; // JSONB
-  red_flags: any; // JSONB
+  claimed_specs: any[]; // JSONB
+  actual_specs: any[]; // JSONB
+  red_flags: Discrepancy[]; // JSONB
   truth_score: number;
   source_urls: string[];
   is_verified: boolean;
+  last_run_at: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 // Audit job tracking for async queue

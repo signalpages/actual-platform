@@ -111,7 +111,7 @@ export const getAllAssets = async (): Promise<Asset[]> => {
     }
 };
 
-export const runAudit = async (payload: string | { slug: string, depth?: number, forceRefresh?: boolean }): Promise<AuditResult> => {
+export const runAudit = async (payload: string | { slug: string, depth?: number, forceRefresh?: boolean }): Promise<AuditResult & { cache?: any }> => {
     const slug = typeof payload === "string" ? payload : payload.slug;
     const forceRefresh = typeof payload === "object" ? payload.forceRefresh : false;
 
@@ -130,9 +130,12 @@ export const runAudit = async (payload: string | { slug: string, depth?: number,
         throw new Error(data.error || "Failed to queue audit");
     }
 
-    // 2. If audit returned immediately (cached), return it
+    // 2. If audit returned immediately (cached), return it with metadata
     if (data.audit) {
-        return data.audit;
+        return {
+            ...data.audit,
+            cache: data.cache // Include cache metadata
+        };
     }
 
     // 3. Otherwise poll for completion

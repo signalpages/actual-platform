@@ -85,6 +85,7 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
         truth_score: payload.truth_score,
         source_urls: payload.source_urls || [],
         is_verified: !!payload.is_verified,
+        last_run_at: new Date().toISOString()
     };
 
     let data, error;

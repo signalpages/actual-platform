@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { runAudit, getAssetBySlug } from '@/lib/dataBridge.client';
 import { AssetSelector } from '@/components/ComparisonPicker';
 import { DiscrepancyCard } from '@/components/DiscrepancyCard';
+import { IntegrityCheckModal } from '@/components/IntegrityCheckModal';
 import { Asset, AuditResult } from '@/types';
 import SubmissionSuccess from '@/components/SubmissionSuccess';
 
@@ -28,6 +29,8 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     const [isComparisonOpen, setIsComparisonOpen] = useState(false);
     const [showSubmissionFlow, setShowSubmissionFlow] = useState(false);
     const [formSubmitted, setFormSubmitted] = useState(false);
+    const [showIntegrityCheck, setShowIntegrityCheck] = useState(false);
+    const [cacheMetadata, setCacheMetadata] = useState<any>(null);
 
     const shouldAutoRun = searchParams.get('autoRun') === 'true';
 
@@ -74,8 +77,23 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
         try {
             const result = await runAudit({ slug: targetAsset.slug, forceRefresh });
-            setAudit(result);
-            setScanLogs(prev => [...prev, "SYNTHESIS COMPLETE."]);
+
+            // If cached result, show integrity check modal instead of processing steps
+            if (result.cache?.hit) {
+                setCacheMetadata(result.cache);
+                setShowIntegrityCheck(true);
+                // Modal will auto-dismiss and set audit
+                setTimeout(() => {
+                    setAudit(result);
+                    setShowIntegrityCheck(false);
+                    setIsScanning(false);
+                }, 600);
+            } else {
+                // Fresh audit - show completion
+                setAudit(result);
+                setScanLogs(prev => [...prev, "SYNTHESIS COMPLETE."]);
+                setTimeout(() => setIsScanning(false), 800);
+            }
 
             // Cache result in session
             const current = JSON.parse(sessionStorage.getItem('actual_fyi_audits') || '{}');
@@ -294,6 +312,16 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                     </div>
                 )}
             </div>
+
+            {/* Integrity Check Modal for Cached Results */}
+            {showIntegrityCheck && cacheMetadata && (
+                <IntegrityCheckModal
+                    lastSynced={cacheMetadata.last_synced_at}
+                    ageDays={cacheMetadata.age_days}
+                    sourcesCount={cacheMetadata.sources_count}
+                    onComplete={() => setShowIntegrityCheck(false)}
+                />
+            )}
         </div>
     );
 }
