@@ -51,29 +51,7 @@ export function StagedAuditDemo({ product }: StagedAuditDemoProps) {
     const currentMonth = new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 
     return (
-        <div className="p-6 space-y-4 bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl border-2 border-blue-200 mb-6">
-            {/* Header with Product Name and Truth Index */}
-            <div className="flex items-start justify-between mb-4">
-                <div>
-                    <h3 className="text-lg font-black uppercase tracking-wider text-slate-900">
-                        ✨ Progressive Audit (Demo)
-                    </h3>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600 bg-white px-3 py-1 rounded-full inline-block mt-2">
-                        NEW
-                    </span>
-                </div>
-
-                {/* Truth Index Score - Top Right */}
-                <div className="text-right">
-                    <div className="text-5xl font-black text-blue-600 leading-none">
-                        92%
-                    </div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">
-                        Truth Index
-                    </div>
-                </div>
-            </div>
-
+        <div className="space-y-4">
             {/* PRIMARY COMPARISON CTA - Always visible */}
             <ComparisonButton variant="primary" productSlug={product?.slug} />
 
@@ -89,12 +67,11 @@ export function StagedAuditDemo({ product }: StagedAuditDemoProps) {
             <div className="bg-white/70 border border-blue-300 rounded-xl p-3 text-xs">
                 <div className="flex items-center justify-between">
                     <div>
-                        <span className="font-black text-slate-600 uppercase tracking-wider">Ledger snapshot:</span>
-                        <span className="ml-2 font-bold text-slate-900">{currentMonth}</span>
+                        <span className="font-black uppercase tracking-widest text-slate-600 text-[9px]">Ledger snapshot:</span>
+                        <span className="font-bold text-slate-800 ml-2">{currentMonth}</span>
                     </div>
-                    <div className="text-right">
-                        <span className="font-medium text-slate-500">Next scheduled refresh:</span>
-                        <span className="ml-2 font-bold text-blue-600">~14 days</span>
+                    <div className="text-slate-500 text-[9px]">
+                        Next refresh: ~14 days
                     </div>
                 </div>
             </div>
@@ -111,127 +88,32 @@ export function StagedAuditDemo({ product }: StagedAuditDemoProps) {
                 />
             </div>
 
-            {/* Stage 2 - Completed with sample community data */}
+            {/* Stage 2 - Pending (not implemented yet) */}
             <StageCard
                 stageNumber={2}
-                title="Independent Signal"
+                title=" Independent Signal"
                 description="Community insights from Reddit, YouTube, forums"
-                status="done"
-                data={{
-                    independent_signal: {
-                        most_praised: [
-                            "Fast charging capability (1.5hr full charge)",
-                            "Reliable LiFePO4 battery chemistry with long lifespan",
-                            "Clean sine wave output suitable for sensitive electronics",
-                            "Excellent build quality and battery management system",
-                            "Multiple charging options (AC, solar, car)"
-                        ],
-                        most_reported_issues: [
-                            "Fan noise above ~50% load (measured at 45dB)",
-                            "Usable capacity typically 10-15% below rated spec",
-                            "App connectivity drops occasionally on WiFi",
-                            "Weight makes portability challenging (62+ lbs)"
-                        ]
-                    }
-                }}
-                estimatedTime="5-15s"
+                status="pending"
+                estimatedTime="10-20s"
             />
 
-            {/* Stage 3 - Completed with sample discrepancies */}
+            {/* Stage 3 - Locked (requires Stage 2) */}
             <StageCard
                 stageNumber={3}
                 title="Forensic Discrepancies"
                 description="Cross-referencing claims with reality"
-                status="done"
-                data={{
-                    red_flags: [
-                        {
-                            claim: "2048Wh capacity",
-                            reality: "Actual tested: ~1780-1840Wh usable (87-90% efficiency)",
-                            severity: "minor",
-                            impact: "10-13% lower than advertised"
-                        },
-                        {
-                            claim: "Silent operation",
-                            reality: "Fan activates at 50%+ load (~45dB measured)",
-                            severity: "minor",
-                            impact: "Marketing claim overstated for high-load scenarios"
-                        },
-                        {
-                            claim: "1.5 hour recharge time",
-                            reality: "Typical range: 1.6-2.0hrs depending on temperature",
-                            severity: "minor",
-                            impact: "Optimal conditions required for advertised speed"
-                        }
-                    ]
-                }}
+                status="pending"
                 estimatedTime="20-30s"
             />
 
-            {/* Stage 4 - Completed with comprehensive decision synthesis */}
+            {/* Stage 4 - Locked (requires Stage 3) */}
             <StageCard
                 stageNumber={4}
                 title="Verdict & Truth Index"
                 description="Decision synthesis from all evidence"
-                status="done"
-                data={{
-                    truth_index: "92",
-                    verification_status: "verified",
-
-                    // Visual metric bars
-                    metric_bars: [
-                        { label: "Claims Accuracy", rating: "High", percentage: 92 },
-                        { label: "Real-World Fit", rating: "High", percentage: 88 },
-                        { label: "Operational Noise", rating: "Moderate", percentage: 65 }
-                    ],
-
-                    // Score interpretation
-                    score_interpretation: "This product meets most of its published claims under typical usage. Discrepancies are present but limited in scope and operational impact.",
-
-                    // Score drivers
-                    strengths: [
-                        "Capacity and cycle-life claims verified across independent testing",
-                        "Inverter performance stable under sustained loads",
-                        "LiFePO4 chemistry delivers on longevity expectations",
-                        "Recharge speed competitive for capacity class"
-                    ],
-                    limitations: [
-                        "Observed: Usable energy lower than rated due to expected efficiency losses",
-                        "Verified: Audible fan noise under higher loads",
-                        "Observed: Recharge time temperature-dependent"
-                    ],
-
-                    // Practical impact
-                    practical_impact: [
-                        "Expect ~10–13% less usable energy than headline capacity",
-                        "Fan noise becomes noticeable above ~50% sustained load",
-                        "Recharge time varies meaningfully with ambient temperature",
-                        "Portability challenged by weight (62+ lbs)"
-                    ],
-
-                    // Fit guidance
-                    good_fit: [
-                        "Reliable sustained output",
-                        "Fast recharge relative to capacity class",
-                        "Long-life LFP chemistry",
-                        "Clean sine wave for sensitive electronics"
-                    ],
-                    consider_alternatives: [
-                        "Silent operation under high load",
-                        "Maximum usable capacity per pound",
-                        "Ultra-fast recharge in cold environments",
-                        "Sub-60lb portability requirement"
-                    ],
-
-                    // Data confidence footer
-                    data_confidence: "Data confidence: High · Sources: manufacturer docs, independent testing, long-term user reports · Ledger snapshot: Feb 2026 · Refresh cadence: ~14 days"
-                }}
+                status="pending"
                 estimatedTime="instant"
             />
-
-            <p className="text-xs text-slate-500 italic text-center pt-2">
-                This is a demo of the new staged audit system. Data loads progressively instead of all at once.
-            </p>
         </div>
     );
 }
