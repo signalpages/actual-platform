@@ -205,7 +205,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                                     onClick={() => handleDeepScan(asset, true)}
                                     className="w-full bg-blue-600 text-white font-black uppercase px-6 py-4 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-xs tracking-widest"
                                 >
-                                    ▶ Run Forensic Analysis
+                                    ▶ Complete Verification
                                 </button>
                             )}
                         </div>
