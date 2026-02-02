@@ -62,9 +62,24 @@ export async function executeStage1(product: any): Promise<Stage1Result> {
         }
     }
 
-    // Ensure we have at least some claims
+    // Fallback: If no specs, create minimal profile from basic product info
     if (claim_profile.length === 0) {
-        throw new Error('No technical specifications found for product');
+        console.log(`[Stage 1] No technical_specs found, creating fallback profile`);
+        claim_profile = [
+            { label: 'Brand', value: product.brand || 'Unknown' },
+            { label: 'Model', value: product.model_name || 'Unknown' },
+            { label: 'Category', value: product.category || 'Unknown' }
+        ];
+
+        // Add weight if available
+        if (product.weight_lbs) {
+            claim_profile.push({ label: 'Weight', value: `${product.weight_lbs} lbs` });
+        }
+
+        // Add MSRP if available
+        if (product.msrp_usd) {
+            claim_profile.push({ label: 'MSRP', value: `$${product.msrp_usd}` });
+        }
     }
 
     console.log(`[Stage 1] Extracted ${claim_profile.length} claims`);
