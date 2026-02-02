@@ -9,6 +9,7 @@ import { DiscrepancyCard } from '@/components/DiscrepancyCard';
 import { IntegrityCheckModal } from '@/components/IntegrityCheckModal';
 import { Asset, AuditResult } from '@/types';
 import SubmissionSuccess from '@/components/SubmissionSuccess';
+import { StagedAuditDemo } from '@/components/StagedAuditDemo';
 
 interface ProductDetailViewProps {
     initialAsset: Asset | null;
@@ -254,54 +255,9 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                         )}
                     </div>
                 ) : (
-                    <>
-                        <div className="grid grid-cols-1 md:grid-cols-2">
-                            <div className="p-10 md:p-14 md:border-r border-slate-100">
-                                <h3 className="text-[11px] font-black text-blue-600 uppercase tracking-widest mb-10 flex items-center gap-3"><span className="w-4 h-[1.5px] bg-blue-600"></span> CLAIM PROFILE</h3>
-                                <div className="space-y-10">
-                                    {hasClaims ? audit?.claim_profile.map((c, i) => (
-                                        <div key={i}>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{c.label}</p>
-                                            <p className="text-sm font-black text-slate-900 leading-tight">{c.value}</p>
-                                        </div>
-                                    )) : (
-                                        <div className="py-8 text-[10px] font-black text-slate-300 uppercase tracking-widest italic border-2 border-dashed border-slate-50 rounded-2xl flex items-center justify-center text-center px-4 leading-relaxed">
-                                            Run Forensic Analysis to extract manufacturer claims.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="p-10 md:p-14 bg-slate-50/20">
-                                <h3 className="text-[11px] font-black text-blue-600 uppercase tracking-widest mb-10 flex items-center gap-3"><span className="w-4 h-[1.5px] bg-blue-600"></span> REALITY LEDGER</h3>
-                                <div className="space-y-10">
-                                    {isVerifiedAudit ? audit?.reality_ledger.map((c, i) => (
-                                        <div key={i}>
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{c.label}</p>
-                                            <p className="text-sm font-black text-blue-800 leading-tight">{c.value}</p>
-                                        </div>
-                                    )) : (
-                                        <div className="py-8 text-[10px] font-black text-slate-300 uppercase tracking-widest italic flex items-center justify-center text-center px-4 leading-relaxed">
-                                            Synthesis required.
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        {isVerifiedAudit && audit?.discrepancies?.length && (
-                            <div className="p-10 md:p-14 border-t border-red-50 bg-white">
-                                <div className="flex items-center gap-3 mb-10">
-                                    <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center text-red-600 font-black">!</div>
-                                    <h3 className="text-[11px] font-black text-red-600 uppercase tracking-widest">FORENSIC DISCREPANCIES</h3>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {audit.discrepancies.map((d, i) => (
-                                        <DiscrepancyCard key={i} discrepancy={d} index={i} />
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </>
+                    <div className="p-10 md:p-14">
+                        <StagedAuditDemo product={asset} />
+                    </div>
                 )}
             </div>
 
