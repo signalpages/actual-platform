@@ -1,5 +1,7 @@
 import { getAuditRun, updateAuditRun, saveAudit } from './dataBridge.server';
 import { getProductBySlug } from './dataBridge.server';
+import { sanitizeDiscrepancy } from './textSanitizer';
+import { safeParseLLMJson, buildStrictJsonPrompt } from './llmJsonParser';
 
 /**
  * Background worker for executing audit
@@ -108,24 +110,72 @@ async function executeGeminiAudit(product: any): Promise<any> {
 
         const data: any = await resp.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-        const payload = tryJson(rawText);
 
-        if (!payload) {
-            throw new Error('Invalid JSON response from Gemini');
+        // Attempt safe parsing
+        let parseResult = safeParseLLMJson(rawText);
+
+        // If initial parse failed, try strict retry
+        if (!parseResult.success) {
+            console.warn(`Initial JSON parse failed for product ${product.id}, retrying with strict prompt`);
+
+            // Build strict retry prompt
+            const strictPrompt = buildStrictJsonPrompt(prompt);
+
+            // Retry Gemini call
+            const retryResp = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`,
+                {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{ role: "user", parts: [{ text: strictPrompt }] }],
+                        generationConfig: {
+                            temperature: 0.1,
+                            maxOutputTokens: 2048,
+                            responseMimeType: "application/json",
+                            responseSchema: AUDIT_SCHEMA,
+                        },
+                    }),
+                    signal: controller.signal,
+                }
+            );
+
+            if (retryResp.ok) {
+                const retryData: any = await retryResp.json();
+                const retryRawText = retryData?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+                parseResult = safeParseLLMJson(retryRawText);
+
+                if (parseResult.success) {
+                    console.log(`Retry successful for product ${product.id}`);
+                }
+            }
         }
+
+        // Final validation - if still failed, throw detailed error
+        if (!parseResult.success) {
+            console.error(`JSON parse failed after retry. Raw (truncated): ${parseResult.raw}`);
+            throw new Error('Audit response validation failed. Please retry.');
+        }
+
+        const payload = parseResult.data;
 
         // Enhance and normalize
         const enhanced = enhanceAuditSynthesis(payload, product);
         const normalizedTruthScore = normalizeTruthIndex(enhanced.truth_score);
 
+        // Sanitize discrepancies to remove non-English text
+        const sanitizedDiscrepancies = (enhanced.discrepancies || []).map((d: any) => {
+            return sanitizeDiscrepancy(d);
+        });
+
         return {
             product_id: product.id,
             claimed_specs: enhanced.advertised_claims || [],
             actual_specs: enhanced.reality_ledger || [],
-            red_flags: enhanced.discrepancies || [],
+            red_flags: sanitizedDiscrepancies,
             truth_score: normalizedTruthScore,
             source_urls: [],
-            is_verified: normalizedTruthScore !== null && normalizedTruthScore >= 80 && (enhanced.discrepancies?.length || 0) <= 3,
+            is_verified: normalizedTruthScore !== null && normalizedTruthScore >= 80 && (sanitizedDiscrepancies?.length || 0) <= 3,
         };
 
     } finally {

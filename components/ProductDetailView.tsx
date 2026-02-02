@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { runAudit, getAssetBySlug } from '@/lib/dataBridge.client';
 import { AssetSelector } from '@/components/ComparisonPicker';
+import { DiscrepancyCard } from '@/components/DiscrepancyCard';
 import { Asset, AuditResult } from '@/types';
 import SubmissionSuccess from '@/components/SubmissionSuccess';
 
@@ -264,13 +265,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {audit.discrepancies.map((d, i) => (
-                                        <div key={i} className="bg-white border border-red-50 p-6 rounded-2xl flex items-start gap-4 shadow-sm">
-                                            <span className="text-red-500 font-black text-lg">!</span>
-                                            <div>
-                                                <p className="text-sm font-black text-red-900 mb-1.5 leading-none">{d.issue}</p>
-                                                <p className="text-xs font-medium text-red-800/80 leading-relaxed italic">"{d.description}"</p>
-                                            </div>
-                                        </div>
+                                        <DiscrepancyCard key={i} discrepancy={d} index={i} />
                                     ))}
                                 </div>
                             </div>

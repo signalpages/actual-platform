@@ -74,6 +74,11 @@ export interface AuditItem {
 export interface Discrepancy {
   issue: string;
   description: string;
+  severity?: 'low' | 'med' | 'medium' | 'high';
+  // Optional fields for non-English content
+  source_excerpt_original?: string;  // Raw non-English text
+  source_excerpt_en?: string;        // English translation
+  sources?: { title?: string; url?: string }[];
 }
 
 export interface AuditResult {
