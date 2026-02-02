@@ -43,10 +43,24 @@ interface Stage4Result {
 export async function executeStage1(product: any): Promise<Stage1Result> {
     console.log(`[Stage 1] Extracting claims for ${product.model_name}`);
 
-    const claim_profile = (product.technical_specs || []).map((spec: any) => ({
-        label: spec.label || spec.name || 'Unknown',
-        value: spec.value || spec.spec_value || 'Not specified'
-    }));
+    let claim_profile: Array<{ label: string; value: string }> = [];
+
+    // Handle different technical_specs formats
+    if (product.technical_specs) {
+        if (Array.isArray(product.technical_specs)) {
+            // Array format - map directly
+            claim_profile = product.technical_specs.map((spec: any) => ({
+                label: spec.label || spec.name || 'Unknown',
+                value: spec.value || spec.spec_value || 'Not specified'
+            }));
+        } else if (typeof product.technical_specs === 'object') {
+            // Object format - convert entries to array
+            claim_profile = Object.entries(product.technical_specs).map(([key, value]) => ({
+                label: key,
+                value: String(value)
+            }));
+        }
+    }
 
     // Ensure we have at least some claims
     if (claim_profile.length === 0) {
