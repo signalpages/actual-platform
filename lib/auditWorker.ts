@@ -32,7 +32,21 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
             return;
         }
 
-        // 2. Mark as running
+        // 2. Re-fetch product to ensure we have all JSONB fields (they may be lost in serialization)
+        const freshProduct = await getProductBySlug(product.slug);
+        if (!freshProduct) {
+            await updateAuditRun(runId, {
+                status: 'error',
+                error: 'Product not found',
+                finished_at: new Date().toISOString(),
+            });
+            return;
+        }
+
+        console.log('[Worker] Product loaded:', freshProduct.model_name);
+        console.log('[Worker] technical_specs present:', !!freshProduct.technical_specs);
+
+        // 3. Mark as running
         await updateAuditRun(runId, {
             status: 'running',
             progress: 5,
@@ -57,10 +71,10 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
         await updateAuditRun(runId, { progress: 25 });
 
         // STAGE 2: Independent Signal (search + synthesis)
-        console.log(`[Worker] Starting Stage 2 for ${product.model_name}`);
-        const stage2Result = await executeStage2(product, stage1Result);
+        console.log(`[Worker] Starting Stage 2 for ${freshProduct.model_name}`);
+        const stage2Result = await executeStage2(freshProduct, stage1Result);
         await updateStageHelper({
-            productId: product.id,
+            productId: freshProduct.id,
             stageName: 'stage_2',
             stageData: {
                 status: 'done',
@@ -73,10 +87,10 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
         await updateAuditRun(runId, { progress: 50 });
 
         // STAGE 3: Forensic Discrepancies
-        console.log(`[Worker] Starting Stage 3 for ${product.model_name}`);
-        const stage3Result = await executeStage3(product, stage1Result, stage2Result);
+        console.log(`[Worker] Starting Stage 3 for ${freshProduct.model_name}`);
+        const stage3Result = await executeStage3(freshProduct, stage1Result, stage2Result);
         await updateStageHelper({
-            productId: product.id,
+            productId: freshProduct.id,
             stageName: 'stage_3',
             stageData: {
                 status: 'done',
@@ -89,14 +103,14 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
         await updateAuditRun(runId, { progress: 75 });
 
         // STAGE 4: Verdict & Truth Index
-        console.log(`[Worker] Starting Stage 4 for ${product.model_name}`);
-        const stage4Result = await executeStage4(product, {
+        console.log(`[Worker] Starting Stage 4 for ${freshProduct.model_name}`);
+        const stage4Result = await executeStage4(freshProduct, {
             stage1: stage1Result,
             stage2: stage2Result,
             stage3: stage3Result
         });
         await updateStageHelper({
-            productId: product.id,
+            productId: freshProduct.id,
             stageName: 'stage_4',
             stageData: {
                 status: 'done',
@@ -138,7 +152,7 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
             data_confidence: stage4Result.data_confidence
         };
 
-        const saved = await saveAudit(product.id, fullAudit);
+        const saved = await saveAudit(freshProduct.id, fullAudit);
 
         if (!saved) {
             await updateAuditRun(runId, {
@@ -157,7 +171,7 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
             finished_at: new Date().toISOString(),
         });
 
-        console.log(`[Worker] ✅ Audit complete for ${product.model_name}`);
+        console.log(`[Worker] ✅ Audit complete for ${freshProduct.model_name}`);
 
     } catch (error) {
         console.error(`Audit worker error for run ${runId}:`, error);
