@@ -117,6 +117,7 @@ export const runAudit = async (payload: string | { slug: string, depth?: number,
 
     if (!slug) throw new Error("Missing slug for audit");
 
+    // 1. Queue the audit
     const resp = await fetch("/api/audit", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -124,8 +125,56 @@ export const runAudit = async (payload: string | { slug: string, depth?: number,
     });
 
     const data = await resp.json();
-    if (!data.ok || !data.audit) {
-        throw new Error(data.error || "Audit failed");
+
+    if (!data.ok) {
+        throw new Error(data.error || "Failed to queue audit");
     }
-    return data.audit;
+
+    // 2. If audit returned immediately (cached), return it
+    if (data.audit) {
+        return data.audit;
+    }
+
+    // 3. Otherwise poll for completion
+    const runId = data.runId;
+    if (!runId) {
+        throw new Error("No runId returned from queue");
+    }
+
+    return await pollAuditStatus(runId);
 };
+
+/**
+ * Poll audit status until completion
+ */
+async function pollAuditStatus(runId: string, maxAttempts = 60): Promise<AuditResult> {
+    for (let i = 0; i < maxAttempts; i++) {
+        // Wait before polling (except first attempt)
+        if (i > 0) {
+            await sleep(2000); // Poll every 2 seconds
+        }
+
+        const resp = await fetch(`/api/audit/status?runId=${runId}`);
+        const data = await resp.json();
+
+        if (!data.ok) {
+            throw new Error(data.error || "Failed to get audit status");
+        }
+
+        if (data.status === 'done' && data.audit) {
+            return data.audit;
+        }
+
+        if (data.status === 'error') {
+            throw new Error(data.error || 'Audit failed');
+        }
+
+        // Continue polling for pending/running
+    }
+
+    throw new Error('Audit timeout - exceeded maximum polling attempts');
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}

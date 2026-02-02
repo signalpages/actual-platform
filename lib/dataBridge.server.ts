@@ -139,3 +139,96 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
         truth_index: specs.truth_score,
     };
 };
+
+// ============ Audit Run (Async Queue) Helpers ============
+
+import { AuditRun } from '@/types';
+
+/**
+ * Create a new audit run job
+ */
+export const createAuditRun = async (productId: string): Promise<AuditRun | null> => {
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+        .from("audit_runs")
+        .insert({
+            product_id: productId,
+            status: 'pending',
+            progress: 0,
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error("Failed to create audit run:", error);
+        return null;
+    }
+
+    return data as AuditRun;
+};
+
+/**
+ * Get audit run by ID
+ */
+export const getAuditRun = async (runId: string): Promise<AuditRun | null> => {
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+        .from("audit_runs")
+        .select("*")
+        .eq("id", runId)
+        .single();
+
+    if (error) {
+        console.error("Failed to get audit run:", error);
+        return null;
+    }
+
+    return data as AuditRun;
+};
+
+/**
+ * Get active audit run for a product
+ */
+export const getActiveAuditRun = async (productId: string): Promise<AuditRun | null> => {
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+        .from("audit_runs")
+        .select("*")
+        .eq("product_id", productId)
+        .in("status", ["pending", "running"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) {
+        console.error("Failed to get active audit run:", error);
+        return null;
+    }
+
+    return data as AuditRun | null;
+};
+
+/**
+ * Update audit run status
+ */
+export const updateAuditRun = async (
+    runId: string,
+    updates: Partial<AuditRun>
+): Promise<boolean> => {
+    const supabase = getSupabase();
+
+    const { error } = await supabase
+        .from("audit_runs")
+        .update(updates)
+        .eq("id", runId);
+
+    if (error) {
+        console.error("Failed to update audit run:", error);
+        return false;
+    }
+
+    return true;
+};

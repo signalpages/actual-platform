@@ -47,6 +47,19 @@ export interface ShadowSpecs {
   created_at: string;
 }
 
+// Audit job tracking for async queue
+export interface AuditRun {
+  id: string;
+  product_id: string;
+  status: 'pending' | 'running' | 'done' | 'error';
+  progress: number;
+  started_at: string;
+  finished_at: string | null;
+  error: string | null;
+  result_shadow_spec_id: string | null;
+  created_at: string;
+}
+
 // Legacy bridge type for internal logic consistency
 export interface Asset extends Product {
   verified: boolean;
