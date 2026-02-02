@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { Product, ShadowSpecs, AuditResult } from "../types";
+import { Product, Asset, ShadowSpecs, AuditResult } from "@/types";
+import { isValidCategory } from "@/lib/categorizeProduct";
 
 // --- Server-Side V1 Pipeline Functions (Zero Side Effects) ---
 

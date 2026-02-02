@@ -5,7 +5,11 @@ export type ProductCategory =
   | 'solar_panel'
   | 'inverter'
   | 'battery'
-  | 'charge_controller';
+  | 'charge_controller'
+  | 'home_battery'
+  | 'microinverter'
+  | 'optimizer'
+  | 'dc_converter';
 
 export type VerificationStatus = 'verified' | 'provisional';
 
@@ -13,6 +17,20 @@ export interface Category {
   id: ProductCategory;
   label: string;
 }
+
+// UI labels for categories
+export const CATEGORY_LABELS: Record<ProductCategory, string> = {
+  portable_power_station: 'Portable Power Station',
+  solar_generator_kit: 'Solar Generator Kit',
+  solar_panel: 'Solar Panel',
+  inverter: 'Inverter',
+  battery: 'Battery',
+  charge_controller: 'Charge Controller',
+  home_battery: 'Home Battery',
+  microinverter: 'Microinverter',
+  optimizer: 'Optimizer',
+  dc_converter: 'DC Converter',
+};
 
 // Aligned with 'products' table in ERD
 export interface Product {

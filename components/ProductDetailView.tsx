@@ -31,6 +31,8 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     const [formSubmitted, setFormSubmitted] = useState(false);
     const [showIntegrityCheck, setShowIntegrityCheck] = useState(false);
     const [cacheMetadata, setCacheMetadata] = useState<any>(null);
+    const [showErrorModal, setShowErrorModal] = useState(false);
+    const [errorMessage, setErrorMessage] = useState('');
 
     const shouldAutoRun = searchParams.get('autoRun') === 'true';
 
@@ -43,6 +45,16 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             });
         }
     }, [asset, slug]);
+
+    // Check if initialAudit has cache metadata - show integrity check on load
+    useEffect(() => {
+        const auditWithCache = initialAudit as AuditResult & { cache?: any };
+        if (auditWithCache?.cache?.hit) {
+            setCacheMetadata(auditWithCache.cache);
+            setShowIntegrityCheck(true);
+            setTimeout(() => setShowIntegrityCheck(false), 600);
+        }
+    }, [initialAudit]);
 
     // Load Audit from Session Storage if not provided by server
     useEffect(() => {
@@ -106,9 +118,10 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             }
 
             setTimeout(() => setIsScanning(false), 800);
-        } catch (e) {
+        } catch (e: any) {
             setScanLogs(prev => [...prev, "CRITICAL ERROR: Protocol rejected."]);
-            setShowSubmissionFlow(true);
+            setErrorMessage(e?.message || 'Audit failed. Please try again.');
+            setShowErrorModal(true);
             setTimeout(() => setIsScanning(false), 1500);
         }
     }, [isScanning]);
@@ -312,6 +325,40 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                     </div>
                 )}
             </div>
+
+            {/* Error Modal for Failed Audits */}
+            {showErrorModal && (
+                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white border-2 border-red-200 rounded-xl p-8 max-w-md w-full shadow-2xl">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <span className="text-3xl">⚠️</span>
+                        </div>
+                        <h3 className="text-xl font-black uppercase tracking-tighter text-slate-900 mb-3 text-center">
+                            Audit Failed
+                        </h3>
+                        <p className="text-sm text-slate-600 font-medium mb-6 text-center">
+                            {errorMessage}
+                        </p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowErrorModal(false)}
+                                className="flex-1 bg-slate-100 text-slate-700 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowErrorModal(false);
+                                    if (asset) handleDeepScan(asset, true);
+                                }}
+                                className="flex-1 bg-blue-600 text-white py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Integrity Check Modal for Cached Results */}
             {showIntegrityCheck && cacheMetadata && (

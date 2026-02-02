@@ -90,6 +90,53 @@ export default function Comparison() {
         router.push(`/compare/${newPair}`);
     };
 
+    // Check for category mismatch
+    const [assetA, assetB] = assets;
+    const categoryMismatch = assetA && assetB && assetA.category !== assetB.category;
+
+    if (categoryMismatch) {
+        return (
+            <div className="max-w-5xl mx-auto px-6 py-20">
+                <div className="bg-white border-2 border-red-200 rounded-[2rem] p-12 text-center shadow-xl">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <span className="text-3xl">⚠️</span>
+                    </div>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-4">
+                        Category Mismatch
+                    </h2>
+                    <p className="text-sm text-slate-600 font-medium mb-6 max-w-md mx-auto">
+                        These products belong to different equipment categories and cannot be compared directly.
+                    </p>
+                    <div className="flex items-center justify-center gap-6 mb-8">
+                        <div className="bg-slate-50 px-6 py-3 rounded-xl">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                                {assetA.brand} {assetA.model_name}
+                            </p>
+                            <p className="text-xs font-bold text-blue-600">
+                                {assetA.category.replace(/_/g, ' ')}
+                            </p>
+                        </div>
+                        <span className="text-slate-300 font-black">≠</span>
+                        <div className="bg-slate-50 px-6 py-3 rounded-xl">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                                {assetB.brand} {assetB.model_name}
+                            </p>
+                            <p className="text-xs font-bold text-blue-600">
+                                {assetB.category.replace(/_/g, ' ')}
+                            </p>
+                        </div>
+                    </div>
+                    <Link
+                        href="/specs"
+                        className="inline-block bg-slate-900 text-white px-8 py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-600 transition-all"
+                    >
+                        ← Back to Products
+                    </Link>
+                </div>
+            </div>
+        );
+    }
+
     // Helper to check if a value exists for a canonical key
     const resolveValue = (canonicalLabel: string, source: AuditItem[] | undefined) => {
         if (!source) return null;
