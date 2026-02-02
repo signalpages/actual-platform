@@ -130,6 +130,7 @@ export interface AuditResult {
   reality_ledger: AuditItem[];
   discrepancies: Discrepancy[];
   truth_index: number | null;
+  stages?: AuditStages; // Progressive stage data
 }
 
 export interface ComparisonResult {

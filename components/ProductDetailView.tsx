@@ -154,7 +154,16 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     );
 
     const hasClaims = !!(audit?.claim_profile && audit.claim_profile.length > 0);
-    const isVerifiedAudit = hasClaims && !!(audit?.truth_index);
+
+    // Check if all 4 stages are complete
+    const allStagesComplete = !!(
+        audit?.stages?.stage_1?.status === 'done' &&
+        audit?.stages?.stage_2?.status === 'done' &&
+        audit?.stages?.stage_3?.status === 'done' &&
+        audit?.stages?.stage_4?.status === 'done'
+    );
+
+    const isVerifiedAudit = hasClaims && allStagesComplete && !!(audit?.truth_index);
     const isProvisional = asset.verification_status === 'provisional';
     const noDataFound = isProvisional && !isScanning && (!audit || audit.analysis.status === 'failed' || audit.claim_profile.length === 0);
 
