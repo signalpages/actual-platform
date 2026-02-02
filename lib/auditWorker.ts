@@ -1,13 +1,23 @@
 import { getAuditRun, updateAuditRun, saveAudit } from './dataBridge.server';
 import { getProductBySlug } from './dataBridge.server';
-import { sanitizeDiscrepancy } from './textSanitizer';
-import { safeParseLLMJson, buildStrictJsonPrompt } from './llmJsonParser';
+import { executeStage1, executeStage2, executeStage3, executeStage4 } from './stageExecutors';
+import { updateStageHelper } from './updateStageHelper';
+import { createClient } from '@supabase/supabase-js';
+
+const getSupabase = () => {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) throw new Error("Missing Supabase credentials");
+    return createClient(url, key, { auth: { persistSession: false } });
+};
 
 /**
- * Background worker for executing audit
+ * Background worker for executing audit in progressive stages
  * Triggered by waitUntil() from /api/audit
  */
 export async function runAuditWorker(runId: string, product: any): Promise<void> {
+    const supabase = getSupabase();
+
     try {
         // 1. Load run
         const run = await getAuditRun(runId);
@@ -25,18 +35,110 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
         // 2. Mark as running
         await updateAuditRun(runId, {
             status: 'running',
-            progress: 10,
+            progress: 5,
         });
 
-        // 3. Execute Gemini audit
-        await updateAuditRun(runId, { progress: 30 });
+        // STAGE 1: Claim Profile (fast, cached)
+        console.log(`[Worker] Starting Stage 1 for ${product.model_name}`);
+        await updateAuditRun(runId, { progress: 10 });
 
-        const auditResult = await executeGeminiAudit(product);
+        const stage1Result = await executeStage1(product);
+        await updateStageHelper({
+            productId: product.id,
+            stageName: 'stage_1',
+            stageData: {
+                status: 'done',
+                data: stage1Result,
+                completed_at: new Date().toISOString()
+            },
+            supabase
+        });
 
-        // 5. Save result
-        await updateAuditRun(runId, { progress: 80 });
+        await updateAuditRun(runId, { progress: 25 });
 
-        const saved = await saveAudit(product.id, auditResult);
+        // STAGE 2: Independent Signal (search + synthesis)
+        console.log(`[Worker] Starting Stage 2 for ${product.model_name}`);
+        const stage2Result = await executeStage2(product, stage1Result);
+        await updateStageHelper({
+            productId: product.id,
+            stageName: 'stage_2',
+            stageData: {
+                status: 'done',
+                data: stage2Result,
+                completed_at: new Date().toISOString()
+            },
+            supabase
+        });
+
+        await updateAuditRun(runId, { progress: 50 });
+
+        // STAGE 3: Forensic Discrepancies
+        console.log(`[Worker] Starting Stage 3 for ${product.model_name}`);
+        const stage3Result = await executeStage3(product, stage1Result, stage2Result);
+        await updateStageHelper({
+            productId: product.id,
+            stageName: 'stage_3',
+            stageData: {
+                status: 'done',
+                data: stage3Result,
+                completed_at: new Date().toISOString()
+            },
+            supabase
+        });
+
+        await updateAuditRun(runId, { progress: 75 });
+
+        // STAGE 4: Verdict & Truth Index
+        console.log(`[Worker] Starting Stage 4 for ${product.model_name}`);
+        const stage4Result = await executeStage4(product, {
+            stage1: stage1Result,
+            stage2: stage2Result,
+            stage3: stage3Result
+        });
+        await updateStageHelper({
+            productId: product.id,
+            stageName: 'stage_4',
+            stageData: {
+                status: 'done',
+                data: stage4Result,
+                completed_at: new Date().toISOString()
+            },
+            supabase
+        });
+
+        await updateAuditRun(runId, { progress: 90 });
+
+        // 5. Save final consolidated audit result
+        const fullAudit = {
+            truth_index: stage4Result.truth_index,
+            verification_status: stage4Result.truth_index > 85 ? 'verified' : 'provisional',
+            last_updated: new Date().toISOString(),
+            advertised_claims: stage1Result.claim_profile,
+            reality_ledger: stage1Result.claim_profile,
+            key_wins: stage2Result.independent_signal.most_praised.slice(0, 5).map(p => ({
+                label: p.text.substring(0, 50),
+                value: `${p.sources} sources`
+            })),
+            key_divergences: stage2Result.independent_signal.most_reported_issues.slice(0, 5).map(i => ({
+                label: i.text.substring(0, 50),
+                value: `${i.sources} sources`
+            })),
+            discrepancies: stage3Result.red_flags.map(flag => ({
+                issue: flag.claim,
+                description: `${flag.reality} (${flag.severity})`,
+                severity: flag.severity
+            })),
+            metric_bars: stage4Result.metric_bars,
+            score_interpretation: stage4Result.score_interpretation,
+            strengths: stage4Result.strengths,
+            limitations: stage4Result.limitations,
+            practical_impact: stage4Result.practical_impact,
+            good_fit: stage4Result.good_fit,
+            consider_alternatives: stage4Result.consider_alternatives,
+            data_confidence: stage4Result.data_confidence
+        };
+
+        const saved = await saveAudit(product.id, fullAudit);
 
         if (!saved) {
             await updateAuditRun(runId, {
@@ -55,6 +157,8 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
             finished_at: new Date().toISOString(),
         });
 
+        console.log(`[Worker] ✅ Audit complete for ${product.model_name}`);
+
     } catch (error) {
         console.error(`Audit worker error for run ${runId}:`, error);
         await updateAuditRun(runId, {
@@ -64,268 +168,3 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
         });
     }
 }
-
-/**
- * Execute Gemini audit (extracted from route.ts)
- */
-async function executeGeminiAudit(product: any): Promise<any> {
-    const modelName = "gemini-3-flash-preview";
-    const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
-
-    if (!apiKey) {
-        throw new Error('GOOGLE_AI_STUDIO_KEY not configured');
-    }
-
-    const prompt = buildGroundedPrompt(product);
-
-    // Make Gemini API call
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s timeout
-
-    try {
-        const resp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`,
-            {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({
-                    contents: [{ role: "user", parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        temperature: 0.1,
-                        maxOutputTokens: 2048,
-                        responseMimeType: "application/json",
-                        responseSchema: AUDIT_SCHEMA,
-                    },
-                }),
-                signal: controller.signal,
-            }
-        );
-
-        clearTimeout(timeoutId);
-
-        if (!resp.ok) {
-            const errorText = await resp.text();
-            throw new Error(`Gemini API Error: ${errorText.slice(0, 100)}`);
-        }
-
-        const data: any = await resp.json();
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-
-        console.log(`[Audit] Gemini response received for product ${product.id}`);
-        console.log(`[Audit] Raw text length: ${rawText?.length || 0} chars`);
-        console.log(`[Audit] Raw text preview (first 300 chars):`, rawText?.substring(0, 300));
-
-        // Attempt safe parsing
-        let parseResult = safeParseLLMJson(rawText);
-
-        // If initial parse failed, try strict retry
-        if (!parseResult.success) {
-            console.warn(`Initial JSON parse failed for product ${product.id}, retrying with strict prompt`);
-
-            // Build strict retry prompt
-            const strictPrompt = buildStrictJsonPrompt(prompt);
-
-            // Retry Gemini call
-            const retryResp = await fetch(
-                `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(apiKey)}`,
-                {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{ role: "user", parts: [{ text: strictPrompt }] }],
-                        generationConfig: {
-                            temperature: 0.1,
-                            maxOutputTokens: 2048,
-                            responseMimeType: "application/json",
-                            responseSchema: AUDIT_SCHEMA,
-                        },
-                    }),
-                    signal: controller.signal,
-                }
-            );
-
-            if (retryResp.ok) {
-                const retryData: any = await retryResp.json();
-                const retryRawText = retryData?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-                parseResult = safeParseLLMJson(retryRawText);
-
-                if (parseResult.success) {
-                    console.log(`Retry successful for product ${product.id}`);
-                }
-            }
-        }
-
-        // Final validation - if still failed, throw detailed error
-        if (!parseResult.success) {
-            console.error(`[Audit] JSON parse failed after retry for product ${product.id}`);
-            console.error(`[Audit] Parse error: ${parseResult.error}`);
-            console.error(`[Audit] Raw response (first 500 chars): ${parseResult.raw?.substring(0, 500)}`);
-            console.error(`[Audit] Full raw response:`, parseResult.raw);
-            throw new Error('Audit response validation failed. Please retry.');
-        }
-
-        const payload = parseResult.data;
-
-        // Enhance and normalize
-        const enhanced = enhanceAuditSynthesis(payload, product);
-        const normalizedTruthScore = normalizeTruthIndex(enhanced.truth_score);
-
-        // Sanitize discrepancies to remove non-English text
-        const sanitizedDiscrepancies = (enhanced.discrepancies || []).map((d: any) => {
-            return sanitizeDiscrepancy(d);
-        });
-
-        return {
-            product_id: product.id,
-            claimed_specs: enhanced.advertised_claims || [],
-            actual_specs: enhanced.reality_ledger || [],
-            red_flags: sanitizedDiscrepancies,
-            truth_score: normalizedTruthScore,
-            source_urls: [],
-            is_verified: normalizedTruthScore !== null && normalizedTruthScore >= 80 && (sanitizedDiscrepancies?.length || 0) <= 3,
-        };
-
-    } finally {
-        clearTimeout(timeoutId);
-    }
-}
-
-// Helper functions (will need to be extracted/imported properly)
-function buildGroundedPrompt(p: any) {
-    return `
-Perform a deep-dive technical audit on the ${p.brand} ${p.model_name} (${p.category}).
-
-Core Model:
-- Every entry is CLAIM vs REALITY.
-
-Rules:
-- Prefer independent tests, manuals, spec sheets, teardown data, and measured results.
-- REDDIT FORENSICS: Query r/Solar, r/Preppers, and r/PortablePower for owner troubleshoot logs.
-- TECHNICAL DISCHARGE TESTS: Find measured Wh (Watt-hours) and surge peaks.
-- PDF MANUAL SCRAPE: Extract peak surge duration and thermal cut-off points.
-- FCC ID LOOKUP: Check for hardware revisions.
-
-Return STRICT JSON with:
-- truth_score: 0–100 integer
-- advertised_claims: max 8 items (label + value)
-- reality_ledger: max 8 items (label + value)
-- key_wins: min 2 items
-- key_divergences: min 2 items  
-- discrepancies: min 4 items (issue + description)
-
-Product Data:
-${JSON.stringify(p.technical_specs || {}, null, 2)}
-`.trim();
-}
-
-function tryJson(s: string) {
-    try { return JSON.parse(s); } catch { return null; }
-}
-
-function normalizeTruthIndex(raw: unknown): number | null {
-    if (typeof raw !== "number" || Number.isNaN(raw)) return null;
-    if (raw > 0 && raw <= 1) return Math.round(raw * 100);
-    if (raw >= 0 && raw <= 100) return Math.round(raw);
-    return null;
-}
-
-function enhanceAuditSynthesis(payload: any, product: any): any {
-    if (!Array.isArray(payload.advertised_claims)) payload.advertised_claims = [];
-    if (!Array.isArray(payload.reality_ledger)) payload.reality_ledger = [];
-    if (!Array.isArray(payload.discrepancies)) payload.discrepancies = [];
-
-    const validatedScore = validateTruthScore(
-        payload.truth_score,
-        payload.advertised_claims,
-        payload.reality_ledger,
-        payload.discrepancies
-    );
-    payload.truth_score = validatedScore;
-
-    if (payload.discrepancies.length < 2) {
-        payload.discrepancies.push({
-            issue: "Limited Verification Data",
-            description: "Insufficient independent test data available for comprehensive verification."
-        });
-    }
-
-    return payload;
-}
-
-function validateTruthScore(score: number | null | undefined, advertised: any[], reality: any[], discrepancies: any[]): number {
-    if (typeof score === 'number' && score >= 0 && score <= 100) return score;
-
-    let truthScore = 100;
-    discrepancies.forEach((d: any) => {
-        const severity = d.severity?.toLowerCase();
-        if (severity === 'high') truthScore -= 15;
-        else if (severity === 'med' || severity === 'medium') truthScore -= 10;
-        else truthScore -= 5;
-    });
-
-    const realityRatio = advertised.length > 0 ? reality.length / advertised.length : 1;
-    if (realityRatio < 0.5) truthScore -= 20;
-    else if (realityRatio < 0.7) truthScore -= 10;
-
-    if (advertised.length === 0) truthScore -= 30;
-
-    return Math.max(0, Math.min(100, Math.round(truthScore)));
-}
-
-const AUDIT_SCHEMA = {
-    type: "OBJECT",
-    properties: {
-        truth_score: { type: "NUMBER" },
-        advertised_claims: {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    label: { type: "STRING" },
-                    value: { type: "STRING" }
-                }
-            }
-        },
-        reality_ledger: {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    label: { type: "STRING" },
-                    value: { type: "STRING" }
-                }
-            }
-        },
-        key_wins: {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    label: { type: "STRING" },
-                    value: { type: "STRING" }
-                }
-            }
-        },
-        key_divergences: {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    label: { type: "STRING" },
-                    value: { type: "STRING" }
-                }
-            }
-        },
-        discrepancies: {
-            type: "ARRAY",
-            items: {
-                type: "OBJECT",
-                properties: {
-                    issue: { type: "STRING" },
-                    description: { type: "STRING" }
-                }
-            }
-        }
-    },
-    required: ["truth_score", "advertised_claims", "reality_ledger", "discrepancies"]
-};
