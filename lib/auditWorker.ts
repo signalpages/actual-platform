@@ -56,9 +56,9 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
         console.log(`[Worker] Starting Stage 1 for ${product.model_name}`);
         await updateAuditRun(runId, { progress: 10 });
 
-        const stage1Result = await executeStage1(product);
+        const stage1Result = await executeStage1(freshProduct);
         await updateStageHelper({
-            productId: product.id,
+            productId: freshProduct.id,
             stageName: 'stage_1',
             stageData: {
                 status: 'done',
