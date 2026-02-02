@@ -12,7 +12,7 @@ export interface ParseResult {
 
 /**
  * Safely parse JSON from LLM output
- * Handles markdown fences, trailing text, and other common issues
+ * Strategy: Extract JSON boundaries only, never mutate interior content
  */
 export function safeParseLLMJson(rawText: string): ParseResult {
     if (!rawText || typeof rawText !== 'string') {
@@ -23,23 +23,23 @@ export function safeParseLLMJson(rawText: string): ParseResult {
         };
     }
 
-    // Step 1: Strip markdown code fences
+    // Step 1: Strip ONLY markdown code fences (boundary markers)
     let cleaned = rawText
         .replace(/^```json\s*/i, '')
         .replace(/^```\s*/i, '')
         .replace(/\s*```$/i, '')
         .trim();
 
-    // Step 2: Try direct parse
+    // Step 2: Try direct parse (most common case)
     try {
         const parsed = JSON.parse(cleaned);
         return { success: true, data: parsed };
     } catch (e) {
-        // Continue to more aggressive cleaning
+        // Continue to boundary extraction
     }
 
-    // Step 3: Extract JSON from surrounding text
-    // Look for first { and last }
+    // Step 3: Extract JSON by finding outer boundaries
+    // Find first { and matching last }
     const firstBrace = cleaned.indexOf('{');
     const lastBrace = cleaned.lastIndexOf('}');
 
@@ -50,7 +50,7 @@ export function safeParseLLMJson(rawText: string): ParseResult {
             const parsed = JSON.parse(extracted);
             return { success: true, data: parsed };
         } catch (e) {
-            // Continue to array extraction
+            // Try array extraction
         }
     }
 
@@ -69,12 +69,43 @@ export function safeParseLLMJson(rawText: string): ParseResult {
         }
     }
 
-    // Step 5: All parsing strategies failed
+    // All parsing strategies failed
     return {
         success: false,
         error: 'Could not extract valid JSON from response',
-        raw: cleaned.slice(0, 200) // Only log first 200 chars
+        raw: cleaned.slice(0, 200)
     };
+}
+
+/**
+ * Normalize string value after JSON parsing
+ * Handles double-encoded quotes and empty quoted strings
+ */
+export function normalizeStringValue(value: any): string {
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    // Convert to string
+    let str = String(value).trim();
+
+    // Handle empty or quote-only strings
+    if (!str || str === '""' || str === "''") {
+        return '';
+    }
+
+    // Strip ONE layer of wrapping quotes if present
+    // But preserve interior quotes
+    if ((str.startsWith('"') && str.endsWith('"')) ||
+        (str.startsWith("'") && str.endsWith("'"))) {
+        const unwrapped = str.slice(1, -1);
+        // Only unwrap if it doesn't leave us with just quotes
+        if (unwrapped && unwrapped !== '"' && unwrapped !== "'") {
+            str = unwrapped;
+        }
+    }
+
+    return str;
 }
 
 /**

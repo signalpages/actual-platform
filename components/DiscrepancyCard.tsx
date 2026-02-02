@@ -8,18 +8,38 @@ interface DiscrepancyCardProps {
     index: number;
 }
 
+/**
+ * Render helper - never display empty strings, quotes, or invalid values
+ */
+function renderSafeText(value: string | undefined | null): string {
+    if (!value) return '—';
+
+    const trimmed = value.trim();
+
+    // Check for empty, quote-only, or whitespace-only
+    if (!trimmed || trimmed === '""' || trimmed === "''" || /^["'\s]+$/.test(trimmed)) {
+        return '—';
+    }
+
+    return trimmed;
+}
+
 export function DiscrepancyCard({ discrepancy, index }: DiscrepancyCardProps) {
     const [showExcerpt, setShowExcerpt] = useState(false);
     const hasNonEnglish = !!discrepancy.source_excerpt_original;
+
+    // Safe rendering - never show empty/quoted strings
+    const safeIssue = renderSafeText(discrepancy.issue);
+    const safeDescription = renderSafeText(discrepancy.description);
 
     return (
         <div className="bg-red-50/30 border border-red-50 p-4 rounded-xl shadow-sm">
             {/* Main content */}
             <p className="text-xs font-black text-red-900 mb-1 leading-tight">
-                {discrepancy.issue}
+                {safeIssue}
             </p>
             <p className="text-[11px] font-medium text-red-800/70 leading-relaxed italic">
-                "{discrepancy.description}"
+                "{safeDescription}"
             </p>
 
             {/* Non-English evidence badge and toggle */}

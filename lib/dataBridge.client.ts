@@ -144,35 +144,91 @@ export const runAudit = async (payload: string | { slug: string, depth?: number,
     return await pollAuditStatus(runId);
 };
 
+// Promise-based deduplication - return same promise for duplicate requests
+const pollPromises = new Map<string, Promise<AuditResult>>();
+
 /**
  * Poll audit status until completion
+ * CRITICAL: Deduplicates by runId, returns existing promise if already polling
  */
-async function pollAuditStatus(runId: string, maxAttempts = 60): Promise<AuditResult> {
-    for (let i = 0; i < maxAttempts; i++) {
-        // Wait before polling (except first attempt)
-        if (i > 0) {
-            await sleep(2000); // Poll every 2 seconds
-        }
-
-        const resp = await fetch(`/api/audit/status?runId=${runId}`);
-        const data = await resp.json();
-
-        if (!data.ok) {
-            throw new Error(data.error || "Failed to get audit status");
-        }
-
-        if (data.status === 'done' && data.audit) {
-            return data.audit;
-        }
-
-        if (data.status === 'error') {
-            throw new Error(data.error || 'Audit failed');
-        }
-
-        // Continue polling for pending/running
+async function pollAuditStatus(runId: string): Promise<AuditResult> {
+    // Check for existing poll promise
+    const existing = pollPromises.get(runId);
+    if (existing) {
+        console.log(`[Polling] Reusing existing poll for runId ${runId}`);
+        return existing;
     }
 
-    throw new Error('Audit timeout - exceeded maximum polling attempts');
+    // Create new poll promise
+    const pollPromise = (async (): Promise<AuditResult> => {
+        const maxAttempts = 40;
+        const maxElapsedMs = 120000; // 120 seconds
+        const startTime = Date.now();
+
+        console.log(`[Polling] Started for runId ${runId}`);
+
+        try {
+            for (let i = 0; i < maxAttempts; i++) {
+                // Check elapsed time
+                const elapsed = Date.now() - startTime;
+                if (elapsed > maxElapsedMs) {
+                    console.warn(`[Polling] Max time exceeded for ${runId} (${elapsed}ms)`);
+                    throw new Error('TIMEOUT');
+                }
+
+                // Wait before polling (except first attempt)
+                if (i > 0) {
+                    // Backoff strategy: 2s → 3s → 5s
+                    const delay = i < 10 ? 2000 : i < 30 ? 3000 : 5000;
+                    await sleep(delay);
+                }
+
+                const resp = await fetch(`/api/audit/status?runId=${runId}`);
+                const data = await resp.json();
+
+                if (!data.ok) {
+                    console.error(`[Polling] Error response for ${runId}:`, data.error);
+                    throw new Error(data.error || "Failed to get audit status");
+                }
+
+                // CRITICAL: Terminal state check - stop immediately
+                if (data.status === 'done') {
+                    if (data.audit) {
+                        console.log(`[Polling] Completed for ${runId} after ${i + 1} attempts`);
+                        return data.audit;
+                    } else {
+                        console.warn(`[Polling] Status=done but no audit data for ${runId}`);
+                        throw new Error('Audit completed but no data returned');
+                    }
+                }
+
+                if (data.status === 'error') {
+                    console.error(`[Polling] Failed for ${runId}:`, data.error);
+                    throw new Error(data.error || 'Audit failed');
+                }
+
+                // Log progress
+                if (i % 5 === 0) {
+                    console.log(`[Polling] runId ${runId}: ${data.status} (${data.progress || 0}%)`);
+                }
+
+                // Continue polling for pending/running
+            }
+
+            // Max attempts exceeded
+            console.warn(`[Polling] Max attempts exceeded for ${runId}`);
+            throw new Error('TIMEOUT');
+
+        } finally {
+            // CRITICAL: Always cleanup promise tracking
+            pollPromises.delete(runId);
+            console.log(`[Polling] Stopped for runId ${runId}`);
+        }
+    })();
+
+    // Store promise before returning
+    pollPromises.set(runId, pollPromise);
+    return pollPromise;
 }
 
 function sleep(ms: number): Promise<void> {

@@ -86,12 +86,17 @@ export function normalizeDiscrepancyText(text: string): NormalizedText {
  * Sanitize entire discrepancy object
  */
 export function sanitizeDiscrepancy(disc: any): any {
-    const issueNorm = normalizeDiscrepancyText(disc.issue || '');
-    const descNorm = normalizeDiscrepancyText(disc.description || '');
+    // Normalize string values first (strips quotes, handles empty strings)
+    const rawIssue = normalizeStringValue(disc.issue || '');
+    const rawDescription = normalizeStringValue(disc.description || '');
+
+    // Then check for non-English content
+    const issueNorm = normalizeDiscrepancyText(rawIssue);
+    const descNorm = normalizeDiscrepancyText(rawDescription);
 
     const sanitized: any = {
-        issue: issueNorm.clean,
-        description: descNorm.clean,
+        issue: issueNorm.clean || '',
+        description: descNorm.clean || '',
     };
 
     // Copy severity if present
@@ -113,4 +118,33 @@ export function sanitizeDiscrepancy(disc: any): any {
     }
 
     return sanitized;
+}
+
+/**
+ * Helper to normalize string values (imported from llmJsonParser)
+ */
+function normalizeStringValue(value: any): string {
+    if (value === null || value === undefined) {
+        return '';
+    }
+
+    // Convert to string
+    let str = String(value).trim();
+
+    // Handle empty or quote-only strings
+    if (!str || str === '""' || str === "''") {
+        return '';
+    }
+
+    // Strip ONE layer of wrapping quotes if present
+    if ((str.startsWith('"') && str.endsWith('"')) ||
+        (str.startsWith("'") && str.endsWith("'"))) {
+        const unwrapped = str.slice(1, -1);
+        // Only unwrap if it doesn't leave us with just quotes
+        if (unwrapped && unwrapped !== '"' && unwrapped !== "'") {
+            str = unwrapped;
+        }
+    }
+
+    return str;
 }
