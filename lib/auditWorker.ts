@@ -111,6 +111,10 @@ async function executeGeminiAudit(product: any): Promise<any> {
         const data: any = await resp.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
+        console.log(`[Audit] Gemini response received for product ${product.id}`);
+        console.log(`[Audit] Raw text length: ${rawText?.length || 0} chars`);
+        console.log(`[Audit] Raw text preview (first 300 chars):`, rawText?.substring(0, 300));
+
         // Attempt safe parsing
         let parseResult = safeParseLLMJson(rawText);
 
@@ -153,7 +157,10 @@ async function executeGeminiAudit(product: any): Promise<any> {
 
         // Final validation - if still failed, throw detailed error
         if (!parseResult.success) {
-            console.error(`JSON parse failed after retry. Raw (truncated): ${parseResult.raw}`);
+            console.error(`[Audit] JSON parse failed after retry for product ${product.id}`);
+            console.error(`[Audit] Parse error: ${parseResult.error}`);
+            console.error(`[Audit] Raw response (first 500 chars): ${parseResult.raw?.substring(0, 500)}`);
+            console.error(`[Audit] Full raw response:`, parseResult.raw);
             throw new Error('Audit response validation failed. Please retry.');
         }
 
