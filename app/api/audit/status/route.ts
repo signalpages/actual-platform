@@ -3,6 +3,12 @@ import { getAuditRun, getAudit, mapShadowToResult } from "@/lib/dataBridge.serve
 
 export const runtime = "nodejs";
 
+// Helper to get list of completed stage names
+function getCompletedStages(stages: any): string[] {
+    if (!stages) return [];
+    return Object.keys(stages).filter(key => stages[key]?.status === 'done');
+}
+
 export async function GET(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
@@ -24,7 +30,7 @@ export async function GET(req: NextRequest) {
             );
         }
 
-        // If done, include audit result
+        // If done, include audit result with stages
         if (run.status === 'done' && run.result_shadow_spec_id) {
             const audit = await getAudit(run.product_id);
             if (audit) {
@@ -32,7 +38,8 @@ export async function GET(req: NextRequest) {
                     ok: true,
                     status: 'done',
                     progress: 100,
-                    audit: mapShadowToResult(audit)
+                    audit: mapShadowToResult(audit),
+                    stages: audit.stages || null // Include stage data
                 });
             }
         }
@@ -47,11 +54,14 @@ export async function GET(req: NextRequest) {
             });
         }
 
-        // Otherwise return current status
+        // Otherwise return current status with partial stage data
+        const audit = await getAudit(run.product_id);
         return NextResponse.json({
             ok: true,
             status: run.status,
-            progress: run.progress
+            progress: run.progress,
+            stages: audit?.stages || null, // Progressive stage updates
+            completed_stages: getCompletedStages(audit?.stages)
         });
 
     } catch (err: any) {

@@ -65,6 +65,25 @@ export interface ShadowSpecs {
   last_run_at: string | null;
   created_at: string;
   updated_at: string;
+  stages?: AuditStages; // NEW: Progressive stage data
+}
+
+// Stage types
+export type StageStatus = 'pending' | 'running' | 'done' | 'error';
+
+export interface StageData {
+  status: StageStatus;
+  completed_at: string | null;
+  ttl_days: number;
+  data: any;
+  error?: string;
+}
+
+export interface AuditStages {
+  stage_1: StageData; // Claim Profile
+  stage_2: StageData; // Independent Signal
+  stage_3: StageData; // Forensic Discrepancies
+  stage_4: StageData; // Verdict & Truth Index
 }
 
 // Audit job tracking for async queue

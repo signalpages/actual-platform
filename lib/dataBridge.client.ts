@@ -164,8 +164,8 @@ async function pollAuditStatus(runId: string): Promise<AuditResult> {
 
     // Create new poll promise
     const pollPromise = (async (): Promise<AuditResult> => {
-        const maxAttempts = 40;
-        const maxElapsedMs = 120000; // 120 seconds
+        const maxAttempts = 30; // Reduced from 40
+        const maxElapsedMs = 90000; // 90 seconds (buffer under Vercel's 60s worker timeout)
         const startTime = Date.now();
 
         console.log(`[Polling] Started for runId ${runId}`);
@@ -176,13 +176,13 @@ async function pollAuditStatus(runId: string): Promise<AuditResult> {
                 const elapsed = Date.now() - startTime;
                 if (elapsed > maxElapsedMs) {
                     console.warn(`[Polling] Max time exceeded for ${runId} (${elapsed}ms)`);
-                    throw new Error('TIMEOUT');
+                    throw new Error('Audit timed out. The analysis took too long to complete. Please try again or contact support if this persists.');
                 }
 
                 // Wait before polling (except first attempt)
                 if (i > 0) {
                     // Backoff strategy: 2s → 3s → 5s
-                    const delay = i < 10 ? 2000 : i < 30 ? 3000 : 5000;
+                    const delay = i < 10 ? 2000 : i < 20 ? 3000 : 5000;
                     await sleep(delay);
                 }
 
@@ -197,7 +197,7 @@ async function pollAuditStatus(runId: string): Promise<AuditResult> {
                 // CRITICAL: Terminal state check - stop immediately
                 if (data.status === 'done') {
                     if (data.audit) {
-                        console.log(`[Polling] Completed for ${runId} after ${i + 1} attempts`);
+                        console.log(`[Polling] Completed for ${runId} after ${i + 1} attempts (${Date.now() - startTime}ms)`);
                         return data.audit;
                     } else {
                         console.warn(`[Polling] Status=done but no audit data for ${runId}`);
@@ -220,7 +220,7 @@ async function pollAuditStatus(runId: string): Promise<AuditResult> {
 
             // Max attempts exceeded
             console.warn(`[Polling] Max attempts exceeded for ${runId}`);
-            throw new Error('TIMEOUT');
+            throw new Error('Audit timed out after maximum polling attempts. Please try again.');
 
         } finally {
             // CRITICAL: Always cleanup promise tracking
