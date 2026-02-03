@@ -426,21 +426,22 @@ Return JSON:
 
         return {
             truth_index: truthIndex,
+            metric_bars: [
+                { label: 'Claims Accuracy', rating: claimsAccuracy > 85 ? 'High' : 'Moderate', percentage: claimsAccuracy },
+                { label: 'Real-World Fit', rating: realWorldFit > 85 ? 'High' : 'Moderate', percentage: realWorldFit },
+                { label: 'Operational Noise', rating: operationalNoise > 75 ? 'Low' : 'Moderate', percentage: operationalNoise }
+            ],
             score_interpretation: result.score_interpretation || 'Analysis complete',
             strengths: result.strengths || [],
             limitations: result.limitations || [],
             practical_impact: result.practical_impact || [],
             good_fit: result.good_fit || [],
             consider_alternatives: result.consider_alternatives || [],
-            metric_bars: {
-                claims_accuracy: claimsAccuracy,
-                real_world_fit: realWorldFit,
-                operational_noise: operationalNoise
-            },
             data_confidence: `Data confidence: High · Sources: manufacturer docs, community feedback · Refresh cadence: ~14 days`
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Stage 4] Error:', error);
+        console.error('[Stage 4] Stage failed but audit will continue');
         // Return safe defaults
         return {
             truth_index: 75,
