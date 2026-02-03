@@ -265,7 +265,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                     </div>
                 ) : (
                     <div className="p-10 md:p-14">
-                        <StagedAuditDemo product={asset} />
+                        <StagedAuditDemo product={asset} audit={audit} />
                     </div>
                 )}
             </div>
