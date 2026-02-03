@@ -1,147 +1,234 @@
 // lib/dataBridge.client.ts
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
-import { Asset } from "@/types";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import type { Category, Asset, AuditResult } from "../types";
+import { PRODUCT_CATEGORIES } from "./productCategories";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+/**
+ * Client-side DataBridge
+ * - public, browser-safe Supabase reads (anon)
+ * - audit queue + polling
+ * - IMPORTANT: status endpoint returns { audit, stages } as siblings
+ *   so we merge stages into audit before returning to UI.
+ */
 
-function getClient() {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
+let _publicClient: SupabaseClient | null = null;
+
+function getPublicClient(): SupabaseClient {
+  if (_publicClient) return _publicClient;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anon) {
+    console.warn(
+      "[DataBridge] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY in client env"
+    );
   }
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  _publicClient = createClient(url || "", anon || "");
+  return _publicClient;
 }
 
-// Re-export or use from types.ts to avoid duplication/mismatch
-// Defining local type if types.ts Asset is too strict, but usually we want to match.
-// For now, let's use the local definition if it matches what was there, but ensure compatibility.
-// Actually, better to return Asset[] to match components.
+export const listCategories = (): Category[] => {
+  return PRODUCT_CATEGORIES.map((cat) => ({ id: cat, label: cat }));
+};
 
-export async function listCategories(): Promise<{ id: string; label: string }[]> {
-  const supabase = getClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("category")
-    .not("category", "is", null);
+export const listManufacturers = async (): Promise<string[]> => {
+  try {
+    const client = getPublicClient();
+    const { data, error } = await client.from("products").select("brand").not("brand", "is", null);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const uniq = Array.from(new Set((data ?? []).map((r) => r.category).filter(Boolean)));
-  uniq.sort();
-  // Map to object format expected by UI {id, label}
-  return uniq.map(cat => ({ id: cat, label: cat.replace(/_/g, ' ') }));
-}
-
-export async function listManufacturers(): Promise<string[]> {
-  const supabase = getClient();
-  const { data, error } = await supabase
-    .from("products")
-    .select("brand")
-    .not("brand", "is", null);
-
-  if (error) throw error;
-
-  const uniq = Array.from(new Set((data ?? []).map((r) => r.brand).filter(Boolean)));
-  uniq.sort();
-  return uniq;
-}
-
-export async function searchAssets(query: string, category: string = "all", brand: string = "all"): Promise<Asset[]> {
-  const supabase = getClient();
-
-  let builder = supabase
-    .from("products")
-    .select("*") // Select all fields to populate Asset
-    .order("created_at", { ascending: false });
-
-  if (query?.trim()) builder = builder.ilike("model_name", `%${query.trim()}%`);
-  if (category !== "all") builder = builder.eq("category", category);
-  if (brand !== "all") builder = builder.eq("brand", brand);
-
-  const { data: products, error: pErr } = await builder;
-  if (pErr) {
-    console.warn("Search assets failed:", pErr);
+    const uniq = Array.from(new Set((data ?? []).map((r: any) => r.brand).filter(Boolean)));
+    uniq.sort();
+    return uniq;
+  } catch (e) {
+    console.warn("[DataBridge] listManufacturers failed:", e);
     return [];
   }
+};
 
-  if (!products?.length) return [];
+export const searchAssets = async (
+  query: string,
+  category: string = "all",
+  brand: string = "all"
+): Promise<Asset[]> => {
+  try {
+    const client = getPublicClient();
 
-  const ids = products.map((p) => p.id);
-  const { data: shadows, error: sErr } = await supabase
-    .from("shadow_specs")
-    .select("product_id, truth_score, is_verified, updated_at")
-    .in("product_id", ids);
+    // 1) Fetch Products
+    let builder = client.from("products").select("*");
 
-  const shadowByProduct = new Map((shadows ?? []).map((s) => [s.product_id, s]));
+    if (category !== "all") builder = builder.eq("category", category);
+    if (brand !== "all") builder = builder.eq("brand", brand);
+    if (query && query.trim().length > 0) builder = builder.ilike("model_name", `%${query}%`);
 
-  return products.map((p) => {
-    const s = shadowByProduct.get(p.id);
-    // Use shadow specs fields if available, otherwise fallback/default
-    const isVerified = !!s?.is_verified;
+    const { data: products, error: pErr } = await builder.limit(200);
+    if (pErr) throw pErr;
+    if (!products || products.length === 0) return [];
+
+    // 2) Fetch Shadow Specs
+    const productIds = products.map((p: any) => p.id);
+    const { data: shadows, error: sErr } = await client
+      .from("shadow_specs")
+      .select("product_id, is_verified, truth_score, updated_at")
+      .in("product_id", productIds);
+
+    if (sErr) throw sErr;
+
+    // 3) Merge
+    const shadowMap = new Map((shadows || []).map((s: any) => [s.product_id, s]));
+
+    return products.map((p: any) => {
+      const shadow = shadowMap.get(p.id);
+      const isVerified = shadow ? !!shadow.is_verified : !!p.is_audited;
+      const truthScore = shadow ? shadow.truth_score : null;
+
+      return {
+        ...p,
+        verified: isVerified,
+        verification_status: isVerified ? "verified" : "provisional",
+        last_updated: shadow?.updated_at || p.created_at,
+        truth_score: truthScore,
+      };
+    }) as Asset[];
+  } catch (e) {
+    console.warn("[DataBridge] searchAssets failed:", e);
+    return [];
+  }
+};
+
+export const createProvisionalAsset = async (
+  _payload: any
+): Promise<{ ok: boolean; error?: string; asset?: Asset }> => {
+  return { ok: false, error: "Asset creation is disabled in V1." };
+};
+
+export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
+  try {
+    const client = getPublicClient();
+    const { data, error } = await client.from("products").select("*").eq("slug", slug).maybeSingle();
+
+    if (error) throw error;
+    if (!data) return null;
 
     return {
-      ...p,
-      verified: isVerified,
-      verification_status: isVerified ? "verified" : "provisional",
-      truth_score: s?.truth_score ?? null,
-      is_verified: s?.is_verified ?? null,
-      updated_at: s?.updated_at ?? p.created_at,
+      ...data,
+      verified: !!data.is_audited,
+      verification_status: data.is_audited ? "verified" : "provisional",
     } as Asset;
-  }).filter(a => a.truth_score !== null && a.truth_score !== undefined);
-}
-
-export async function getAssetBySlug(slug: string): Promise<Asset | null> {
-  const supabase = getClient();
-  const { data: product, error } = await supabase
-    .from('products')
-    .select('*')
-    .eq('slug', slug)
-    .maybeSingle();
-
-  if (error || !product) {
-    if (error) console.warn("getAssetBySlug failed:", error);
+  } catch (e) {
+    console.warn("[DataBridge] getAssetBySlug failed:", e);
     return null;
   }
+};
 
-  // Fetch shadow spec for verification status
-  const { data: shadow } = await supabase
-    .from('shadow_specs')
-    .select('truth_score, is_verified, updated_at')
-    .eq('product_id', product.id)
-    .maybeSingle();
+// -------------------- Audit Queue + Polling --------------------
 
-  const isVerified = !!shadow?.is_verified;
+type RunAuditPayload = string | { slug: string; depth?: number; forceRefresh?: boolean };
+type AuditWithCache = AuditResult & { cache?: any; stages?: any };
 
-  return {
-    ...product,
-    verified: isVerified,
-    verification_status: isVerified ? 'verified' : 'provisional',
-    truth_score: shadow?.truth_score ?? null,
-    is_verified: shadow?.is_verified ?? null,
-    updated_at: shadow?.updated_at || product.created_at
-  } as Asset;
-}
+export const runAudit = async (payload: RunAuditPayload): Promise<AuditWithCache> => {
+  const slug = typeof payload === "string" ? payload : payload.slug;
+  const forceRefresh = typeof payload === "object" ? !!payload.forceRefresh : false;
 
-export async function runAudit(params: { slug: string; forceRefresh?: boolean }): Promise<any> {
-  const response = await fetch('/api/audit', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(params),
+  if (!slug) throw new Error("Missing slug for audit");
+
+  // 1) Queue the audit
+  const resp = await fetch("/api/audit", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ slug, forceRefresh }),
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Audit failed: ${response.status} ${response.statusText} - ${errorText}`);
+  const data = await resp.json();
+
+  if (!data?.ok) throw new Error(data?.error || "Failed to queue audit");
+
+  // 2) Cached / immediate path
+  if (data.audit) {
+    const audit: any = { ...data.audit };
+    if (data.stages) audit.stages = data.stages;
+    normalizeAnalysisStatus(audit);
+    return { ...audit, cache: data.cache };
   }
 
-  return response.json();
+  // 3) Async path
+  const runId = data.runId;
+  if (!runId) throw new Error("No runId returned from queue");
+
+  const result = await pollAuditStatus(runId);
+  if (data.cache) (result as any).cache = data.cache;
+  return result;
+};
+
+// Promise-based deduplication - return same promise for duplicate requests
+const pollPromises = new Map<string, Promise<AuditWithCache>>();
+
+async function pollAuditStatus(runId: string): Promise<AuditWithCache> {
+  const existing = pollPromises.get(runId);
+  if (existing) return existing;
+
+  const pollPromise = (async (): Promise<AuditWithCache> => {
+    const maxAttempts = 30;
+    const maxElapsedMs = 90_000;
+    const startTime = Date.now();
+
+    console.log(`[Polling] Started for runId ${runId}`);
+
+    try {
+      for (let i = 0; i < maxAttempts; i++) {
+        const elapsed = Date.now() - startTime;
+        if (elapsed > maxElapsedMs) throw new Error("Audit timed out. Please try again.");
+
+        if (i > 0) {
+          const delay = i < 10 ? 2000 : i < 20 ? 3000 : 5000;
+          await sleep(delay);
+        }
+
+        const resp = await fetch(`/api/audit/status?runId=${encodeURIComponent(runId)}`);
+        const data = await resp.json();
+
+        if (!data?.ok) throw new Error(data?.error || "Failed to get audit status");
+
+        if (data.status === "done") {
+          if (!data.audit) throw new Error("Audit completed but no data returned");
+
+          const audit: any = { ...data.audit };
+          if (data.stages) audit.stages = data.stages;
+          normalizeAnalysisStatus(audit);
+
+          console.log(
+            `[Polling] Completed for ${runId} after ${i + 1} attempts (${Date.now() - startTime}ms)`
+          );
+          return audit as AuditWithCache;
+        }
+
+        if (data.status === "error") throw new Error(data?.error || "Audit failed");
+
+        if (i % 5 === 0) console.log(`[Polling] runId ${runId}: ${data.status} (${data.progress || 0}%)`);
+      }
+
+      throw new Error("Audit timed out after maximum polling attempts. Please try again.");
+    } finally {
+      pollPromises.delete(runId);
+      console.log(`[Polling] Stopped for runId ${runId}`);
+    }
+  })();
+
+  pollPromises.set(runId, pollPromise);
+  return pollPromise;
 }
 
-export async function createProvisionalAsset(payload: any): Promise<{ ok: boolean; error?: string; asset?: Asset }> {
-  // V1: Creation disabled
-  return { ok: false, error: "Asset creation is disabled in V1." };
+function normalizeAnalysisStatus(audit: any) {
+  const s4Done = audit?.stages?.stage_4?.status === "done";
+  if (!audit.analysis) audit.analysis = {};
+  if (s4Done && audit.analysis.status === "failed") audit.analysis.status = "done";
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -34,31 +34,54 @@ async function updateStage(
  * TTL: 30 days
  */
 export async function runStage1_ClaimProfile(productId: string, product: Product) {
-    console.log(`[Stage 1] Starting claim profile extraction for ${product.model_name}`);
+  console.log(`[Stage 1] Starting claim profile extraction for ${product.model_name}`);
 
-    await updateStage(productId, 'stage_1', { status: 'running' });
+  await updateStage(productId, 'stage_1', { status: 'running' });
 
-    try {
-        // TODO: Implement manufacturer page scraping
-        // For now, use existing product technical_specs
-        const claimProfile = product.technical_specs || [];
+  try {
+    const specsRaw: any[] = Array.isArray((product as any).technical_specs)
+      ? ((product as any).technical_specs as any[])
+      : [];
 
-        await updateStage(productId, 'stage_1', {
-            status: 'done',
-            data: { claim_profile: claimProfile },
-            completed_at: new Date().toISOString()
-        });
+    // Normalize any spec row into {label, value}
+    const normalizedSpecs = specsRaw
+      .map((s: any) => {
+        const label = s?.label ?? s?.name ?? s?.key ?? s?.title;
+        const value = s?.value ?? s?.val ?? s?.display_value ?? s?.displayValue;
 
-        console.log(`[Stage 1] ✅ Completed for ${product.model_name}`);
-        return { claim_profile: claimProfile };
-    } catch (error: any) {
-        console.error(`[Stage 1] ❌ Failed:`, error);
-        await updateStage(productId, 'stage_1', {
-            status: 'error',
-            error: error.message
-        });
-        throw error;
-    }
+        if (!label) return null;
+
+        return {
+          label: String(label),
+          value: value === undefined || value === null || value === '' ? '—' : String(value),
+        };
+      })
+      .filter(Boolean) as { label: string; value: string }[];
+
+    // Always include identity at the top (prevents “missing Brand/Model/Category” regressions)
+    const claimProfile = [
+      { label: 'Brand', value: product?.brand ? String(product.brand) : '—' },
+      { label: 'Model', value: product?.model_name ? String(product.model_name) : '—' },
+      { label: 'Category', value: product?.category ? String(product.category) : '—' },
+      ...normalizedSpecs,
+    ];
+
+    await updateStage(productId, 'stage_1', {
+      status: 'done',
+      data: { claim_profile: claimProfile },
+      completed_at: new Date().toISOString(),
+    });
+
+    console.log(`[Stage 1] ✅ Completed for ${product.model_name}`);
+    return { claim_profile: claimProfile };
+  } catch (error: any) {
+    console.error(`[Stage 1] ❌ Failed:`, error);
+    await updateStage(productId, 'stage_1', {
+      status: 'error',
+      error: error.message,
+    });
+    throw error;
+  }
 }
 
 /**
