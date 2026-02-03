@@ -168,23 +168,19 @@ Return JSON in this EXACT format:
         const data = await resp.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
 
-        // Safe JSON parsing
-        let cleanedText = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        let result;
-        try {
-            result = JSON.parse(cleanedText);
-        } catch (parseError: any) {
-            console.error('[Stage 2] JSON parse failed:', parseError.message);
-            const match = cleanedText.match(/\{[\s\S]*\}/);
-            if (match) {
-                try {
-                    result = JSON.parse(match[0]);
-                } catch {
-                    throw new Error('STAGE_JSON_PARSE_FAILED: ' + parseError.message);
-                }
-            } else {
-                throw new Error('STAGE_JSON_PARSE_FAILED: No valid JSON');
-            }
+        // Safe JSON parsing with fallback
+        const parseResult = safeParseLLMJson(rawText);
+        let result: any = {};
+
+        if (parseResult.success) {
+            result = parseResult.data;
+        } else {
+            console.error('[Stage 2] JSON parse failed, using empty fallback:', parseResult.error);
+            // Don't crash the stage, just return empty data so UI doesn't hang
+            result = {
+                most_praised: [],
+                most_reported_issues: []
+            };
         }
 
         console.log(`[Stage 2] Found ${result.most_praised?.length || 0} praise items, ${result.most_reported_issues?.length || 0} issues`);
