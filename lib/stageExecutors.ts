@@ -21,6 +21,11 @@ interface Stage3Result {
         severity: string;
         impact: string;
     }>;
+    _meta?: {
+        status: 'partial' | 'error';
+        raw_text: string;
+        parse_error: string | null;
+    };
 }
 
 interface Stage4Result {
