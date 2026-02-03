@@ -76,5 +76,3 @@ export async function updateStageHelper({
 
     return true;
 }
-
-}
