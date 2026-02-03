@@ -44,11 +44,15 @@ const CANONICAL_CLAIM_PROFILE = [
 ];
 
 export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
-  const stages: StageMap = (audit as any)?.stages || {};
-  const stage1 = stages?.stage_1;
-  const stage2 = stages?.stage_2;
-  const stage3 = stages?.stage_3;
-  const stage4 = stages?.stage_4;
+  // NORMALIZE STAGES: Handle sibling response, nested response, or missing stages
+  // This ensures we find the stages object wherever it might be hiding.
+  const rawAudit = (audit as any) || {};
+  const stages: StageMap = rawAudit.stages ?? rawAudit.audit?.stages ?? {};
+
+  const stage1 = stages.stage_1;
+  const stage2 = stages.stage_2;
+  const stage3 = stages.stage_3;
+  const stage4 = stages.stage_4;
 
   const stageStatus = (k: string) => (stages?.[k]?.status as string) || 'pending';
 
@@ -74,7 +78,7 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
 
     // If stage/audit has extra claim rows beyond identity, include as fallback sources
     const stageClaims = safeArray(stage1?.data?.claim_profile);
-    const auditClaims = safeArray((audit as any)?.claim_profile);
+    const auditClaims = safeArray(rawAudit?.claim_profile);
     const extras = [...stageClaims, ...auditClaims]
       .filter((r: any) => r?.label && !['Brand', 'Model', 'Category'].includes(r.label))
       .map((r: any) => ({ label: r.label, value: r.value ?? '—' }));
@@ -89,23 +93,24 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
     }));
 
     return [...identity, ...canonical];
-  }, [product, audit, stage1]);
+  }, [product, rawAudit, stage1]);
 
   const realityLedger = useMemo(() => {
     // Prefer audit.reality_ledger (currently often empty)
-    const fromAudit = safeArray((audit as any)?.reality_ledger);
+    const fromAudit = safeArray(rawAudit?.reality_ledger);
     if (fromAudit.length) return fromAudit;
 
     // Support stage1 reality ledger if present
     const fromStage = safeArray(stage1?.data?.reality_ledger);
     return fromStage;
-  }, [audit, stage1]);
+  }, [rawAudit, stage1]);
 
   // -------------------------
   // STAGE 2: Independent signal
   // -------------------------
   const independentSignal = useMemo(() => {
     const data = stage2?.data || {};
+    // Handle both nested and direct structure
     const sig = data.independent_signal || data;
     return {
       mostPraised: safeArray(sig?.most_praised),
@@ -125,12 +130,12 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
     return safeArray(
       data?.red_flags ??
       data?.discrepancies ??
-      (audit as any)?.discrepancies ??
+      rawAudit?.discrepancies ??
       []
     );
-  }, [stage3, audit]);
+  }, [stage3, rawAudit]);
 
-
+  const stage3ParseError = (stage3?.data as any)?._meta?.parse_error;
 
   // -------------------------
   // STAGE 4: Verdict
@@ -138,17 +143,17 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
   const verdict = useMemo(() => {
     const data = stage4?.data || {};
     return {
-      truthIndex: data?.truth_index ?? (audit as any)?.truth_index ?? null,
-      metricBars: safeArray(data?.metric_bars ?? (audit as any)?.metric_bars),
-      scoreInterpretation: data?.score_interpretation ?? (audit as any)?.score_interpretation ?? '',
-      strengths: safeArray(data?.strengths ?? (audit as any)?.strengths),
-      limitations: safeArray(data?.limitations ?? (audit as any)?.limitations),
-      practicalImpact: safeArray(data?.practical_impact ?? (audit as any)?.practical_impact),
-      goodFit: safeArray(data?.good_fit ?? (audit as any)?.good_fit),
-      considerAlternatives: safeArray(data?.consider_alternatives ?? (audit as any)?.consider_alternatives),
-      dataConfidence: data?.data_confidence ?? (audit as any)?.data_confidence ?? '',
+      truthIndex: data?.truth_index ?? rawAudit?.truth_index ?? null,
+      metricBars: safeArray(data?.metric_bars ?? rawAudit?.metric_bars),
+      scoreInterpretation: data?.score_interpretation ?? rawAudit?.score_interpretation ?? '',
+      strengths: safeArray(data?.strengths ?? rawAudit?.strengths),
+      limitations: safeArray(data?.limitations ?? rawAudit?.limitations),
+      practicalImpact: safeArray(data?.practical_impact ?? rawAudit?.practical_impact),
+      goodFit: safeArray(data?.good_fit ?? rawAudit?.good_fit),
+      considerAlternatives: safeArray(data?.consider_alternatives ?? rawAudit?.consider_alternatives),
+      dataConfidence: data?.data_confidence ?? rawAudit?.data_confidence ?? '',
     };
-  }, [audit, stage4]);
+  }, [rawAudit, stage4]);
 
   const stage4Done = stageStatus('stage_4') === 'done';
 
@@ -274,6 +279,11 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
         status={stageStatus('stage_3')}
         description="Cross-referencing claims with observed reality"
       >
+        {stage3ParseError && (
+          <div className="mb-4 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700 font-bold uppercase tracking-wide">
+            ⚠️ Partial Data: Response truncated
+          </div>
+        )}
         {discrepancies.length ? (
           <div className="divide-y">
             {discrepancies.map((rf: any, idx: number) => {
@@ -407,8 +417,8 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
       </StageCard>
 
       <div className="text-center pt-8 text-xs text-slate-400">
-        <p>Audit Ledger ID: {(audit as any)?.assetId || '---'}</p>
-        <p className="mt-1">Snapshot: {fmtDate((audit as any)?.analysis?.last_run_at)}</p>
+        <p>Audit Ledger ID: {(rawAudit as any)?.assetId || '---'}</p>
+        <p className="mt-1">Snapshot: {fmtDate((rawAudit as any)?.analysis?.last_run_at)}</p>
       </div>
     </div>
   );
