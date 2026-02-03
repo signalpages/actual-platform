@@ -208,6 +208,12 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">
                                     {isVerifiedAudit ? 'Truth Index' : 'Pending Verification'}
                                 </p>
+                                <button
+                                    onClick={() => setIsComparisonOpen(true)}
+                                    className="mt-2 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-600 transition-colors flex items-center justify-end gap-1 ml-auto"
+                                >
+                                    <span>+</span> Compare
+                                </button>
                             </div>
                             {!isVerifiedAudit && !isScanning && (
                                 <button
