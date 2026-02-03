@@ -112,15 +112,15 @@ const ComparisonPicker: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
 
   useEffect(() => {
-    listCategories().then(cats => setCategories(cats as Category[]));
+    setCategories(listCategories());
   }, []);
 
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>(() => {
     // Check if window is defined (client-side)
     if (typeof window !== 'undefined') {
-      return (sessionStorage.getItem('actual_fyi_last_category') as ProductCategory) || 'portable_power_station';
+      return (sessionStorage.getItem('actual_fyi_last_category') as ProductCategory) || 'Portable Power Stations';
     }
-    return 'portable_power_station';
+    return 'Portable Power Stations';
   });
   const router = useRouter();
 

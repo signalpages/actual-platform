@@ -148,10 +148,18 @@ export const runAudit = async (payload: RunAuditPayload): Promise<AuditWithCache
 
   if (!data?.ok) throw new Error(data?.error || "Failed to queue audit");
 
-  // 2) Cached / immediate path
-  if (data.audit) {
-    const audit: any = { ...data.audit };
-    if (data.stages) audit.stages = data.stages;
+  // 2) Cached / immediate path (Normalized)
+  if (data.audit || data.stages) {
+    const audit: any = { ...(data.audit || {}) };
+
+    // Merge stages if they exist as siblings (API V2 behavior)
+    if (data.stages) {
+      audit.stages = {
+        ...audit.stages,
+        ...data.stages
+      };
+    }
+
     normalizeAnalysisStatus(audit);
     return { ...audit, cache: data.cache };
   }
@@ -195,10 +203,18 @@ async function pollAuditStatus(runId: string): Promise<AuditWithCache> {
         if (!data?.ok) throw new Error(data?.error || "Failed to get audit status");
 
         if (data.status === "done") {
-          if (!data.audit) throw new Error("Audit completed but no data returned");
+          // Normalized merge logic for polling
+          const baseAudit = data.audit || {};
+          const audit: any = { ...baseAudit };
 
-          const audit: any = { ...data.audit };
-          if (data.stages) audit.stages = data.stages;
+          // Merge stages if they exist as siblings
+          if (data.stages) {
+            audit.stages = {
+              ...audit.stages,
+              ...data.stages
+            };
+          }
+
           normalizeAnalysisStatus(audit);
 
           console.log(
@@ -224,9 +240,17 @@ async function pollAuditStatus(runId: string): Promise<AuditWithCache> {
 }
 
 function normalizeAnalysisStatus(audit: any) {
-  const s4Done = audit?.stages?.stage_4?.status === "done";
+  // Ensure stages object exists
+  if (!audit.stages) audit.stages = {};
+
+  const s4Done = audit.stages.stage_4?.status === "done";
   if (!audit.analysis) audit.analysis = {};
-  if (s4Done && audit.analysis.status === "failed") audit.analysis.status = "done";
+
+  // FORCE OVERRIDE: If Stage 4 is done, the audit is done. 
+  // This prevents UI deadlocks if root status is 'failed' or 'pending' but data exists.
+  if (s4Done) {
+    audit.analysis.status = "done";
+  }
 }
 
 function sleep(ms: number): Promise<void> {

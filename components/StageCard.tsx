@@ -43,10 +43,10 @@ export function StageCard({
             isDone
               ? "bg-emerald-600 text-white"
               : isRunning
-              ? "bg-amber-400 text-white"
-              : isError
-              ? "bg-red-500 text-white"
-              : "bg-slate-200 text-slate-600",
+                ? "bg-amber-400 text-white"
+                : isError
+                  ? "bg-red-500 text-white"
+                  : "bg-slate-200 text-slate-600",
           ].join(" ")}
         >
           {isDone ? "✓" : stageNumber}
@@ -63,10 +63,10 @@ export function StageCard({
               isDone
                 ? "text-emerald-700"
                 : isRunning
-                ? "text-amber-600"
-                : isError
-                ? "text-red-600"
-                : "text-slate-400",
+                  ? "text-amber-600"
+                  : isError
+                    ? "text-red-600"
+                    : "text-slate-400",
             ].join(" ")}
           >
             {isDone ? "COMPLETED (SNAPSHOT)" : isRunning ? "IN PROGRESS" : isError ? "ERROR" : "PENDING"}
