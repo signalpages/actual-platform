@@ -78,15 +78,19 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
         .eq("product_id", productId)
         .maybeSingle();
 
+    // Map progressive audit format to database schema
     const auditData = {
         product_id: productId,
-        claimed_specs: payload.claimed_specs || [],
-        actual_specs: payload.actual_specs || [],
-        red_flags: payload.red_flags || [],
-        truth_score: payload.truth_score,
+        // Handle both old and new field names
+        claimed_specs: (payload as any).advertised_claims || payload.claimed_specs || [],
+        actual_specs: (payload as any).reality_ledger || payload.actual_specs || [],
+        red_flags: (payload as any).discrepancies || payload.red_flags || [],
+        truth_score: (payload as any).truth_index ?? payload.truth_score ?? 0,
         source_urls: payload.source_urls || [],
         is_verified: !!payload.is_verified,
-        last_run_at: new Date().toISOString()
+        last_run_at: new Date().toISOString(),
+        // Include progressive stage data if present
+        ...(payload.stages ? { stages: payload.stages } : {})
     };
 
     let data, error;
