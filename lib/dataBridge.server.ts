@@ -79,11 +79,23 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
         .maybeSingle();
 
     // Map progressive audit format to database schema
+    // Store new fields in actual_specs as a temporary solution until migration
+    const fullAuditData = {
+        strengths: (payload as any).strengths || [],
+        limitations: (payload as any).limitations || [],
+        practical_impact: (payload as any).practical_impact || [],
+        good_fit: (payload as any).good_fit || [],
+        consider_alternatives: (payload as any).consider_alternatives || [],
+        metric_bars: (payload as any).metric_bars || [],
+        score_interpretation: (payload as any).score_interpretation || '',
+        data_confidence: (payload as any).data_confidence || ''
+    };
+
     const auditData = {
         product_id: productId,
         // Handle both old and new field names
         claimed_specs: (payload as any).advertised_claims || payload.claimed_specs || [],
-        actual_specs: (payload as any).reality_ledger || payload.actual_specs || [],
+        actual_specs: fullAuditData, // Store complete audit data here
         red_flags: (payload as any).discrepancies || payload.red_flags || [],
         truth_score: (payload as any).truth_index ?? payload.truth_score ?? 0,
         source_urls: payload.source_urls || [],
@@ -134,6 +146,11 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
         status = "provisional";
     }
 
+    // Extract Stage 4 fields from actual_specs if they exist
+    const stage4Data = typeof specs.actual_specs === 'object' && specs.actual_specs !== null
+        ? specs.actual_specs as any
+        : {};
+
     return {
         assetId: specs.product_id,
         analysis: {
@@ -141,9 +158,18 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
             last_run_at: specs.created_at,
         },
         claim_profile: Array.isArray(specs.claimed_specs) ? specs.claimed_specs : [],
-        reality_ledger: Array.isArray(specs.actual_specs) ? specs.actual_specs : [],
+        reality_ledger: [], // Not used in progressive audit
         discrepancies: Array.isArray(specs.red_flags) ? specs.red_flags : [],
         truth_index: specs.truth_score,
+        // Include Stage 4 fields
+        strengths: stage4Data.strengths || [],
+        limitations: stage4Data.limitations || [],
+        practical_impact: stage4Data.practical_impact || [],
+        good_fit: stage4Data.good_fit || [],
+        consider_alternatives: stage4Data.consider_alternatives || [],
+        metric_bars: stage4Data.metric_bars || [],
+        score_interpretation: stage4Data.score_interpretation || '',
+        data_confidence: stage4Data.data_confidence || ''
     };
 };
 
