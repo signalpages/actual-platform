@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { Asset, AuditResult } from '@/types';
 import { ComparisonButton } from './ComparisonButton';
 import { StickyCompareButton } from './StickyCompareButton';
+import { StageCard } from './StageCard';
 
 interface StagedAuditDemoProps {
   product: Asset;
@@ -130,7 +131,7 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
   }, [stage3, audit]);
 
 
-  
+
   // -------------------------
   // STAGE 4: Verdict
   // -------------------------
@@ -166,23 +167,13 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
       />
 
       {/* ---------------- STAGE 1 ---------------- */}
-      <section className="rounded-2xl border border-emerald-200 bg-white p-6">
-        <div className="flex items-start gap-4">
-          <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">
-            ✓
-          </div>
-          <div className="flex-1">
-            <div className="text-xl font-black tracking-tight">STAGE 1: CLAIM PROFILE</div>
-            <div className="text-emerald-700 text-sm font-bold uppercase">
-              {stageStatus('stage_1') === 'done' || claimProfile.length ? 'COMPLETED (SNAPSHOT)' : 'PENDING'}
-            </div>
-            <div className="text-slate-600 text-sm mt-1">
-              Manufacturer claims (canonical profile). Reality ledger fills as evidence arrives.
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      <StageCard
+        stageNumber={1}
+        title="Claim Profile"
+        status={stageStatus('stage_1') === 'done' || claimProfile.length ? 'done' : 'pending'}
+        description="Manufacturer claims (canonical profile). Reality ledger fills as evidence arrives."
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Manufacturer claims */}
           <div>
             <div className="text-xs font-extrabold uppercase tracking-widest text-slate-400 mb-3">
@@ -232,26 +223,16 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
             )}
           </div>
         </div>
-      </section>
+      </StageCard>
 
       {/* ---------------- STAGE 2 ---------------- */}
-      <section className="rounded-2xl border border-emerald-200 bg-white p-6">
-        <div className="flex items-start gap-4">
-          <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">
-            ✓
-          </div>
-          <div className="flex-1">
-            <div className="text-xl font-black tracking-tight">STAGE 2: INDEPENDENT SIGNAL</div>
-            <div className="text-emerald-700 text-sm font-bold uppercase">
-              {stageStatus('stage_2') === 'done' ? 'COMPLETED (SNAPSHOT)' : stageStatus('stage_2').toUpperCase()}
-            </div>
-            <div className="text-slate-600 text-sm mt-1">
-              Aggregated from independent long-term usage sources
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-10">
+      <StageCard
+        stageNumber={2}
+        title="Independent Signal"
+        status={stageStatus('stage_2')}
+        description="Aggregated from independent long-term usage sources"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <div>
             <div className="text-emerald-700 font-black uppercase">Most consistent praise</div>
             <ul className="mt-3 space-y-2 list-disc pl-5">
@@ -284,83 +265,61 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
             </ul>
           </div>
         </div>
-      </section>
+      </StageCard>
 
       {/* ---------------- STAGE 3 ---------------- */}
-      <section className="rounded-2xl border border-emerald-200 bg-white p-6">
-        <div className="flex items-start gap-4">
-          <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">
-            ✓
-          </div>
-          <div className="flex-1">
-            <div className="text-xl font-black tracking-tight">STAGE 3: FORENSIC DISCREPANCIES</div>
-            <div className="text-emerald-700 text-sm font-bold uppercase">
-              {stageStatus('stage_3') === 'done' ? 'COMPLETED (SNAPSHOT)' : stageStatus('stage_3').toUpperCase()}
-            </div>
-            <div className="text-slate-600 text-sm mt-1">
-              Cross-referencing claims with observed reality
-            </div>
-          </div>
-        </div>
+      <StageCard
+        stageNumber={3}
+        title="Forensic Discrepancies"
+        status={stageStatus('stage_3')}
+        description="Cross-referencing claims with observed reality"
+      >
+        {discrepancies.length ? (
+          <div className="divide-y">
+            {discrepancies.map((rf: any, idx: number) => {
+              const claimText = rf?.claim ?? rf?.issue ?? '—';
+              const realityText = rf?.reality ?? rf?.description ?? '—';
+              const impactText = rf?.impact ?? null;
+              const severity = rf?.severity ?? null;
 
-        <div className="mt-6">
-          {discrepancies.length ? (
-            <div className="divide-y">
-              {discrepancies.map((rf: any, idx: number) => {
-                const claimText = rf?.claim ?? rf?.issue ?? '—';
-                const realityText = rf?.reality ?? rf?.description ?? '—';
-                const impactText = rf?.impact ?? null;
-                const severity = rf?.severity ?? null;
-
-                return (
-                  <div key={idx} className="py-5 grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <div className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Claim</div>
-                      <div className="text-base font-extrabold text-slate-900 mt-1">{claimText}</div>
-                      {impactText ? <div className="text-sm text-slate-600 mt-2">{impactText}</div> : null}
-                    </div>
-                    <div>
-                      <div className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Reality</div>
-                      <div className="text-base font-extrabold text-blue-700 mt-1">{realityText}</div>
-                      {severity ? (
-                        <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mt-2">
-                          Severity: {severity}
-                        </div>
-                      ) : null}
-                    </div>
+              return (
+                <div key={idx} className="py-5 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <div className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Claim</div>
+                    <div className="text-base font-extrabold text-slate-900 mt-1">{claimText}</div>
+                    {impactText ? <div className="text-sm text-slate-600 mt-2">{impactText}</div> : null}
                   </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-sm text-slate-400">Waiting for discrepancy extraction…</div>
-          )}
-        </div>
-      </section>
+                  <div>
+                    <div className="text-xs font-extrabold uppercase tracking-widest text-slate-400">Reality</div>
+                    <div className="text-base font-extrabold text-blue-700 mt-1">{realityText}</div>
+                    {severity ? (
+                      <div className="text-xs font-bold uppercase tracking-widest text-slate-500 mt-2">
+                        Severity: {severity}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-sm text-slate-400">Waiting for discrepancy extraction…</div>
+        )}
+      </StageCard>
 
       {/* ---------------- STAGE 4 ---------------- */}
-      <section className="rounded-2xl border border-emerald-200 bg-white p-6">
-        <div className="flex items-start gap-4">
-          <div className="h-10 w-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">
-            ✓
-          </div>
-          <div className="flex-1">
-            <div className="text-xl font-black tracking-tight">STAGE 4: VERDICT & TRUTH INDEX</div>
-            <div className="text-emerald-700 text-sm font-bold uppercase">
-              {stage4Done ? 'COMPLETED (SNAPSHOT)' : 'IN PROGRESS'}
-            </div>
-            <div className="text-slate-600 text-sm mt-1">
-              Computed from evidence convergence across stages
-            </div>
-          </div>
-        </div>
-
+      <StageCard
+        stageNumber={4}
+        title="Verdict & Truth Index"
+        status={stageStatus('stage_4')}
+        description="Computed from evidence convergence across stages"
+      >
         {!stage4Done ? (
-          <div className="mt-6 text-sm text-slate-400">
+          <div className="text-sm text-slate-400">
             Verdict is still synthesizing — showing stage snapshots above.
           </div>
         ) : (
-          <div className="mt-6">
+          <div>
             <div className="text-center py-6">
               <div className="text-6xl font-black text-blue-600 leading-none">
                 {typeof verdict.truthIndex === 'number' ? verdict.truthIndex : '—'}
@@ -445,7 +404,7 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
             ) : null}
           </div>
         )}
-      </section>
+      </StageCard>
 
       <div className="text-center pt-8 text-xs text-slate-400">
         <p>Audit Ledger ID: {(audit as any)?.assetId || '---'}</p>
