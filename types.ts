@@ -131,6 +131,15 @@ export interface AuditResult {
   discrepancies: Discrepancy[];
   truth_index: number | null;
   stages?: AuditStages; // Progressive stage data
+  // Stage 4 fields (optional for backward compatibility)
+  strengths?: string[];
+  limitations?: string[];
+  practical_impact?: string[];
+  good_fit?: string[];
+  consider_alternatives?: string[];
+  metric_bars?: Array<{ label: string; rating: string; percentage: number }>;
+  score_interpretation?: string;
+  data_confidence?: string;
 }
 
 export interface ComparisonResult {
