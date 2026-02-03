@@ -109,7 +109,12 @@ export const AssetSelector: React.FC<{
 };
 
 const ComparisonPicker: React.FC = () => {
-  const [categories] = useState<Category[]>(listCategories());
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  useEffect(() => {
+    listCategories().then(cats => setCategories(cats as Category[]));
+  }, []);
+
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>(() => {
     // Check if window is defined (client-side)
     if (typeof window !== 'undefined') {

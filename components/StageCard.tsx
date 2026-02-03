@@ -124,7 +124,7 @@ export function StageCard({
                                 Manufacturer Claims
                             </h4>
                             <div className="space-y-4">
-                                {data.claim_profile.map((item: any, i: number) => (
+                                {(Array.isArray(data.claim_profile) ? data.claim_profile : []).map((item: any, i: number) => (
                                     <div key={i}>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                                             {item.label}
@@ -144,7 +144,7 @@ export function StageCard({
                                 Reality Ledger
                             </h4>
                             <div className="space-y-4">
-                                {data.claim_profile.map((item: any, i: number) => {
+                                {(Array.isArray(data.claim_profile) ? data.claim_profile : []).map((item: any, i: number) => {
                                     // For demo, show variations on reality
                                     const realityMap: Record<string, string> = {
                                         'Battery Capacity': '1780Wh - 1840Wh (87-90% Efficiency)',
@@ -218,7 +218,7 @@ function renderStageData(stageNumber: number, data: any) {
             return (
                 <div className="space-y-2">
                     <h4 className="text-xs font-black uppercase text-slate-500 mb-3">Manufacturer Claims</h4>
-                    {data.claim_profile?.slice(0, 5).map((claim: any, i: number) => (
+                    {(Array.isArray(data.claim_profile) ? data.claim_profile.slice(0, 5) : []).map((claim: any, i: number) => (
                         <div key={i} className="flex justify-between text-xs">
                             <span className="font-medium text-slate-600">{claim.label}:</span>
                             <span className="font-black text-slate-900">{claim.value}</span>
@@ -235,7 +235,7 @@ function renderStageData(stageNumber: number, data: any) {
                         <div>
                             <h4 className="text-xs font-black uppercase text-emerald-600 mb-3">MOST CONSISTENT PRAISE</h4>
                             <ul className="space-y-2">
-                                {data.independent_signal.most_praised.map((item: any, i: number) => (
+                                {(Array.isArray(data.independent_signal?.most_praised) ? data.independent_signal.most_praised : []).map((item: any, i: number) => (
                                     <li key={i} className="text-xs text-slate-700 leading-relaxed">
                                         • {typeof item === 'string' ? item : item.trait} {item.frequency && `(${item.frequency} mentions)`}
                                     </li>
@@ -249,7 +249,7 @@ function renderStageData(stageNumber: number, data: any) {
                         <div>
                             <h4 className="text-xs font-black uppercase text-red-600 mb-3">MOST REPORTED ISSUES</h4>
                             <ul className="space-y-2">
-                                {data.independent_signal.most_reported_issues.map((item: any, i: number) => (
+                                {(Array.isArray(data.independent_signal?.most_reported_issues) ? data.independent_signal.most_reported_issues : []).map((item: any, i: number) => (
                                     <li key={i} className="text-xs text-slate-700 leading-relaxed">
                                         • {typeof item === 'string' ? item : item.issue} {item.frequency && `(${item.frequency} reports)`}
                                     </li>
@@ -264,7 +264,7 @@ function renderStageData(stageNumber: number, data: any) {
             return data.red_flags?.length > 0 ? (
                 <div className="space-y-2">
                     <h4 className="text-xs font-black uppercase text-red-600 mb-2">Discrepancies Found</h4>
-                    {data.red_flags.map((flag: any, i: number) => (
+                    {(Array.isArray(data.red_flags) ? data.red_flags : []).map((flag: any, i: number) => (
                         <div key={i} className="bg-red-50 p-3 rounded-lg text-xs">
                             <div className="font-bold text-red-900 mb-1">{flag.category}</div>
                             <div className="text-slate-700">
@@ -307,7 +307,7 @@ function renderStageData(stageNumber: number, data: any) {
                     {/* Visual Metric Bars */}
                     {data.metric_bars && (
                         <div className="space-y-2 pb-4 border-b border-slate-200">
-                            {data.metric_bars.map((metric: any, i: number) => (
+                            {(Array.isArray(data.metric_bars) ? data.metric_bars : []).map((metric: any, i: number) => (
                                 <div key={i}>
                                     <div className="flex items-center justify-between mb-1">
                                         <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">{metric.label}</span>
@@ -316,8 +316,8 @@ function renderStageData(stageNumber: number, data: any) {
                                     <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                                         <div
                                             className={`h-full rounded-full ${metric.rating === 'High' ? 'bg-emerald-500' :
-                                                    metric.rating === 'Moderate' ? 'bg-yellow-500' :
-                                                        'bg-blue-500'
+                                                metric.rating === 'Moderate' ? 'bg-yellow-500' :
+                                                    'bg-blue-500'
                                                 }`}
                                             style={{ width: `${metric.percentage}%` }}
                                         />
@@ -344,7 +344,7 @@ function renderStageData(stageNumber: number, data: any) {
                             <div className="space-y-3">
                                 {data.strengths && data.strengths.length > 0 && (
                                     <div>
-                                        {data.strengths.map((item: string, i: number) => (
+                                        {(Array.isArray(data.strengths) ? data.strengths : []).map((item: string, i: number) => (
                                             <div key={i} className="flex items-start gap-2 mb-2">
                                                 <span className="text-emerald-600 font-black text-sm mt-0.5">✅</span>
                                                 <span className="text-xs text-slate-700 leading-relaxed">{item}</span>
@@ -354,7 +354,7 @@ function renderStageData(stageNumber: number, data: any) {
                                 )}
                                 {data.limitations && data.limitations.length > 0 && (
                                     <div>
-                                        {data.limitations.map((item: string, i: number) => (
+                                        {(Array.isArray(data.limitations) ? data.limitations : []).map((item: string, i: number) => (
                                             <div key={i} className="flex items-start gap-2 mb-2">
                                                 <span className="text-yellow-600 font-black text-sm mt-0.5">⚠️</span>
                                                 <span className="text-xs text-slate-700 leading-relaxed">{item}</span>
@@ -371,7 +371,7 @@ function renderStageData(stageNumber: number, data: any) {
                         <div className="pb-4 border-b border-slate-200">
                             <h4 className="text-xs font-black uppercase text-slate-700 mb-2">What This Means in Practice</h4>
                             <ul className="space-y-1.5">
-                                {data.practical_impact.map((item: string, i: number) => (
+                                {(Array.isArray(data.practical_impact) ? data.practical_impact : []).map((item: string, i: number) => (
                                     <li key={i} className="text-xs text-slate-700 leading-relaxed">
                                         • {item}
                                     </li>
@@ -388,7 +388,7 @@ function renderStageData(stageNumber: number, data: any) {
                                     <div>
                                         <h4 className="text-xs font-black uppercase text-emerald-700 mb-2">Good fit if you value</h4>
                                         <ul className="space-y-1">
-                                            {data.good_fit.map((item: string, i: number) => (
+                                            {(Array.isArray(data.good_fit) ? data.good_fit : []).map((item: string, i: number) => (
                                                 <li key={i} className="text-xs text-slate-700 leading-relaxed">
                                                     • {item}
                                                 </li>
@@ -400,7 +400,7 @@ function renderStageData(stageNumber: number, data: any) {
                                     <div>
                                         <h4 className="text-xs font-black uppercase text-slate-700 mb-2">Consider alternatives if you need</h4>
                                         <ul className="space-y-1">
-                                            {data.consider_alternatives.map((item: string, i: number) => (
+                                            {(Array.isArray(data.consider_alternatives) ? data.consider_alternatives : []).map((item: string, i: number) => (
                                                 <li key={i} className="text-xs text-slate-700 leading-relaxed">
                                                     • {item}
                                                 </li>

@@ -12,7 +12,7 @@ function SpecLedgerContent() {
     const statusTab = (searchParams.get('status') as 'verified' | 'provisional') || 'verified';
 
     const [assets, setAssets] = useState<Asset[]>([]);
-    const [categories] = useState<Category[]>(listCategories());
+    const [categories, setCategories] = useState<Category[]>([]);
     const [brandFilter, setBrandFilter] = useState('all');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [loading, setLoading] = useState(true);
@@ -20,9 +20,12 @@ function SpecLedgerContent() {
     useEffect(() => {
         const load = async () => {
             setLoading(true);
-            // "all" is correctly handled by new dataBridge.client
-            const data = await searchAssets('', 'all', 'all');
-            setAssets(data);
+            const [assetData, categoryData] = await Promise.all([
+                searchAssets('', 'all', 'all'),
+                listCategories()
+            ]);
+            setAssets(assetData);
+            setCategories(categoryData as Category[]);
             setLoading(false);
         };
         load();

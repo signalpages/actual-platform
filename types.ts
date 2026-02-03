@@ -105,6 +105,9 @@ export interface AuditRun {
 export interface Asset extends Product {
   verified: boolean;
   verification_status: VerificationStatus;
+  truth_score?: number | null;
+  is_verified?: boolean | null;
+  updated_at?: string | null;
 }
 
 export interface AuditItem {
