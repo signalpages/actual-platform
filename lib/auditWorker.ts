@@ -149,7 +149,10 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
             practical_impact: stage4Result.practical_impact,
             good_fit: stage4Result.good_fit,
             consider_alternatives: stage4Result.consider_alternatives,
-            data_confidence: stage4Result.data_confidence
+            data_confidence: stage4Result.data_confidence,
+            // Add required database fields
+            source_urls: [],  // Will be populated from search results in future
+            is_verified: stage4Result.truth_index > 85
         };
 
         const saved = await saveAudit(freshProduct.id, fullAudit);

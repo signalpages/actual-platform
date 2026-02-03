@@ -118,6 +118,8 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
 
     if (error) {
         console.error("Failed to save audit:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
+        console.error("Payload keys:", Object.keys(payload));
         return null;
     }
     return data as ShadowSpecs;
