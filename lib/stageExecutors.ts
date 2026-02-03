@@ -135,7 +135,7 @@ Return JSON in this EXACT format:
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
         const resp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(apiKey)}`,
             {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
