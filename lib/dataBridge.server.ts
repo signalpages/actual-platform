@@ -71,13 +71,6 @@ export const getAudit = async (productId: string): Promise<ShadowSpecs | null> =
 export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>): Promise<ShadowSpecs | null> => {
     const supabase = getSupabase();
 
-    // Check if audit already exists for this product
-    const { data: existing } = await supabase
-        .from("shadow_specs")
-        .select("id")
-        .eq("product_id", productId)
-        .maybeSingle();
-
     // Map progressive audit format to database schema
     // Store new fields in actual_specs as a temporary solution until migration
     const fullAuditData = {
@@ -99,33 +92,20 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
         red_flags: (payload as any).discrepancies || payload.red_flags || [],
         truth_score: (payload as any).truth_index ?? payload.truth_score ?? 0,
         source_urls: payload.source_urls || [],
-        is_verified: !!payload.is_verified
-        // NOTE: stages and last_run_at are saved separately via updateStageHelper
-        // Database migration needed to add these columns to production
+        is_verified: !!payload.is_verified,
+        updated_at: new Date().toISOString()
+        // NOTE: stages are saved separately via updateStageHelper
     };
 
-    let data, error;
-
-    if (existing) {
-        // Update existing audit
-        const result = await supabase
-            .from("shadow_specs")
-            .update(auditData)
-            .eq("id", existing.id)
-            .select()
-            .single();
-        data = result.data;
-        error = result.error;
-    } else {
-        // Insert new audit
-        const result = await supabase
-            .from("shadow_specs")
-            .insert(auditData)
-            .select()
-            .single();
-        data = result.data;
-        error = result.error;
-    }
+    // UPSERT: insert or update on conflict with product_id unique constraint
+    const { data, error } = await supabase
+        .from("shadow_specs")
+        .upsert(auditData, {
+            onConflict: 'product_id',
+            ignoreDuplicates: false // Always update on conflict
+        })
+        .select()
+        .single();
 
     if (error) {
         console.error("Failed to save audit:", error);
