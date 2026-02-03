@@ -48,9 +48,16 @@ export async function updateStageHelper({
         .eq("product_id", productId);
 
     if (error) {
+        // Handle missing stages column gracefully (PGRST204)
+        if (error.code === 'PGRST204' && error.message?.includes('stages')) {
+            console.warn(`[StageStore] 'stages' column not found in shadow_specs - skipping stage update. Run migration: migrations/add_stages_column.sql`);
+            console.warn('[StageStore] Audit will continue, but progressive loading will not work until column is added.');
+            return true; // Don't crash - continue with legacy fields
+        }
         console.error("Failed to update stage:", error);
         return false;
     }
 
     return true;
+
 }
