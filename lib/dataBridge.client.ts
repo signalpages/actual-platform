@@ -1,240 +1,100 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { Product, AuditResult, Category, Asset } from "../types";
-import { PRODUCT_CATEGORIES } from "./productCategories";
+// lib/dataBridge.client.ts
+"use client";
 
-// --- Client-Side Helpers (Browser/UI) ---
-// ... (omitted)
+import { createClient } from "@supabase/supabase-js";
 
-export const listCategories = (): Category[] => {
-    return PRODUCT_CATEGORIES.map(cat => ({
-        id: cat,
-        label: cat
-    }));
-};
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export const searchAssets = async (query: string, category: string = "all", brand: string = "all"): Promise<Asset[]> => {
-    try {
-        const client = getPublicClient();
-
-        // 1. Fetch Products
-        let builder = client.from('products').select('*');
-
-        if (category !== "all") {
-            builder = builder.eq('category', category);
-        }
-
-        if (brand !== "all") {
-            builder = builder.eq('brand', brand);
-        }
-
-        if (query && query.trim().length > 0) {
-            builder = builder.ilike('model_name', `%${query}%`);
-        }
-
-        const { data: products } = await builder.limit(200);
-        if (!products || products.length === 0) return [];
-
-        // 2. Fetch Shadow Specs (Source of Truth for Verification)
-        // We fetch explicitly to ensure we get the latest state even if products.is_audited is stale
-        const productIds = products.map(p => p.id);
-        const { data: shadows } = await client
-            .from('shadow_specs')
-            .select('product_id, is_verified, truth_score, updated_at')
-            .in('product_id', productIds);
-
-        // 3. Merge Data
-        const shadowMap = new Map(shadows?.map(s => [s.product_id, s]) || []);
-
-        return products.map(p => {
-            const shadow = shadowMap.get(p.id);
-            // Use shadow_specs as source of truth, fallback to product flag if missing
-            const isVerified = shadow ? shadow.is_verified : p.is_audited;
-            const truthScore = shadow ? shadow.truth_score : null;
-
-            return {
-                ...p,
-                verified: isVerified,
-                verification_status: isVerified ? 'verified' : 'provisional',
-                last_updated: shadow?.updated_at || p.created_at,
-                truth_score: truthScore
-            };
-        }) as Asset[];
-    } catch (e) {
-        console.warn("Supabase search failed:", e);
-        return [];
-    }
-};
-
-export const createProvisionalAsset = async (payload: any): Promise<{ ok: boolean; error?: string; asset?: Asset }> => {
-    return { ok: false, error: "Asset creation is disabled in V1." };
-};
-
-export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
-    try {
-        const client = getPublicClient();
-        const { data } = await client
-            .from('products')
-            .select('*')
-            .eq('slug', slug)
-            .maybeSingle();
-
-        if (!data) return null;
-
-        return {
-            ...data,
-            verified: data.is_audited,
-            verification_status: data.is_audited ? 'verified' : 'provisional'
-        } as Asset;
-    } catch (e) {
-        console.warn("Supabase fetch failed:", e);
-        return null;
-    }
-};
-
-export const getAllAssets = async (): Promise<Asset[]> => {
-    try {
-        const client = getPublicClient();
-        const { data } = await client
-            .from('products')
-            .select('*')
-            .limit(200);
-
-        if (!data) return [];
-
-        return data.map(d => ({
-            ...d,
-            verified: d.is_audited,
-            verification_status: d.is_audited ? 'verified' : 'provisional'
-        })) as Asset[];
-    } catch (e) {
-        console.warn("Supabase fetch failed:", e);
-        return [];
-    }
-};
-
-export const runAudit = async (payload: string | { slug: string, depth?: number, forceRefresh?: boolean }): Promise<AuditResult & { cache?: any }> => {
-    const slug = typeof payload === "string" ? payload : payload.slug;
-    const forceRefresh = typeof payload === "object" ? payload.forceRefresh : false;
-
-    if (!slug) throw new Error("Missing slug for audit");
-
-    // 1. Queue the audit
-    const resp = await fetch("/api/audit", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ slug, forceRefresh }),
-    });
-
-    const data = await resp.json();
-
-    if (!data.ok) {
-        throw new Error(data.error || "Failed to queue audit");
-    }
-
-    // 2. If audit returned immediately (cached), return it with metadata
-    if (data.audit) {
-        return {
-            ...data.audit,
-            cache: data.cache // Include cache metadata
-        };
-    }
-
-    // 3. Otherwise poll for completion
-    const runId = data.runId;
-    if (!runId) {
-        throw new Error("No runId returned from queue");
-    }
-
-    return await pollAuditStatus(runId);
-};
-
-// Promise-based deduplication - return same promise for duplicate requests
-const pollPromises = new Map<string, Promise<AuditResult>>();
-
-/**
- * Poll audit status until completion
- * CRITICAL: Deduplicates by runId, returns existing promise if already polling
- */
-async function pollAuditStatus(runId: string): Promise<AuditResult> {
-    // Check for existing poll promise
-    const existing = pollPromises.get(runId);
-    if (existing) {
-        console.log(`[Polling] Reusing existing poll for runId ${runId}`);
-        return existing;
-    }
-
-    // Create new poll promise
-    const pollPromise = (async (): Promise<AuditResult> => {
-        const maxAttempts = 30; // Reduced from 40
-        const maxElapsedMs = 90000; // 90 seconds (buffer under Vercel's 60s worker timeout)
-        const startTime = Date.now();
-
-        console.log(`[Polling] Started for runId ${runId}`);
-
-        try {
-            for (let i = 0; i < maxAttempts; i++) {
-                // Check elapsed time
-                const elapsed = Date.now() - startTime;
-                if (elapsed > maxElapsedMs) {
-                    console.warn(`[Polling] Max time exceeded for ${runId} (${elapsed}ms)`);
-                    throw new Error('Audit timed out. The analysis took too long to complete. Please try again or contact support if this persists.');
-                }
-
-                // Wait before polling (except first attempt)
-                if (i > 0) {
-                    // Backoff strategy: 2s → 3s → 5s
-                    const delay = i < 10 ? 2000 : i < 20 ? 3000 : 5000;
-                    await sleep(delay);
-                }
-
-                const resp = await fetch(`/api/audit/status?runId=${runId}`);
-                const data = await resp.json();
-
-                if (!data.ok) {
-                    console.error(`[Polling] Error response for ${runId}:`, data.error);
-                    throw new Error(data.error || "Failed to get audit status");
-                }
-
-                // CRITICAL: Terminal state check - stop immediately
-                if (data.status === 'done') {
-                    if (data.audit) {
-                        console.log(`[Polling] Completed for ${runId} after ${i + 1} attempts (${Date.now() - startTime}ms)`);
-                        return data.audit;
-                    } else {
-                        console.warn(`[Polling] Status=done but no audit data for ${runId}`);
-                        throw new Error('Audit completed but no data returned');
-                    }
-                }
-
-                if (data.status === 'error') {
-                    console.error(`[Polling] Failed for ${runId}:`, data.error);
-                    throw new Error(data.error || 'Audit failed');
-                }
-
-                // Log progress
-                if (i % 5 === 0) {
-                    console.log(`[Polling] runId ${runId}: ${data.status} (${data.progress || 0}%)`);
-                }
-
-                // Continue polling for pending/running
-            }
-
-            // Max attempts exceeded
-            console.warn(`[Polling] Max attempts exceeded for ${runId}`);
-            throw new Error('Audit timed out after maximum polling attempts. Please try again.');
-
-        } finally {
-            // CRITICAL: Always cleanup promise tracking
-            pollPromises.delete(runId);
-            console.log(`[Polling] Stopped for runId ${runId}`);
-        }
-    })();
-
-    // Store promise before returning
-    pollPromises.set(runId, pollPromise);
-    return pollPromise;
+function getClient() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
-function sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+export type InventoryAsset = {
+  id: string;
+  slug: string;
+  brand: string | null;
+  model_name: string;
+  category: string;
+  affiliate_link?: string | null;
+  verification_status: "verified" | "provisional";
+  truth_score?: number | null;
+  is_verified?: boolean | null;
+  updated_at?: string | null;
+};
+
+export async function listCategories(): Promise<string[]> {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("category")
+    .not("category", "is", null);
+
+  if (error) throw error;
+
+  const uniq = Array.from(new Set((data ?? []).map((r) => r.category).filter(Boolean)));
+  uniq.sort();
+  return uniq;
+}
+
+export async function listManufacturers(): Promise<string[]> {
+  const supabase = getClient();
+  const { data, error } = await supabase
+    .from("products")
+    .select("brand")
+    .not("brand", "is", null);
+
+  if (error) throw error;
+
+  const uniq = Array.from(new Set((data ?? []).map((r) => r.brand).filter(Boolean)));
+  uniq.sort();
+  return uniq;
+}
+
+export async function searchAssets(params: {
+  q: string;
+  category: string; // "all" or actual category
+  manufacturer: string; // "all" or actual brand
+}): Promise<InventoryAsset[]> {
+  const supabase = getClient();
+
+  let query = supabase
+    .from("products")
+    .select("id,slug,brand,model_name,category,affiliate_link")
+    .order("created_at", { ascending: false });
+
+  if (params.q?.trim()) query = query.ilike("model_name", `%${params.q.trim()}%`);
+  if (params.category !== "all") query = query.eq("category", params.category);
+  if (params.manufacturer !== "all") query = query.eq("brand", params.manufacturer);
+
+  const { data: products, error: pErr } = await query;
+  if (pErr) throw pErr;
+
+  if (!products?.length) return [];
+
+  const ids = products.map((p) => p.id);
+  const { data: shadows, error: sErr } = await supabase
+    .from("shadow_specs")
+    .select("product_id, truth_score, is_verified, updated_at")
+    .in("product_id", ids);
+
+  if (sErr) throw sErr;
+
+  const shadowByProduct = new Map((shadows ?? []).map((s) => [s.product_id, s]));
+
+  return products.map((p) => {
+    const s = shadowByProduct.get(p.id);
+    const isVerified = !!s?.is_verified;
+
+    return {
+      ...p,
+      verification_status: isVerified ? "verified" : "provisional",
+      truth_score: s?.truth_score ?? null,
+      is_verified: s?.is_verified ?? null,
+      updated_at: s?.updated_at ?? null,
+    };
+  });
 }
