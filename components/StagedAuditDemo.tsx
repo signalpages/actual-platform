@@ -5,14 +5,7 @@
  * Demonstrates progressive loading UI
  */
 
-import { StageCard } from './StageCard';
-import { Asset } from '@/types';
-import { ComparisonButton } from './ComparisonButton';
-import { useEffect, useState } from 'react';
 
-interface StagedAuditDemoProps {
-    product?: Asset;
-}
 
 import { StageCard } from './StageCard';
 import { Asset, AuditResult } from '@/types';
