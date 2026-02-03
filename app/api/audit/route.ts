@@ -4,7 +4,7 @@ import { waitUntil } from "@vercel/functions";
 import { runAuditWorker } from "@/lib/auditWorker";
 
 export const runtime = "nodejs";
-export const maxDuration = 120; // Extended for multi-stage audit
+export const maxDuration = 300; // Vercel Pro/Enterprise limit (was 120s)
 
 export async function POST(req: NextRequest) {
     try {
