@@ -73,7 +73,10 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
 
     // Map progressive audit format to database schema
     // Store new fields in actual_specs as a temporary solution until migration
-    const fullAuditData = {
+    // Map progressive audit format to database schema
+
+    // Extract Stage 4 fields (strengths, limitations, etc.)
+    const stage4Fields = {
         strengths: (payload as any).strengths || [],
         limitations: (payload as any).limitations || [],
         practical_impact: (payload as any).practical_impact || [],
@@ -84,17 +87,43 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
         data_confidence: (payload as any).data_confidence || ''
     };
 
+    // Explicit field mapping as requested
+    const truthScore =
+        typeof (payload as any).truth_score === 'number' ? (payload as any).truth_score :
+            typeof (payload as any).truth_index === 'number' ? (payload as any).truth_index :
+                0;
+
+    const claimed =
+        (payload as any).claimed_specs ??
+        (payload as any).advertised_claims ??
+        (payload as any).claim_profile ??
+        [];
+
+    const redFlags =
+        (payload as any).red_flags ??
+        (payload as any).discrepancies ??
+        [];
+
+    const sourceUrls = (payload as any).source_urls ?? [];
+
+    // Merge reality_ledger with Stage 4 fields into actual_specs JSONB
+    const realityLedger = (payload as any).actual_specs ?? (payload as any).reality_ledger ?? [];
+    const actualSpecsCombined = {
+        ...stage4Fields,
+        reality_ledger: realityLedger // Keep strictly as array inside if needed later
+    };
+
     const auditData = {
         product_id: productId,
-        // Handle both old and new field names
-        claimed_specs: (payload as any).advertised_claims || payload.claimed_specs || [],
-        actual_specs: fullAuditData, // Store complete audit data here
-        red_flags: (payload as any).discrepancies || payload.red_flags || [],
-        truth_score: (payload as any).truth_index ?? payload.truth_score ?? 0,
-        source_urls: payload.source_urls || [],
+        claimed_specs: claimed,
+        actual_specs: actualSpecsCombined, // Stores both Stage 4 data and reality ledger
+        red_flags: redFlags,
+        truth_score: truthScore,
+        source_urls: sourceUrls,
         is_verified: !!payload.is_verified,
-        updated_at: new Date().toISOString()
-        // NOTE: stages are saved separately via updateStageHelper
+        updated_at: new Date().toISOString(),
+        // Persist stages if provided in payload (redundancy for safety)
+        ...((payload as any).stages ? { stages: (payload as any).stages } : {})
     };
 
     // UPSERT: insert or update on conflict with product_id unique constraint
@@ -110,9 +139,16 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
     if (error) {
         console.error("Failed to save audit:", error);
         console.error("Error details:", JSON.stringify(error, null, 2));
-        console.error("Payload keys:", Object.keys(payload));
         return null;
     }
+
+    console.log(`[Server] Audit saved successfully for product ${productId}:`, {
+        id: data.id,
+        truth_score: data.truth_score,
+        is_verified: data.is_verified,
+        items_count: claimed.length
+    });
+
     return data as ShadowSpecs;
 };
 
@@ -138,7 +174,7 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
             last_run_at: specs.created_at,
         },
         claim_profile: Array.isArray(specs.claimed_specs) ? specs.claimed_specs : [],
-        reality_ledger: [], // Not used in progressive audit
+        reality_ledger: stage4Data.reality_ledger || [], // Extract from combined object
         discrepancies: Array.isArray(specs.red_flags) ? specs.red_flags : [],
         truth_index: specs.truth_score,
         // Include Stage 4 fields
