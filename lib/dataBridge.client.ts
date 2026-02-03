@@ -150,18 +150,15 @@ export const runAudit = async (payload: RunAuditPayload): Promise<AuditWithCache
 
   // 2) Cached / immediate path (Normalized)
   if (data.audit || data.stages) {
-    const audit: any = { ...(data.audit || {}) };
+    const audit = data.audit || {};
+    // Option A: Normalize stages (sibling takes precedence)
+    const normalized = {
+      ...audit,
+      stages: data.stages ?? audit.stages
+    };
 
-    // Merge stages if they exist as siblings (API V2 behavior)
-    if (data.stages) {
-      audit.stages = {
-        ...audit.stages,
-        ...data.stages
-      };
-    }
-
-    normalizeAnalysisStatus(audit);
-    return { ...audit, cache: data.cache };
+    normalizeAnalysisStatus(normalized);
+    return { ...normalized, cache: data.cache };
   }
 
   // 3) Async path
@@ -203,24 +200,19 @@ async function pollAuditStatus(runId: string): Promise<AuditWithCache> {
         if (!data?.ok) throw new Error(data?.error || "Failed to get audit status");
 
         if (data.status === "done") {
-          // Normalized merge logic for polling
-          const baseAudit = data.audit || {};
-          const audit: any = { ...baseAudit };
+          const audit = data.audit || {};
+          // Option A: Normalize stages (sibling takes precedence)
+          const normalized = {
+            ...audit,
+            stages: data.stages ?? audit.stages
+          };
 
-          // Merge stages if they exist as siblings
-          if (data.stages) {
-            audit.stages = {
-              ...audit.stages,
-              ...data.stages
-            };
-          }
-
-          normalizeAnalysisStatus(audit);
+          normalizeAnalysisStatus(normalized);
 
           console.log(
             `[Polling] Completed for ${runId} after ${i + 1} attempts (${Date.now() - startTime}ms)`
           );
-          return audit as AuditWithCache;
+          return normalized as AuditWithCache;
         }
 
         if (data.status === "error") throw new Error(data?.error || "Audit failed");

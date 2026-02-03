@@ -49,6 +49,11 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
   const rawAudit = (audit as any) || {};
   const stages: StageMap = rawAudit.stages ?? rawAudit.audit?.stages ?? {};
 
+  // Debug: Confirm stages availability in Prod
+  if (typeof window !== 'undefined' && (stages as any)?.stage_1) {
+    console.log("[StagedAuditDemo] stages keys:", Object.keys(stages));
+  }
+
   const stage1 = stages.stage_1;
   const stage2 = stages.stage_2;
   const stage3 = stages.stage_3;
