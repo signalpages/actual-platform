@@ -15,6 +15,8 @@ export const listCategories = (): Category[] => {
 export const searchAssets = async (query: string, category: string = "all", brand: string = "all"): Promise<Asset[]> => {
     try {
         const client = getPublicClient();
+
+        // 1. Fetch Products
         let builder = client.from('products').select('*');
 
         if (category !== "all") {
@@ -29,15 +31,34 @@ export const searchAssets = async (query: string, category: string = "all", bran
             builder = builder.ilike('model_name', `%${query}%`);
         }
 
-        const { data } = await builder.limit(200);
+        const { data: products } = await builder.limit(200);
+        if (!products || products.length === 0) return [];
 
-        if (!data) return [];
+        // 2. Fetch Shadow Specs (Source of Truth for Verification)
+        // We fetch explicitly to ensure we get the latest state even if products.is_audited is stale
+        const productIds = products.map(p => p.id);
+        const { data: shadows } = await client
+            .from('shadow_specs')
+            .select('product_id, is_verified, truth_score, updated_at')
+            .in('product_id', productIds);
 
-        return data.map(d => ({
-            ...d,
-            verified: d.is_audited,
-            verification_status: d.is_audited ? 'verified' : 'provisional'
-        })) as Asset[];
+        // 3. Merge Data
+        const shadowMap = new Map(shadows?.map(s => [s.product_id, s]) || []);
+
+        return products.map(p => {
+            const shadow = shadowMap.get(p.id);
+            // Use shadow_specs as source of truth, fallback to product flag if missing
+            const isVerified = shadow ? shadow.is_verified : p.is_audited;
+            const truthScore = shadow ? shadow.truth_score : null;
+
+            return {
+                ...p,
+                verified: isVerified,
+                verification_status: isVerified ? 'verified' : 'provisional',
+                last_updated: shadow?.updated_at || p.created_at,
+                truth_score: truthScore
+            };
+        }) as Asset[];
     } catch (e) {
         console.warn("Supabase search failed:", e);
         return [];
