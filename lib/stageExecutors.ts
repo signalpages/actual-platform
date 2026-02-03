@@ -96,9 +96,9 @@ export async function executeStage2(
 ): Promise<Stage2Result> {
     console.log(`[Stage 2] Gathering independent signals for ${product.model_name}`);
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
     if (!apiKey) {
-        throw new Error('GEMINI_API_KEY not configured');
+        throw new Error('GOOGLE_AI_STUDIO_KEY not configured');
     }
 
     // Build search query focusing on product experience
@@ -192,9 +192,9 @@ export async function executeStage3(
 ): Promise<Stage3Result> {
     console.log(`[Stage 3] Analyzing discrepancies for ${product.model_name}`);
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
     if (!apiKey) {
-        throw new Error('GEMINI_API_KEY not configured');
+        throw new Error('GOOGLE_AI_STUDIO_KEY not configured');
     }
 
     const prompt = `Cross-reference manufacturer claims with real-world feedback.
@@ -276,9 +276,9 @@ export async function executeStage4(
 ): Promise<Stage4Result> {
     console.log(`[Stage 4] Computing truth index for ${product.model_name}`);
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
     if (!apiKey) {
-        throw new Error('GEMINI_API_KEY not configured');
+        throw new Error('GOOGLE_AI_STUDIO_KEY not configured');
     }
 
     const { stage1, stage2, stage3 } = allStages;
