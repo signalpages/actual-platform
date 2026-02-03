@@ -88,9 +88,9 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
         truth_score: (payload as any).truth_index ?? payload.truth_score ?? 0,
         source_urls: payload.source_urls || [],
         is_verified: !!payload.is_verified,
-        last_run_at: new Date().toISOString(),
-        // Include progressive stage data if present
-        ...(payload.stages ? { stages: payload.stages } : {})
+        last_run_at: new Date().toISOString()
+        // NOTE: stages are saved separately via updateStageHelper
+        // ...(payload.stages ? { stages: payload.stages } : {})
     };
 
     let data, error;
