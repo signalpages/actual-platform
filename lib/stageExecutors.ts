@@ -120,6 +120,9 @@ Based on real-world user discussions, identify:
 
 Focus on objective, verifiable observations. Avoid marketing language.
 
+CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
+Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
+
 Return JSON in this EXACT format:
 {
   "most_praised": [
@@ -159,7 +162,25 @@ Return JSON in this EXACT format:
 
         const data = await resp.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        const result = JSON.parse(rawText);
+
+        // Safe JSON parsing
+        let cleanedText = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        let result;
+        try {
+            result = JSON.parse(cleanedText);
+        } catch (parseError: any) {
+            console.error('[Stage 2] JSON parse failed:', parseError.message);
+            const match = cleanedText.match(/\{[\s\S]*\}/);
+            if (match) {
+                try {
+                    result = JSON.parse(match[0]);
+                } catch {
+                    throw new Error('STAGE_JSON_PARSE_FAILED: ' + parseError.message);
+                }
+            } else {
+                throw new Error('STAGE_JSON_PARSE_FAILED: No valid JSON');
+            }
+        }
 
         console.log(`[Stage 2] Found ${result.most_praised?.length || 0} praise items, ${result.most_reported_issues?.length || 0} issues`);
 
@@ -169,8 +190,9 @@ Return JSON in this EXACT format:
                 most_reported_issues: result.most_reported_issues || []
             }
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Stage 2] Error:', error);
+        console.error('[Stage 2] Stage failed but audit will continue');
         // Return minimal data rather than failing
         return {
             independent_signal: {
@@ -330,6 +352,9 @@ Calculate score based on:
 - Severity of discrepancies
 - Frequency of issues
 
+CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
+Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
+
 Return JSON:
 {
   "truth_index": 85,
@@ -370,7 +395,25 @@ Return JSON:
 
         const data = await resp.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        const result = JSON.parse(rawText);
+
+        // Safe JSON parsing
+        let cleanedText = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        let result;
+        try {
+            result = JSON.parse(cleanedText);
+        } catch (parseError: any) {
+            console.error('[Stage 4] JSON parse failed:', parseError.message);
+            const match = cleanedText.match(/\{[\s\S]*\}/);
+            if (match) {
+                try {
+                    result = JSON.parse(match[0]);
+                } catch {
+                    throw new Error('STAGE_JSON_PARSE_FAILED: ' + parseError.message);
+                }
+            } else {
+                throw new Error('STAGE_JSON_PARSE_FAILED: No valid JSON');
+            }
+        }
 
         const truthIndex = Math.min(100, Math.max(0, result.truth_index || 85));
 
@@ -383,17 +426,17 @@ Return JSON:
 
         return {
             truth_index: truthIndex,
-            metric_bars: [
-                { label: 'Claims Accuracy', rating: claimsAccuracy > 85 ? 'High' : 'Moderate', percentage: claimsAccuracy },
-                { label: 'Real-World Fit', rating: realWorldFit > 85 ? 'High' : 'Moderate', percentage: realWorldFit },
-                { label: 'Operational Noise', rating: operationalNoise > 75 ? 'Low' : 'Moderate', percentage: operationalNoise }
-            ],
-            score_interpretation: result.score_interpretation || 'Product meets most published claims.',
+            score_interpretation: result.score_interpretation || 'Analysis complete',
             strengths: result.strengths || [],
             limitations: result.limitations || [],
             practical_impact: result.practical_impact || [],
             good_fit: result.good_fit || [],
             consider_alternatives: result.consider_alternatives || [],
+            metric_bars: {
+                claims_accuracy: claimsAccuracy,
+                real_world_fit: realWorldFit,
+                operational_noise: operationalNoise
+            },
             data_confidence: `Data confidence: High · Sources: manufacturer docs, community feedback · Refresh cadence: ~14 days`
         };
     } catch (error) {
