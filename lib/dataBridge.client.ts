@@ -1,36 +1,16 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { Product, AuditResult, Category, Asset } from "../types";
+import { PRODUCT_CATEGORIES } from "./productCategories";
 
 // --- Client-Side Helpers (Browser/UI) ---
+// ... (omitted)
 
-// Lazy-init singleton for client to avoid top-level side effects during server build
-let _publicClient: SupabaseClient | null = null;
-
-function getPublicClient() {
-    if (_publicClient) return _publicClient;
-
-    // STRICT ENV ACCESS: Use NEXT_PUBLIC_ for client
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!url || !key) {
-        console.warn("Missing Supabase Client Env (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY). Inventory will be empty.");
-        // We throw to fail fast if config is wrong, as per previous requirement
-        throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY.");
-    }
-
-    _publicClient = createClient(url, key);
-    return _publicClient;
-}
-
-export const listCategories = (): Category[] => [
-    { id: 'portable_power_station', label: 'Portable Power Stations' },
-    { id: 'solar_generator_kit', label: 'Solar Generator Kits' },
-    { id: 'solar_panel', label: 'Solar Panels' },
-    { id: 'inverter', label: 'Inverters' },
-    { id: 'battery', label: 'Batteries' },
-    { id: 'charge_controller', label: 'Charge Controllers' },
-];
+export const listCategories = (): Category[] => {
+    return PRODUCT_CATEGORIES.map(cat => ({
+        id: cat,
+        label: cat
+    }));
+};
 
 export const searchAssets = async (query: string, category: string = "all", brand: string = "all"): Promise<Asset[]> => {
     try {
