@@ -208,6 +208,9 @@ Issues: ${stage2.independent_signal.most_reported_issues.map(i => i.text).join('
 
 Identify ONLY meaningful discrepancies (>3% variance or functional impact).
 
+CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
+Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
+
 Return JSON:
 {
   "red_flags": [
@@ -249,15 +252,47 @@ Return JSON:
 
         const data = await resp.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-        const result = JSON.parse(rawText);
+
+        // Log raw output for debugging
+        console.log('[Stage 3] RAW OUTPUT START');
+        console.log(rawText.length > 500 ? rawText.slice(0, 500) + '...[truncated]' : rawText);
+        console.log('[Stage 3] RAW OUTPUT END');
+
+        // Safe JSON parsing with code fence stripping
+        let cleanedText = rawText
+            .replace(/```json\n?/g, '')
+            .replace(/```\n?/g, '')
+            .trim();
+
+        let result;
+        try {
+            result = JSON.parse(cleanedText);
+        } catch (parseError: any) {
+            console.error('[Stage 3] JSON parse failed:', parseError.message);
+            console.error('[Stage 3] Failed text (last 200 chars):', cleanedText.slice(-200));
+
+            // Try extracting first balanced object as fallback
+            const match = cleanedText.match(/\{[\s\S]*\}/);
+            if (match) {
+                try {
+                    result = JSON.parse(match[0]);
+                    console.log('[Stage 3] Recovered using balanced object extraction');
+                } catch {
+                    throw new Error('STAGE_JSON_PARSE_FAILED: ' + parseError.message);
+                }
+            } else {
+                throw new Error('STAGE_JSON_PARSE_FAILED: No valid JSON object found');
+            }
+        }
 
         console.log(`[Stage 3] Found ${result.red_flags?.length || 0} discrepancies`);
 
         return {
             red_flags: result.red_flags || []
         };
-    } catch (error) {
+    } catch (error: any) {
         console.error('[Stage 3] Error:', error);
+        console.error('[Stage 3] Stage failed but audit will continue');
         return { red_flags: [] };
     }
 }
