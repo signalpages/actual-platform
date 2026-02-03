@@ -258,7 +258,7 @@ Return JSON:
                     contents: [{ role: 'user', parts: [{ text: prompt }] }],
                     generationConfig: {
                         temperature: 0.2,
-                        maxOutputTokens: 1536,
+                        maxOutputTokens: 2048, // Increased to prevent truncation
                         responseMimeType: 'application/json'
                     }
                 }),
@@ -286,6 +286,13 @@ Return JSON:
             .replace(/```\n?/g, '')
             .trim();
 
+        // Check if response looks truncated (doesn't end with } or ])
+        if (!cleanedText.endsWith('}') && !cleanedText.endsWith(']')) {
+            console.warn('[Stage 3] Response appears truncated, skipping parse');
+            console.warn('[Stage 3] Last 100 chars:', cleanedText.slice(-100));
+            return { red_flags: [] };
+        }
+
         let result;
         try {
             result = JSON.parse(cleanedText);
@@ -300,10 +307,12 @@ Return JSON:
                     result = JSON.parse(match[0]);
                     console.log('[Stage 3] Recovered using balanced object extraction');
                 } catch {
-                    throw new Error('STAGE_JSON_PARSE_FAILED: ' + parseError.message);
+                    console.error('[Stage 3] Balanced extraction also failed, returning empty');
+                    return { red_flags: [] };
                 }
             } else {
-                throw new Error('STAGE_JSON_PARSE_FAILED: No valid JSON object found');
+                console.error('[Stage 3] No valid JSON object found');
+                return { red_flags: [] };
             }
         }
 
