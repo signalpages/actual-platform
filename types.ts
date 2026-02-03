@@ -69,7 +69,7 @@ export interface ShadowSpecs {
 }
 
 // Stage types
-export type StageStatus = 'pending' | 'running' | 'done' | 'error';
+export type StageStatus = 'pending' | 'running' | 'done' | 'partial' | 'error';
 
 export interface StageData {
   status: StageStatus;
@@ -77,6 +77,8 @@ export interface StageData {
   ttl_days: number;
   data: any;
   error?: string;
+  raw_text?: string; // Store raw output for debugging
+  parse_error?: string; // Store parse errors
 }
 
 export interface AuditStages {

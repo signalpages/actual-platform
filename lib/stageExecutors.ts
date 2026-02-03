@@ -286,40 +286,65 @@ Return JSON:
             .replace(/```\n?/g, '')
             .trim();
 
-        // Check if response looks truncated (doesn't end with } or ])
+        let result = null;
+        let parseError = null;
+        let isPartial = false;
+
+        // Check if response looks truncated
         if (!cleanedText.endsWith('}') && !cleanedText.endsWith(']')) {
-            console.warn('[Stage 3] Response appears truncated, skipping parse');
+            console.warn('[Stage 3] Response appears truncated');
             console.warn('[Stage 3] Last 100 chars:', cleanedText.slice(-100));
-            return { red_flags: [] };
-        }
+            isPartial = true;
+            parseError = 'Response truncated mid-JSON';
 
-        let result;
-        try {
-            result = JSON.parse(cleanedText);
-        } catch (parseError: any) {
-            console.error('[Stage 3] JSON parse failed:', parseError.message);
-            console.error('[Stage 3] Failed text (last 200 chars):', cleanedText.slice(-200));
-
-            // Try extracting first balanced object as fallback
-            const match = cleanedText.match(/\{[\s\S]*\}/);
-            if (match) {
-                try {
-                    result = JSON.parse(match[0]);
-                    console.log('[Stage 3] Recovered using balanced object extraction');
-                } catch {
-                    console.error('[Stage 3] Balanced extraction also failed, returning empty');
-                    return { red_flags: [] };
+            // Try to extract partial array even if truncated
+            const arrayMatch = cleanedText.match(/"red_flags"\s*:\s*\[([\s\S]*)/);
+            if (arrayMatch) {
+                // Attempt to close the JSON manually
+                let attempt = `{"red_flags":[${arrayMatch[1]}`;
+                // Remove incomplete last item
+                const lastComma = attempt.lastIndexOf(',');
+                if (lastComma > 0) {
+                    attempt = attempt.substring(0, lastComma) + ']}';
+                    try {
+                        result = JSON.parse(attempt);
+                        console.log('[Stage 3] Recovered partial array with', result.red_flags?.length, 'items');
+                    } catch {
+                        // Still couldn't parse, leave as null
+                    }
                 }
-            } else {
-                console.error('[Stage 3] No valid JSON object found');
-                return { red_flags: [] };
+            }
+        } else {
+            // Try normal parse
+            try {
+                result = JSON.parse(cleanedText);
+            } catch (err: any) {
+                console.error('[Stage 3] JSON parse failed:', err.message);
+                parseError = err.message;
+
+                // Try extracting first balanced object as fallback
+                const match = cleanedText.match(/\{[\s\S]*\}/);
+                if (match) {
+                    try {
+                        result = JSON.parse(match[0]);
+                        console.log('[Stage 3] Recovered using balanced object extraction');
+                        isPartial = true;
+                    } catch {
+                        console.error('[Stage 3] Balanced extraction also failed');
+                    }
+                }
             }
         }
 
-        console.log(`[Stage 3] Found ${result.red_flags?.length || 0} discrepancies`);
+        console.log(`[Stage 3] Found ${result?.red_flags?.length || 0} discrepancies (${isPartial ? 'partial' : 'complete'})`);
 
         return {
-            red_flags: result.red_flags || []
+            red_flags: result?.red_flags || [],
+            _meta: isPartial || parseError ? {
+                status: isPartial ? 'partial' : 'error',
+                raw_text: rawText,
+                parse_error: parseError
+            } : undefined
         };
     } catch (error: any) {
         console.error('[Stage 3] Error:', error);
