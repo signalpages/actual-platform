@@ -87,10 +87,9 @@ export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>
         red_flags: (payload as any).discrepancies || payload.red_flags || [],
         truth_score: (payload as any).truth_index ?? payload.truth_score ?? 0,
         source_urls: payload.source_urls || [],
-        is_verified: !!payload.is_verified,
-        last_run_at: new Date().toISOString()
-        // NOTE: stages are saved separately via updateStageHelper
-        // ...(payload.stages ? { stages: payload.stages } : {})
+        is_verified: !!payload.is_verified
+        // NOTE: stages and last_run_at are saved separately via updateStageHelper
+        // Database migration needed to add these columns to production
     };
 
     let data, error;
