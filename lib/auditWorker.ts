@@ -155,6 +155,11 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
             is_verified: stage4Result.truth_index > 85
         };
 
+        console.log('[Worker] Attempting to save audit for product:', freshProduct.id);
+        console.log('[Worker] fullAudit keys:', Object.keys(fullAudit));
+        console.log('[Worker] truth_index:', fullAudit.truth_index);
+        console.log('[Worker] is_verified:', fullAudit.is_verified);
+        
         const saved = await saveAudit(freshProduct.id, fullAudit);
 
         if (!saved) {
