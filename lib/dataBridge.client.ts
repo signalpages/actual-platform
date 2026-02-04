@@ -9,8 +9,8 @@ import { PRODUCT_CATEGORIES } from "./productCategories";
  * Client-side DataBridge
  * - public, browser-safe Supabase reads (anon)
  * - audit queue + polling
- * - IMPORTANT: status endpoint returns { audit, stages } as siblings
- *   so we merge stages into audit before returning to UI.
+ * - IMPORTANT: status endpoint may return { audit, stages, claim_profile, ... } as siblings
+ *   so we merge sibling fields into audit before returning to UI.
  */
 
 let _publicClient: SupabaseClient | null = null;
@@ -128,8 +128,41 @@ export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
 
 // -------------------- Audit Queue + Polling --------------------
 
-type RunAuditPayload = string | { slug: string; depth?: number; forceRefresh?: boolean };
-type AuditWithCache = AuditResult & { cache?: any; stages?: any };
+type RunAuditPayload = string | { slug: string; forceRefresh?: boolean };
+
+type AuditWithCache = AuditResult & { cache?: any };
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Ensure analysis.status is derived consistently (server may return provisional/verified etc)
+function normalizeAnalysisStatus(audit: any) {
+  if (!audit) return;
+
+  // If analysis exists, keep it. If not, infer minimal.
+  if (!audit.analysis) audit.analysis = {};
+
+  // Normalize some common keys if present
+  const a = audit.analysis;
+
+  // is_verified might exist at top-level depending on mapping
+  if (typeof audit.is_verified === "boolean" && typeof a.is_verified !== "boolean") {
+    a.is_verified = audit.is_verified;
+  }
+  if (typeof audit.truth_score === "number" && typeof a.truth_score !== "number") {
+    a.truth_score = audit.truth_score;
+  }
+
+  // Default status if missing
+  if (!a.status) {
+    // If it looks verified, call it verified, else provisional
+    const verified = !!a.is_verified;
+    a.status = verified ? "verified" : "provisional";
+  }
+
+  audit.analysis = a;
+}
 
 export const runAudit = async (payload: RunAuditPayload): Promise<AuditWithCache> => {
   const slug = typeof payload === "string" ? payload : payload.slug;
@@ -151,11 +184,20 @@ export const runAudit = async (payload: RunAuditPayload): Promise<AuditWithCache
   // 2) Cached / immediate path (Normalized)
   if (data.audit || data.stages) {
     const audit = data.audit || {};
-    // Option A: Normalize stages (sibling takes precedence)
-    const normalized = {
+    // Normalize stages (sibling takes precedence)
+    const normalized: any = {
       ...audit,
-      stages: data.stages ?? audit.stages
+      stages: data.stages ?? audit.stages,
     };
+
+    // CRITICAL: merge sibling payloads into audit (back-compat with older API shapes)
+    if (data.claim_profile && !normalized.claim_profile) normalized.claim_profile = data.claim_profile;
+    if (data.reality_ledger && !normalized.reality_ledger) normalized.reality_ledger = data.reality_ledger;
+    if (data.discrepancies && !normalized.discrepancies) normalized.discrepancies = data.discrepancies;
+    if ((data.truth_index ?? data.truth_score) != null && normalized.truth_index == null) {
+      normalized.truth_index = data.truth_index ?? data.truth_score;
+    }
+    if (data.analysis && !normalized.analysis) normalized.analysis = data.analysis;
 
     normalizeAnalysisStatus(normalized);
     return { ...normalized, cache: data.cache };
@@ -201,11 +243,20 @@ async function pollAuditStatus(runId: string): Promise<AuditWithCache> {
 
         if (data.status === "done") {
           const audit = data.audit || {};
-          // Option A: Normalize stages (sibling takes precedence)
-          const normalized = {
+          // Normalize stages (sibling takes precedence)
+          const normalized: any = {
             ...audit,
-            stages: data.stages ?? audit.stages
+            stages: data.stages ?? audit.stages,
           };
+
+          // CRITICAL: merge sibling payloads into audit (back-compat with older API shapes)
+          if (data.claim_profile && !normalized.claim_profile) normalized.claim_profile = data.claim_profile;
+          if (data.reality_ledger && !normalized.reality_ledger) normalized.reality_ledger = data.reality_ledger;
+          if (data.discrepancies && !normalized.discrepancies) normalized.discrepancies = data.discrepancies;
+          if ((data.truth_index ?? data.truth_score) != null && normalized.truth_index == null) {
+            normalized.truth_index = data.truth_index ?? data.truth_score;
+          }
+          if (data.analysis && !normalized.analysis) normalized.analysis = data.analysis;
 
           normalizeAnalysisStatus(normalized);
 
@@ -217,10 +268,12 @@ async function pollAuditStatus(runId: string): Promise<AuditWithCache> {
 
         if (data.status === "error") throw new Error(data?.error || "Audit failed");
 
-        if (i % 5 === 0) console.log(`[Polling] runId ${runId}: ${data.status} (${data.progress || 0}%)`);
+        if (i % 5 === 0) {
+          console.log(`[Polling] runId ${runId}: ${data.status} (${data.progress || 0}%)`);
+        }
       }
 
-      throw new Error("Audit timed out after maximum polling attempts. Please try again.");
+      throw new Error("Audit timed out after too many attempts. Please try again.");
     } finally {
       pollPromises.delete(runId);
       console.log(`[Polling] Stopped for runId ${runId}`);
@@ -229,22 +282,4 @@ async function pollAuditStatus(runId: string): Promise<AuditWithCache> {
 
   pollPromises.set(runId, pollPromise);
   return pollPromise;
-}
-
-function normalizeAnalysisStatus(audit: any) {
-  // Ensure stages object exists
-  if (!audit.stages) audit.stages = {};
-
-  const s4Done = audit.stages.stage_4?.status === "done";
-  if (!audit.analysis) audit.analysis = {};
-
-  // FORCE OVERRIDE: If Stage 4 is done, the audit is done. 
-  // This prevents UI deadlocks if root status is 'failed' or 'pending' but data exists.
-  if (s4Done) {
-    audit.analysis.status = "done";
-  }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
