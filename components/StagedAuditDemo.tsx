@@ -128,17 +128,15 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
   // Supports:
   // - stage_3.data.red_flags
   // - stage_3.data.discrepancies
-  // - audit.discrepancies (legacy / fallback)
   // -------------------------
   const discrepancies = useMemo(() => {
     const data = stage3?.data || {};
     return safeArray(
       data?.red_flags ??
       data?.discrepancies ??
-      rawAudit?.discrepancies ??
       []
     );
-  }, [stage3, rawAudit]);
+  }, [stage3]);
 
   const stage3ParseError = (stage3?.data as any)?._meta?.parse_error;
 
@@ -148,17 +146,17 @@ export function StagedAuditDemo({ product, audit }: StagedAuditDemoProps) {
   const verdict = useMemo(() => {
     const data = stage4?.data || {};
     return {
-      truthIndex: data?.truth_index ?? rawAudit?.truth_index ?? null,
-      metricBars: safeArray(data?.metric_bars ?? rawAudit?.metric_bars),
-      scoreInterpretation: data?.score_interpretation ?? rawAudit?.score_interpretation ?? '',
-      strengths: safeArray(data?.strengths ?? rawAudit?.strengths),
-      limitations: safeArray(data?.limitations ?? rawAudit?.limitations),
-      practicalImpact: safeArray(data?.practical_impact ?? rawAudit?.practical_impact),
-      goodFit: safeArray(data?.good_fit ?? rawAudit?.good_fit),
-      considerAlternatives: safeArray(data?.consider_alternatives ?? rawAudit?.consider_alternatives),
-      dataConfidence: data?.data_confidence ?? rawAudit?.data_confidence ?? '',
+      truthIndex: data?.truth_index ?? null,
+      metricBars: safeArray(data?.metric_bars),
+      scoreInterpretation: data?.score_interpretation ?? '',
+      strengths: safeArray(data?.strengths),
+      limitations: safeArray(data?.limitations),
+      practicalImpact: safeArray(data?.practical_impact),
+      goodFit: safeArray(data?.good_fit),
+      considerAlternatives: safeArray(data?.consider_alternatives),
+      dataConfidence: data?.data_confidence ?? '',
     };
-  }, [rawAudit, stage4]);
+  }, [stage4]);
 
   const stage4Done = stageStatus('stage_4') === 'done';
 
