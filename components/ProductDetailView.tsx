@@ -18,6 +18,12 @@ interface ProductDetailViewProps {
 }
 
 export default function ProductDetailView({ initialAsset, initialAudit, slug }: ProductDetailViewProps) {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     const router = useRouter();
     const searchParams = useSearchParams();
     const auditProcessed = useRef<string | null>(null);
@@ -67,6 +73,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         }
     }, [audit, slug]);
 
+    if (!mounted) return null; // Hydration guard
 
     const handleDeepScan = useCallback(async (targetAsset: Asset, forceRefresh = false) => {
         if (!targetAsset || isScanning) return;
@@ -135,7 +142,6 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         }
     }, [asset, shouldAutoRun, slug, audit, handleDeepScan]);
 
-
     if (loading) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh]">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -155,9 +161,15 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
     const hasClaims = !!(audit?.claim_profile && audit.claim_profile.length > 0);
 
-    // Check if all 4 stages are complete
+    // FIX: Treat Stage 1 as "done" if claim_profile exists (locks issue)
+    const stage1Done =
+        audit?.stages?.stage_1?.status === 'done' ||
+        (audit?.stages as any)?.['stage_1']?.status === 'done' ||
+        hasClaims; // Fallback to data check
+
+    // Check if all 4 stages are complete (using relaxed stage1 check)
     const allStagesComplete = !!(
-        audit?.stages?.stage_1?.status === 'done' &&
+        stage1Done &&
         audit?.stages?.stage_2?.status === 'done' &&
         audit?.stages?.stage_3?.status === 'done' &&
         audit?.stages?.stage_4?.status === 'done'
