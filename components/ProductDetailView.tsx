@@ -1,15 +1,11 @@
-"use client";
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { runAudit, getAssetBySlug } from '@/lib/dataBridge.client';
 import { AssetSelector } from '@/components/ComparisonPicker';
-import { DiscrepancyCard } from '@/components/DiscrepancyCard';
-import { IntegrityCheckModal } from '@/components/IntegrityCheckModal';
 import { Asset, AuditResult } from '@/types';
 import SubmissionSuccess from '@/components/SubmissionSuccess';
-import { StagedAuditDemo } from '@/components/StagedAuditDemo';
+import { AuditResults } from '@/components/AuditResults';
 
 interface ProductDetailViewProps {
     initialAsset: Asset | null;
@@ -36,8 +32,6 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     const [isComparisonOpen, setIsComparisonOpen] = useState(false);
     const [showSubmissionFlow, setShowSubmissionFlow] = useState(false);
     const [formSubmitted, setFormSubmitted] = useState(false);
-    const [showIntegrityCheck, setShowIntegrityCheck] = useState(false);
-    const [cacheMetadata, setCacheMetadata] = useState<any>(null);
     const [showErrorModal, setShowErrorModal] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
@@ -52,16 +46,6 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             });
         }
     }, [asset, slug]);
-
-    // Check if initialAudit has cache metadata - show integrity check on load
-    useEffect(() => {
-        const auditWithCache = initialAudit as AuditResult & { cache?: any };
-        if (auditWithCache?.cache?.hit) {
-            setCacheMetadata(auditWithCache.cache);
-            setShowIntegrityCheck(true);
-            setTimeout(() => setShowIntegrityCheck(false), 600);
-        }
-    }, [initialAudit]);
 
     // Load Audit from Session Storage if not provided by server
     useEffect(() => {
@@ -98,22 +82,10 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         try {
             const result = await runAudit({ slug: targetAsset.slug, forceRefresh });
 
-            // If cached result, show integrity check modal instead of processing steps
-            if (result.cache?.hit) {
-                setCacheMetadata(result.cache);
-                setShowIntegrityCheck(true);
-                // Modal will auto-dismiss and set audit
-                setTimeout(() => {
-                    setAudit(result);
-                    setShowIntegrityCheck(false);
-                    setIsScanning(false);
-                }, 600);
-            } else {
-                // Fresh audit - show completion
-                setAudit(result);
-                setScanLogs(prev => [...prev, "SYNTHESIS COMPLETE."]);
-                setTimeout(() => setIsScanning(false), 800);
-            }
+            // Fresh audit - show completion
+            setAudit(result);
+            setScanLogs(prev => [...prev, "SYNTHESIS COMPLETE."]);
+            setTimeout(() => setIsScanning(false), 800);
 
             // Cache result in session
             const current = JSON.parse(sessionStorage.getItem('actual_fyi_audits') || '{}');
@@ -141,6 +113,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             handleDeepScan(asset);
         }
     }, [asset, shouldAutoRun, slug, audit, handleDeepScan]);
+
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -283,7 +256,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                     </div>
                 ) : (
                     <div className="p-10 md:p-14">
-                        <StagedAuditDemo product={asset} audit={audit} />
+                        <AuditResults product={asset} audit={audit} />
                     </div>
                 )}
             </div>
@@ -341,16 +314,6 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                         </div>
                     </div>
                 </div>
-            )}
-
-            {/* Integrity Check Modal for Cached Results */}
-            {showIntegrityCheck && cacheMetadata && (
-                <IntegrityCheckModal
-                    lastSynced={cacheMetadata.last_synced_at}
-                    ageDays={cacheMetadata.age_days}
-                    sourcesCount={cacheMetadata.sources_count}
-                    onComplete={() => setShowIntegrityCheck(false)}
-                />
             )}
         </div>
     );
