@@ -6,12 +6,13 @@ import Link from "next/link";
 import { runAudit, getAssetBySlug } from "@/lib/dataBridge.client";
 import { AssetSelector } from "@/components/ComparisonPicker";
 import type { Asset, AuditResult } from "@/types";
+import { CanonicalAuditResult } from "@/lib/auditNormalizer";
 import SubmissionSuccess from "@/components/SubmissionSuccess";
 import { AuditResults } from "@/components/AuditResults";
 
 interface ProductDetailViewProps {
   initialAsset: Asset | null;
-  initialAudit?: AuditResult | null;
+  initialAudit?: CanonicalAuditResult | null;
   slug: string;
 }
 
@@ -24,7 +25,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const [mounted, setMounted] = useState(false);
 
   const [asset, setAsset] = useState<Asset | null>(initialAsset);
-  const [audit, setAudit] = useState<AuditResult | null>(initialAudit || null);
+  const [audit, setAudit] = useState<CanonicalAuditResult | null>(initialAudit || null);
   const [loading, setLoading] = useState(!initialAsset);
 
   const [isScanning, setIsScanning] = useState(false);
@@ -185,8 +186,20 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     );
   }
 
+
   return (
-    <div className="max-w-5xl mx-auto px-6 py-12">
+    <div className="max-w-5xl mx-auto px-6 py-12 relative">
+      {/* Dev Debug Badge */}
+      {process.env.NODE_ENV === 'development' && audit && (
+        <div className="fixed bottom-4 right-4 z-[9999] bg-black/80 text-white p-3 rounded-lg text-[10px] font-mono shadow-xl border border-slate-700">
+          <div className="font-bold text-emerald-400 mb-1">DEBUG: Audit Schema</div>
+          <div>Source: <span className="text-yellow-300">{audit._schema_source || 'unknown'}</span></div>
+          <div>Claims: {audit.claim_profile?.length || 0}</div>
+          <div>Ledger: {audit.reality_ledger?.length || 0}</div>
+          <div>Truth: {audit.truth_index ?? 'null'}</div>
+        </div>
+      )}
+
       {/* Loading Overlay during Scan */}
       {isScanning && (
         <div className="fixed inset-0 z-[100] bg-white/80 backdrop-blur-sm flex items-center justify-center p-6">

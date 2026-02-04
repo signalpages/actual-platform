@@ -1,7 +1,7 @@
 import React from 'react';
-import { getProductBySlug, getAudit } from "@/lib/dataBridge.server";
-import { mapShadowToResult } from "@/lib/dataBridge.server";
+import { getProductBySlug, getAudit, mapShadowToResult } from "@/lib/dataBridge.server";
 import ProductDetailView from '@/components/ProductDetailView';
+import { normalizeAuditResult } from "@/lib/auditNormalizer";
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -26,7 +26,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
         // Try to fetch initial audit if available (Server Side) to speed up load
         const auditShadow = await getAudit(product.id);
-        const initialAudit = auditShadow ? mapShadowToResult(auditShadow) : null;
+        const rawAudit = auditShadow ? mapShadowToResult(auditShadow) : null;
+        const initialAudit = rawAudit ? normalizeAuditResult(rawAudit) : null;
 
         // Map Product (DB) to Asset (UI)
         const asset = {

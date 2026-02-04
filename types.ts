@@ -1,15 +1,15 @@
 
 export type ProductCategory =
-  | 'Portable Power Stations'
-  | 'Solar Generator Kits'
-  | 'Solar Panels'
-  | 'Inverters'
-  | 'Batteries'
-  | 'Charge Controllers'
-  | 'Home Backup Systems'
-  | 'EV Chargers'
-  | 'Accessories'
-  | 'Off-Grid Appliances';
+  | 'portable_power_station'
+  | 'solar_generator_kit'
+  | 'solar_panel'
+  | 'inverter'
+  | 'battery'
+  | 'charge_controller'
+  | 'home_backup_system'
+  | 'ev_charger'
+  | 'accessory'
+  | 'off_grid_appliance';
 
 export type VerificationStatus = 'verified' | 'provisional';
 
@@ -20,16 +20,16 @@ export interface Category {
 
 // UI labels for categories (Identity map since IDs are now readable)
 export const CATEGORY_LABELS: Record<ProductCategory, string> = {
-  'Portable Power Stations': 'Portable Power Stations',
-  'Solar Generator Kits': 'Solar Generator Kits',
-  'Solar Panels': 'Solar Panels',
-  'Inverters': 'Inverters',
-  'Batteries': 'Batteries',
-  'Charge Controllers': 'Charge Controllers',
-  'Home Backup Systems': 'Home Backup Systems',
-  'EV Chargers': 'EV Chargers',
-  'Accessories': 'Accessories',
-  'Off-Grid Appliances': 'Off-Grid Appliances'
+  'portable_power_station': 'Portable Power Stations',
+  'solar_generator_kit': 'Solar Generator Kits',
+  'solar_panel': 'Solar Panels',
+  'inverter': 'Inverters',
+  'battery': 'Batteries',
+  'charge_controller': 'Charge Controllers',
+  'home_backup_system': 'Home Backup Systems',
+  'ev_charger': 'EV Chargers',
+  'accessory': 'Accessories',
+  'off_grid_appliance': 'Off-Grid Appliances'
 };
 
 // Aligned with 'products' table in ERD

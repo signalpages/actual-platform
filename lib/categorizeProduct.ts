@@ -86,7 +86,7 @@ export function categorizeProduct(modelName: string, brand: string = ''): Produc
         /\bEG4\b/.test(text) || // EG4 brand specializes in home batteries
         /\bFORTRESS POWER/.test(text)
     ) {
-        return 'home_battery';
+        return 'home_backup_system';
     }
 
     // 8. Microinverters
@@ -95,7 +95,7 @@ export function categorizeProduct(modelName: string, brand: string = ''): Produc
         /\bENPHASE IQ/.test(text) ||
         /\bAPSYSTEMS/.test(text)
     ) {
-        return 'microinverter';
+        return 'inverter';
     }
 
     // 9. Optimizers
@@ -105,7 +105,7 @@ export function categorizeProduct(modelName: string, brand: string = ''): Produc
         /\bTIGO/.test(text) ||
         /(SOLAREDGE).*(OPTIMIZER)/.test(text)
     ) {
-        return 'optimizer';
+        return 'accessory';
     }
 
     // 10. DC converters
@@ -114,7 +114,7 @@ export function categorizeProduct(modelName: string, brand: string = ''): Produc
         /\bDC CONVERTER|DC CHARGER/.test(text) ||
         /(VICTRON|RENOGY).*(DC-DC|ORION)/.test(text)
     ) {
-        return 'dc_converter';
+        return 'accessory';
     }
 
     // Default fallback - portable_power_station is most common
@@ -134,10 +134,10 @@ export function getCategoryLabel(category: ProductCategory): string {
         inverter: 'Inverter',
         battery: 'Battery',
         charge_controller: 'Charge Controller',
-        home_battery: 'Home Battery',
-        microinverter: 'Microinverter',
-        optimizer: 'Optimizer',
-        dc_converter: 'DC Converter',
+        home_backup_system: 'Home Battery',
+        ev_charger: 'EV Charger',
+        accessory: 'Accessory',
+        off_grid_appliance: 'Off-Grid Appliance'
     };
     return labels[category] || category;
 }
@@ -153,10 +153,10 @@ export function isValidCategory(category: string): category is ProductCategory {
         'inverter',
         'battery',
         'charge_controller',
-        'home_battery',
-        'microinverter',
-        'optimizer',
-        'dc_converter',
+        'home_backup_system',
+        'ev_charger',
+        'accessory',
+        'off_grid_appliance',
     ];
     return validCategories.includes(category as ProductCategory);
 }

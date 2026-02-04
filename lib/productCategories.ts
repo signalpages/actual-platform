@@ -4,16 +4,16 @@
  */
 
 export const PRODUCT_CATEGORIES = [
-    'Portable Power Stations',
-    'Solar Generator Kits',
-    'Solar Panels',
-    'Inverters',
-    'Batteries',
-    'Charge Controllers',
-    'Home Backup Systems',
-    'EV Chargers',
-    'Accessories',
-    'Off-Grid Appliances'
+    'portable_power_station',
+    'solar_generator_kit',
+    'solar_panel',
+    'inverter',
+    'battery',
+    'charge_controller',
+    'home_backup_system',
+    'ev_charger',
+    'accessory',
+    'off_grid_appliance'
 ] as const;
 
 export type ProductCategory = typeof PRODUCT_CATEGORIES[number];
@@ -42,56 +42,56 @@ export function autoCategorizeby(modelName: string): ProductCategory {
 
     // Portable Power Stations
     if (/explorer|delta|river|bluetti (ac|eb|ep)|yeti|solix|jackery|ecoflow|anker.*f\d{4}|vtoman/i.test(name)) {
-        return 'Portable Power Stations';
+        return 'portable_power_station';
     }
 
     // Solar Generator Kits (bundles)
     if (/kit|bundle|with.*panel|solarsaga|x ?\d+w|\+ ?\d+w/i.test(name)) {
-        return 'Solar Generator Kits';
+        return 'solar_generator_kit';
     }
 
     // Solar Panels
     if (/panel|pv|mono|bifacial|watt solar|w solar|photovoltaic/i.test(name)) {
-        return 'Solar Panels';
+        return 'solar_panel';
     }
 
     // Inverters
     if (/inverter|hybrid inverter|grid-tie|microinverter|string inverter/i.test(name)) {
-        return 'Inverters';
+        return 'inverter';
     }
 
     // Batteries
     if (/\d+ah\b|\d+kwh\b.*battery|lfp battery|lifepo4|rack mount battery|server rack battery|expansion battery/i.test(name)) {
-        return 'Batteries';
+        return 'battery';
     }
 
     // Charge Controllers
     if (/mppt|pwm|charge controller|solar controller/i.test(name)) {
-        return 'Charge Controllers';
+        return 'charge_controller';
     }
 
     // Home Backup Systems
     if (/whole home|transfer switch|smart home panel|gateway|powerwall|home backup/i.test(name)) {
-        return 'Home Backup Systems';
+        return 'home_backup_system';
     }
 
     // EV Chargers
     if (/evse|level 2 charger|j1772|nacs|ev charger|electric vehicle/i.test(name)) {
-        return 'EV Chargers';
+        return 'ev_charger';
     }
 
     // Accessories
     if (/cable|connector|mc4|fuse|breaker|mount|rail|clamp|adapter|extension/i.test(name)) {
-        return 'Accessories';
+        return 'accessory';
     }
 
     // Off-Grid Appliances
     if (/mini split|fridge|freezer|refrigerator|off-grid appliance/i.test(name)) {
-        return 'Off-Grid Appliances';
+        return 'off_grid_appliance';
     }
 
     // Default fallback
-    return 'Portable Power Stations';
+    return 'portable_power_station';
 }
 
 /**
@@ -106,16 +106,16 @@ export function isSameCategory(categoryA: string, categoryB: string): boolean {
  */
 export function getCategoryIcon(category: string): string {
     const icons: Record<string, string> = {
-        'Portable Power Stations': '🔋',
-        'Solar Generator Kits': '☀️',
-        'Solar Panels': '📐',
-        'Inverters': '⚡',
-        'Batteries': '🔌',
-        'Charge Controllers': '🎛️',
-        'Home Backup Systems': '🏠',
-        'EV Chargers': '🚗',
-        'Accessories': '🔧',
-        'Off-Grid Appliances': '🌲'
+        'portable_power_station': '🔋',
+        'solar_generator_kit': '☀️',
+        'solar_panel': '📐',
+        'inverter': '⚡',
+        'battery': '🔌',
+        'charge_controller': '🎛️',
+        'home_backup_system': '🏠',
+        'ev_charger': '🚗',
+        'accessory': '🔧',
+        'off_grid_appliance': '🌲'
     };
     return icons[category] || '📦';
 }

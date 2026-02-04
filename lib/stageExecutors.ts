@@ -3,6 +3,8 @@
  * Each function executes one stage of the audit independently
  */
 
+import { safeParseLLMJson } from "./textSanitizer";
+
 interface Stage1Result {
     claim_profile: Array<{ label: string; value: string }>;
 }

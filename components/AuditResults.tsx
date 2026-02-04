@@ -1,20 +1,21 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { AuditResult, Asset } from '@/types';
+import { Asset } from '@/types';
+import { CanonicalAuditResult } from '@/lib/auditNormalizer';
 import { StageCard } from './StageCard';
 import { DiscrepancyCard } from './DiscrepancyCard';
 import { MetricBars } from './MetricBars';
 
 interface AuditResultsProps {
     product: Asset;
-    audit: AuditResult | null;
+    audit: CanonicalAuditResult | null;
 }
 
 export function AuditResults({ product, audit }: AuditResultsProps) {
     if (!audit) return null;
 
-    const stages = audit.stages || {};
+    const stages = audit.stages;
 
     // Helper to safely access stage data
     const stageStatus = (key: string) => (stages as any)?.[key]?.status || 'pending';
@@ -80,11 +81,66 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                 status={stageStatus('stage_1')}
                 data={stage1}
             >
-                {claimsCount > 0 && (
-                    <div className="text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 p-3 rounded-lg">
-                        ✓ {claimsCount} technical claims extracted from official sources.
+                <div className="space-y-6">
+                    {claimsCount > 0 && (
+                        <div className="text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 p-3 rounded-lg">
+                            ✓ {claimsCount} technical claims extracted from official sources.
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+                        {/* Manufacturer Claims */}
+                        <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-200 pb-2">
+                                Manufacturer Claims
+                            </h4>
+                            <div className="space-y-4">
+                                {/* Base Metadata */}
+                                <div>
+                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Brand</div>
+                                    <div className="text-xs font-bold text-slate-700">{product.brand}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Model</div>
+                                    <div className="text-xs font-bold text-slate-700">{product.model_name}</div>
+                                </div>
+                                <div>
+                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Category</div>
+                                    <div className="text-xs font-bold text-slate-700">{product.category}</div>
+                                </div>
+
+                                {/* Extracted Claims */}
+                                {audit.claim_profile.map((item, idx) => (
+                                    <div key={idx}>
+                                        <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{item.label}</div>
+                                        <div className="text-xs font-bold text-slate-700 break-words">{item.value}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Reality Ledger */}
+                        <div className="bg-blue-50/30 p-5 rounded-xl border border-blue-50">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-4 border-b border-blue-100 pb-2">
+                                Reality Ledger
+                            </h4>
+                            <div className="space-y-4">
+                                {audit.reality_ledger.length > 0 ? (
+                                    audit.reality_ledger.map((item, idx) => (
+                                        <div key={idx}>
+                                            <div className="text-[9px] font-black text-blue-200 uppercase tracking-widest">{item.label}</div>
+                                            <div className="text-xs font-bold text-blue-900 break-words">{item.value}</div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-xs text-slate-400 italic py-4">
+                                        No reality measurements yet — fills after independent tests & evidence reconciliation.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
-                )}
+                </div>
             </StageCard>
 
             {/* STAGE 2 */}

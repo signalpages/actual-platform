@@ -31,8 +31,10 @@ function getPublicClient(): SupabaseClient {
   return _publicClient;
 }
 
+import { CATEGORY_LABELS } from "../types";
+
 export const listCategories = (): Category[] => {
-  return PRODUCT_CATEGORIES.map((cat) => ({ id: cat, label: cat }));
+  return PRODUCT_CATEGORIES.map((cat) => ({ id: cat, label: CATEGORY_LABELS[cat] || cat }));
 };
 
 export const listManufacturers = async (): Promise<string[]> => {
@@ -137,34 +139,12 @@ function sleep(ms: number) {
 }
 
 // Ensure analysis.status is derived consistently (server may return provisional/verified etc)
-function normalizeAnalysisStatus(audit: any) {
-  if (!audit) return;
+import { normalizeAuditResult, CanonicalAuditResult } from "./auditNormalizer";
 
-  // If analysis exists, keep it. If not, infer minimal.
-  if (!audit.analysis) audit.analysis = {};
+// ... existing imports ...
 
-  // Normalize some common keys if present
-  const a = audit.analysis;
-
-  // is_verified might exist at top-level depending on mapping
-  if (typeof audit.is_verified === "boolean" && typeof a.is_verified !== "boolean") {
-    a.is_verified = audit.is_verified;
-  }
-  if (typeof audit.truth_score === "number" && typeof a.truth_score !== "number") {
-    a.truth_score = audit.truth_score;
-  }
-
-  // Default status if missing
-  if (!a.status) {
-    // If it looks verified, call it verified, else provisional
-    const verified = !!a.is_verified;
-    a.status = verified ? "verified" : "provisional";
-  }
-
-  audit.analysis = a;
-}
-
-export const runAudit = async (payload: RunAuditPayload): Promise<AuditWithCache> => {
+// Update return types
+export const runAudit = async (payload: RunAuditPayload): Promise<CanonicalAuditResult & { cache?: any }> => {
   const slug = typeof payload === "string" ? payload : payload.slug;
   const forceRefresh = typeof payload === "object" ? !!payload.forceRefresh : false;
 
@@ -183,23 +163,20 @@ export const runAudit = async (payload: RunAuditPayload): Promise<AuditWithCache
 
   // 2) Cached / immediate path (Normalized)
   if (data.audit || data.stages) {
-    const audit = data.audit || {};
-    // Normalize stages (sibling takes precedence)
-    const normalized: any = {
-      ...audit,
-      stages: data.stages ?? audit.stages,
+    // If we have direct data, normalize it immediately
+    // Use the raw data object as the source, merging top-level keys
+    const rawForNormalization = {
+      ...data.audit,
+      stages: data.stages ?? data.audit?.stages,
+      // Carry over top-level fields that might be siblings in the response
+      claim_profile: data.claim_profile,
+      reality_ledger: data.reality_ledger,
+      discrepancies: data.discrepancies,
+      truth_index: data.truth_index ?? data.truth_score,
+      analysis: data.analysis
     };
 
-    // CRITICAL: merge sibling payloads into audit (back-compat with older API shapes)
-    if (data.claim_profile && !normalized.claim_profile) normalized.claim_profile = data.claim_profile;
-    if (data.reality_ledger && !normalized.reality_ledger) normalized.reality_ledger = data.reality_ledger;
-    if (data.discrepancies && !normalized.discrepancies) normalized.discrepancies = data.discrepancies;
-    if ((data.truth_index ?? data.truth_score) != null && normalized.truth_index == null) {
-      normalized.truth_index = data.truth_index ?? data.truth_score;
-    }
-    if (data.analysis && !normalized.analysis) normalized.analysis = data.analysis;
-
-    normalizeAnalysisStatus(normalized);
+    const normalized = normalizeAuditResult(rawForNormalization);
     return { ...normalized, cache: data.cache };
   }
 
@@ -213,13 +190,13 @@ export const runAudit = async (payload: RunAuditPayload): Promise<AuditWithCache
 };
 
 // Promise-based deduplication - return same promise for duplicate requests
-const pollPromises = new Map<string, Promise<AuditWithCache>>();
+const pollPromises = new Map<string, Promise<CanonicalAuditResult & { cache?: any }>>();
 
-async function pollAuditStatus(runId: string): Promise<AuditWithCache> {
+async function pollAuditStatus(runId: string): Promise<CanonicalAuditResult & { cache?: any }> {
   const existing = pollPromises.get(runId);
   if (existing) return existing;
 
-  const pollPromise = (async (): Promise<AuditWithCache> => {
+  const pollPromise = (async (): Promise<CanonicalAuditResult & { cache?: any }> => {
     const maxAttempts = 30;
     const maxElapsedMs = 90_000;
     const startTime = Date.now();
@@ -242,28 +219,23 @@ async function pollAuditStatus(runId: string): Promise<AuditWithCache> {
         if (!data?.ok) throw new Error(data?.error || "Failed to get audit status");
 
         if (data.status === "done") {
-          const audit = data.audit || {};
-          // Normalize stages (sibling takes precedence)
-          const normalized: any = {
-            ...audit,
-            stages: data.stages ?? audit.stages,
+          // Create a composite object for normalization
+          const rawForNormalization = {
+            ...data.audit,
+            stages: data.stages,
+            claim_profile: data.claim_profile,
+            reality_ledger: data.reality_ledger,
+            discrepancies: data.discrepancies,
+            truth_index: data.truth_index ?? data.truth_score,
+            analysis: data.analysis
           };
 
-          // CRITICAL: merge sibling payloads into audit (back-compat with older API shapes)
-          if (data.claim_profile && !normalized.claim_profile) normalized.claim_profile = data.claim_profile;
-          if (data.reality_ledger && !normalized.reality_ledger) normalized.reality_ledger = data.reality_ledger;
-          if (data.discrepancies && !normalized.discrepancies) normalized.discrepancies = data.discrepancies;
-          if ((data.truth_index ?? data.truth_score) != null && normalized.truth_index == null) {
-            normalized.truth_index = data.truth_index ?? data.truth_score;
-          }
-          if (data.analysis && !normalized.analysis) normalized.analysis = data.analysis;
-
-          normalizeAnalysisStatus(normalized);
+          const normalized = normalizeAuditResult(rawForNormalization);
 
           console.log(
             `[Polling] Completed for ${runId} after ${i + 1} attempts (${Date.now() - startTime}ms)`
           );
-          return normalized as AuditWithCache;
+          return normalized as CanonicalAuditResult & { cache?: any };
         }
 
         if (data.status === "error") throw new Error(data?.error || "Audit failed");

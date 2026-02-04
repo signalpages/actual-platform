@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { AssetSelector } from './ComparisonPicker';
 import { useRouter } from 'next/navigation';
 
+import { ProductCategory } from '@/types';
+
 interface StickyCompareButtonProps {
     productSlug: string;
-    category: string;
+    category: ProductCategory;
     brand: string;
 }
 

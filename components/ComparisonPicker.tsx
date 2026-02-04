@@ -118,9 +118,9 @@ const ComparisonPicker: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory>(() => {
     // Check if window is defined (client-side)
     if (typeof window !== 'undefined') {
-      return (sessionStorage.getItem('actual_fyi_last_category') as ProductCategory) || 'Portable Power Stations';
+      return (sessionStorage.getItem('actual_fyi_last_category') as ProductCategory) || 'portable_power_station';
     }
-    return 'Portable Power Stations';
+    return 'portable_power_station';
   });
   const router = useRouter();
 

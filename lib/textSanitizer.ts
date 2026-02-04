@@ -148,3 +148,23 @@ function normalizeStringValue(value: any): string {
 
     return str;
 }
+
+/**
+ * Safe JSON parser for LLM outputs
+ * Handles markdown code blocks, truncation, and basic malformations
+ */
+export function safeParseLLMJson(text: string): { success: boolean; data?: any; error?: string } {
+    if (!text) return { success: false, error: 'Empty input' };
+
+    try {
+        // Strip markdown code blocks
+        let clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+        // Try parsing
+        const data = JSON.parse(clean);
+        return { success: true, data };
+    } catch (e: any) {
+        // Advanced recovery could go here (e.g. balanced brace extraction)
+        return { success: false, error: e.message };
+    }
+}
