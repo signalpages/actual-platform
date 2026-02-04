@@ -36,11 +36,13 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         };
 
         return (
-            <ProductDetailView
-                initialAsset={asset as any} // Cast to any or strict Asset if type aligns
-                initialAudit={initialAudit}
-                slug={slug}
-            />
+            <React.Suspense fallback={<ProductDetailView initialAsset={null} slug={slug} />}>
+                <ProductDetailView
+                    initialAsset={asset as any} // Cast to any or strict Asset if type aligns
+                    initialAudit={initialAudit}
+                    slug={slug}
+                />
+            </React.Suspense>
         );
 
     } catch (e) {
