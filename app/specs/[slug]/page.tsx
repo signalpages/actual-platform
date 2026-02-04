@@ -4,6 +4,7 @@ import { mapShadowToResult } from "@/lib/dataBridge.server";
 import ProductDetailView from '@/components/ProductDetailView';
 
 export const runtime = 'edge';
+export const dynamic = 'force-dynamic';
 
 export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
     // In Next.js 15+, params is strictly async.

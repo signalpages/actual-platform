@@ -25,10 +25,23 @@ export default function RootLayout({
 }: {
     children: React.ReactNode;
 }) {
+    // Log build ID for debugging provenance
+    if (typeof window !== 'undefined') {
+        console.log(`[Actual.fyi] Build ID: ${process.env.NEXT_PUBLIC_BUILD_ID}`);
+    }
+
     return (
         <html lang="en">
+            <head>
+                <meta name="build-id" content={process.env.NEXT_PUBLIC_BUILD_ID} />
+            </head>
             <body className={`${inter.variable} bg-white min-h-screen text-slate-900 selection:bg-blue-100 selection:text-blue-900 font-sans`}>
                 <Layout>{children}</Layout>
+                <script
+                    dangerouslySetInnerHTML={{
+                        __html: `console.log("[Actual.fyi] Build ID: ${process.env.NEXT_PUBLIC_BUILD_ID}");`
+                    }}
+                />
             </body>
         </html>
     );

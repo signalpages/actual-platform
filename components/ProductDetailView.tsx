@@ -28,8 +28,6 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const [loading, setLoading] = useState(!initialAsset);
 
   const [isScanning, setIsScanning] = useState(false);
-  const [scanLogs, setScanLogs] = useState<string[]>([]);
-
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
 
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -74,28 +72,11 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
       if (!targetAsset || isScanning) return;
 
       setIsScanning(true);
-      setScanLogs(["System Boot: Forensic Truth Engine V2.6", "PROTOCOL: LIVE SYNTHESIS ACTIVE..."]);
-
-      const steps = [
-        "Accessing High-Friction Search Grounds...",
-        "Normalizing Owner Troubleshooting Logs...",
-        "Scraping PDF manual 'Operating Thresholds'...",
-        "Querying Reddit Technical Forensics...",
-        "Cross-referencing FCC IDs...",
-        "Synthesizing Forensic Discrepancy Ledger...",
-        "CALCULATING VERDICT...",
-      ];
-
-      for (const step of steps) {
-        await new Promise((r) => setTimeout(r, 400));
-        setScanLogs((prev) => [...prev, `[CMD]: ${step}`]);
-      }
 
       try {
         const result = await runAudit({ slug: targetAsset.slug, forceRefresh });
 
         setAudit(result);
-        setScanLogs((prev) => [...prev, "SYNTHESIS COMPLETE."]);
 
         // Cache result in session
         try {
@@ -112,13 +93,11 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         } else {
           setShowSubmissionFlow(false);
         }
-
-        setTimeout(() => setIsScanning(false), 800);
       } catch (e: any) {
-        setScanLogs((prev) => [...prev, "CRITICAL ERROR: Protocol rejected."]);
         setErrorMessage(e?.message || "Audit failed. Please try again.");
         setShowErrorModal(true);
-        setTimeout(() => setIsScanning(false), 1500);
+      } finally {
+        setIsScanning(false);
       }
     },
     [isScanning]
@@ -159,7 +138,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     (!audit || audit?.analysis?.status === "failed" || (audit?.claim_profile?.length ?? 0) === 0);
 
   let auditStatusLabel = "Verified Ledger Entry";
-  if (isScanning) auditStatusLabel = "Forensic extraction in progress";
+  if (isScanning) auditStatusLabel = "Verifying...";
   else if (isProvisional) auditStatusLabel = "Preliminary synthesis required";
   else if (!isVerifiedAudit) auditStatusLabel = "Verified Asset (Pending Full Audit)";
 
@@ -179,7 +158,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
       <div className="flex flex-col items-center justify-center min-h-[60vh]">
         <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-          Consulting Ledger...
+          Loading Asset Data...
         </p>
       </div>
     );
@@ -208,20 +187,12 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12">
+      {/* Loading Overlay during Scan */}
       {isScanning && (
-        <div className="fixed inset-0 z-[100] bg-slate-900/90 backdrop-blur-sm flex items-center justify-center p-6 font-mono text-emerald-400">
-          <div className="w-full max-w-xl bg-black border border-slate-700 rounded-xl p-8 shadow-2xl overflow-hidden">
-            <div className="mb-4 flex items-center justify-between border-b border-slate-800 pb-4">
-              <span className="text-[10px] uppercase font-black tracking-widest text-emerald-500">
-                Active Forensic Synthesis
-              </span>
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            </div>
-            <div className="h-60 overflow-y-auto space-y-1 text-[11px]">
-              {scanLogs.map((log, i) => (
-                <p key={i}>{log}</p>
-              ))}
-            </div>
+        <div className="fixed inset-0 z-[100] bg-white/80 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="flex flex-col items-center">
+            <div className="w-12 h-12 border-4 border-slate-900 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-xs font-black uppercase tracking-widest text-slate-900">Running Verification...</p>
           </div>
         </div>
       )}
@@ -238,9 +209,8 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                 {asset.model_name}
               </h1>
               <p
-                className={`text-[10px] font-black uppercase tracking-widest ${
-                  isVerifiedAudit ? "text-emerald-600" : "text-slate-400"
-                }`}
+                className={`text-[10px] font-black uppercase tracking-widest ${isVerifiedAudit ? "text-emerald-600" : "text-slate-400"
+                  }`}
               >
                 AUDIT STATUS: {auditStatusLabel}
               </p>
