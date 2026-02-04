@@ -23,6 +23,10 @@ interface Stage3Result {
         severity: string;
         impact: string;
     }>;
+    reality_ledger: Array<{
+        label: string;
+        value: string;
+    }>;
     _meta?: {
         status: 'partial' | 'error';
         raw_text: string;
@@ -56,16 +60,26 @@ export async function executeStage1(product: any): Promise<Stage1Result> {
     if (product.technical_specs) {
         if (Array.isArray(product.technical_specs)) {
             // Array format - map directly
-            claim_profile = product.technical_specs.map((spec: any) => ({
-                label: spec.label || spec.name || 'Unknown',
-                value: spec.value || spec.spec_value || 'Not specified'
-            }));
+            claim_profile = product.technical_specs
+                .map((spec: any) => ({
+                    label: spec.label || spec.name || 'Unknown',
+                    value: spec.value || spec.spec_value || 'Not specified'
+                }))
+                .filter((item: { label: string; value: string }) => {
+                    const v = item.value.toLowerCase().trim();
+                    return v !== 'not specified' && v !== 'null' && v !== 'undefined' && v !== '';
+                });
         } else if (typeof product.technical_specs === 'object') {
             // Object format - convert entries to array
-            claim_profile = Object.entries(product.technical_specs).map(([key, value]) => ({
-                label: key,
-                value: String(value)
-            }));
+            claim_profile = Object.entries(product.technical_specs)
+                .map(([key, value]) => ({
+                    label: key,
+                    value: String(value)
+                }))
+                .filter((item) => {
+                    const v = item.value.toLowerCase().trim();
+                    return v !== 'not specified' && v !== 'null' && v !== 'undefined' && v !== '';
+                });
         }
     }
 
@@ -207,7 +221,7 @@ Return JSON in this EXACT format:
 }
 
 /**
- * STAGE 3: Forensic Discrepancies
+ * STAGE 3: Forensic Discrepancies & Reality Ledger
  * Cross-reference claims with reality
  */
 export async function executeStage3(
@@ -215,7 +229,7 @@ export async function executeStage3(
     stage1: Stage1Result,
     stage2: Stage2Result
 ): Promise<Stage3Result> {
-    console.log(`[Stage 3] Analyzing discrepancies for ${product.model_name}`);
+    console.log(`[Stage 3] Analyzing discrepancies and reality for ${product.model_name}`);
 
     const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
     if (!apiKey) {
@@ -231,6 +245,13 @@ COMMUNITY FEEDBACK:
 Most Praised: ${stage2.independent_signal.most_praised.map(p => p.text).join('; ')}
 Issues: ${stage2.independent_signal.most_reported_issues.map(i => i.text).join('; ')}
 
+TASK 1: REALITY LEDGER
+For EACH manufacturer claim above, determine the "Real World" value based on feedback.
+- If confirmed: Use the claimed value (e.g. "Confirmed 2000W").
+- If different: Use the real observed value (e.g. "Actually ~1800W").
+- If unknown: write "Not verified".
+
+TASK 2: DISCREPANCIES
 Identify ONLY meaningful discrepancies (>3% variance or functional impact).
 
 CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
@@ -238,6 +259,10 @@ Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
 
 Return JSON:
 {
+  "reality_ledger": [
+    { "label": "Battery Capacity", "value": "2850Wh (tested avg)" },
+    { "label": "AC Output", "value": "Confirmed 3000W" }
+  ],
   "red_flags": [
     {
       "claim": "exact claim text",
@@ -250,7 +275,7 @@ Return JSON:
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
         const resp = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -261,7 +286,7 @@ Return JSON:
                     contents: [{ role: 'user', parts: [{ text: prompt }] }],
                     generationConfig: {
                         temperature: 0.2,
-                        maxOutputTokens: 2048, // Increased to prevent truncation
+                        maxOutputTokens: 8192, // Increased to prevent truncation
                         responseMimeType: 'application/json'
                     }
                 }),
@@ -339,9 +364,10 @@ Return JSON:
             }
         }
 
-        console.log(`[Stage 3] Found ${result?.red_flags?.length || 0} discrepancies (${isPartial ? 'partial' : 'complete'})`);
+        console.log(`[Stage 3] Found ${result?.reality_ledger?.length || 0} reality items, ${result?.red_flags?.length || 0} discrepancies (${isPartial ? 'partial' : 'complete'})`);
 
         return {
+            reality_ledger: result?.reality_ledger || [],
             red_flags: result?.red_flags || [],
             _meta: isPartial || parseError ? {
                 status: isPartial ? 'partial' : 'error',
@@ -352,7 +378,7 @@ Return JSON:
     } catch (error: any) {
         console.error('[Stage 3] Error:', error);
         console.error('[Stage 3] Stage failed but audit will continue');
-        return { red_flags: [] };
+        return { reality_ledger: [], red_flags: [] };
     }
 }
 

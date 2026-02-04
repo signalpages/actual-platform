@@ -11,14 +11,12 @@ export interface CanonicalAuditResult extends AuditResult {
     _schema_source?: 'forensic' | 'summary' | 'unknown';
 }
 
-export function normalizeAuditResult(raw: any): CanonicalAuditResult {
-    if (!raw) {
-        return createEmptyAudit();
-    }
+export function normalizeAuditResult(raw: any, product?: any): CanonicalAuditResult {
+    const canonicalBase = raw || createEmptyAudit();
 
     // Detect schema source for debugging
-    const hasStages = !!raw.stages;
-    const hasDirectClaims = !!(raw.claim_profile && raw.claim_profile.length > 0);
+    const hasStages = !!canonicalBase.stages;
+    const hasDirectClaims = !!(canonicalBase.claim_profile && canonicalBase.claim_profile.length > 0);
     const schemaSource = hasStages ? 'forensic' : (hasDirectClaims ? 'summary' : 'unknown');
 
     // 1. Extract Stages
@@ -30,7 +28,7 @@ export function normalizeAuditResult(raw: any): CanonicalAuditResult {
         stage_4: { ...defaultStage, status: 'pending' } as any,
     };
 
-    const rawStages = raw.stages || raw.audit?.stages || {};
+    const rawStages = canonicalBase.stages || canonicalBase.audit?.stages || {};
     const stages: AuditStages = {
         stage_1: rawStages.stage_1 || defaultStages.stage_1,
         stage_2: rawStages.stage_2 || defaultStages.stage_2,
@@ -45,35 +43,59 @@ export function normalizeAuditResult(raw: any): CanonicalAuditResult {
     const s4Data = stages.stage_4?.data || {};
 
     // 2. Canonicalize Claim Profile
-    // Priority: raw -> stage_1.data.claim_profile -> empty
-    let claim_profile = Array.isArray(raw.claim_profile) ? raw.claim_profile :
-        (Array.isArray(s1Data.claim_profile) ? s1Data.claim_profile : []);
+    // Priority: raw -> stage_1.data.claim_profile -> PRODUCT SPECS (Instant) -> empty
+    let claim_profile = Array.isArray(canonicalBase.claim_profile) && canonicalBase.claim_profile.length > 0 ? canonicalBase.claim_profile :
+        (Array.isArray(s1Data.claim_profile) && s1Data.claim_profile.length > 0 ? s1Data.claim_profile : []);
+
+    // Instant Backfill from Product Specs if audit is pending/empty
+    if (claim_profile.length === 0 && product?.technical_specs) {
+        if (Array.isArray(product.technical_specs)) {
+            claim_profile = product.technical_specs
+                .map((spec: any) => ({
+                    label: spec.label || spec.name || 'Unknown',
+                    value: spec.value || spec.spec_value || 'Not specified'
+                }))
+                .filter((i: any) => {
+                    const v = i.value.toLowerCase().trim();
+                    return v !== 'not specified' && v !== 'null' && v !== 'undefined' && v !== '';
+                });
+        } else if (typeof product.technical_specs === 'object') {
+            claim_profile = Object.entries(product.technical_specs)
+                .map(([key, value]) => ({
+                    label: key,
+                    value: String(value)
+                }))
+                .filter((i: any) => {
+                    const v = i.value.toLowerCase().trim();
+                    return v !== 'not specified' && v !== 'null' && v !== 'undefined' && v !== '';
+                });
+        }
+    }
 
     // 3. Canonicalize Reality Ledger
     // Priority: raw -> stage_1.data.reality_ledger -> empty
-    let reality_ledger = Array.isArray(raw.reality_ledger) ? raw.reality_ledger :
+    let reality_ledger = Array.isArray(canonicalBase.reality_ledger) ? canonicalBase.reality_ledger :
         (Array.isArray(s1Data.reality_ledger) ? s1Data.reality_ledger : []);
 
     // 4. Canonicalize Discrepancies
     // Priority: raw.discrepancies -> raw.forensic.claim_cards -> stage_3.data.discrepancies -> stage_3.data.claim_cards -> stage_3.data.red_flags -> empty
     let discrepancies = [];
-    if (Array.isArray(raw.discrepancies)) discrepancies = raw.discrepancies;
-    else if (raw.forensic && Array.isArray(raw.forensic.claim_cards)) discrepancies = raw.forensic.claim_cards;
+    if (Array.isArray(canonicalBase.discrepancies)) discrepancies = canonicalBase.discrepancies;
+    else if (canonicalBase.forensic && Array.isArray(canonicalBase.forensic.claim_cards)) discrepancies = canonicalBase.forensic.claim_cards;
     else if (Array.isArray(s3Data.discrepancies)) discrepancies = s3Data.discrepancies;
     else if (Array.isArray(s3Data.claim_cards)) discrepancies = s3Data.claim_cards;
     else if (Array.isArray(s3Data.red_flags)) discrepancies = s3Data.red_flags;
 
     // 5. Canonicalize Truth Index
-    // Priority: raw.truth_index -> stage_4.data.truth_index -> raw.truth_score -> null
-    let truth_index = raw.truth_index;
+    let truth_index = canonicalBase.truth_index;
     if (truth_index === undefined || truth_index === null) truth_index = s4Data.truth_index;
-    if (truth_index === undefined || truth_index === null) truth_index = raw.truth_score;
+    if (truth_index === undefined || truth_index === null) truth_index = canonicalBase.truth_score;
     if (truth_index === undefined || truth_index === null) truth_index = s4Data.truth_score;
 
     // Normalized Base
     const canonical: CanonicalAuditResult = {
-        assetId: raw.assetId || raw.slug || 'unknown',
-        analysis: raw.analysis || { status: 'provisional', last_run_at: null },
+        assetId: canonicalBase.assetId || canonicalBase.slug || product?.slug || 'unknown',
+        analysis: canonicalBase.analysis || { status: 'provisional', last_run_at: null },
         claim_profile,
         reality_ledger,
         discrepancies,
@@ -82,14 +104,14 @@ export function normalizeAuditResult(raw: any): CanonicalAuditResult {
         _schema_source: schemaSource,
 
         // Pass through other S4 fields if they exist
-        metric_bars: raw.metric_bars || s4Data.metric_bars,
-        strengths: raw.strengths || s4Data.strengths,
-        limitations: raw.limitations || s4Data.limitations,
-        practical_impact: raw.practical_impact || s4Data.practical_impact,
-        good_fit: raw.good_fit || s4Data.good_fit,
-        consider_alternatives: raw.consider_alternatives || s4Data.consider_alternatives,
-        score_interpretation: raw.score_interpretation || s4Data.score_interpretation,
-        data_confidence: raw.data_confidence || s4Data.data_confidence,
+        metric_bars: canonicalBase.metric_bars || s4Data.metric_bars,
+        strengths: canonicalBase.strengths || s4Data.strengths,
+        limitations: canonicalBase.limitations || s4Data.limitations,
+        practical_impact: canonicalBase.practical_impact || s4Data.practical_impact,
+        good_fit: canonicalBase.good_fit || s4Data.good_fit,
+        consider_alternatives: canonicalBase.consider_alternatives || s4Data.consider_alternatives,
+        score_interpretation: canonicalBase.score_interpretation || s4Data.score_interpretation,
+        data_confidence: canonicalBase.data_confidence || s4Data.data_confidence,
     };
 
     return canonical;

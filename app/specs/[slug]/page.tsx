@@ -27,7 +27,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         // Try to fetch initial audit if available (Server Side) to speed up load
         const auditShadow = await getAudit(product.id);
         const rawAudit = auditShadow ? mapShadowToResult(auditShadow) : null;
-        const initialAudit = rawAudit ? normalizeAuditResult(rawAudit) : null;
+        const initialAudit = normalizeAuditResult(rawAudit, product);
 
         // Map Product (DB) to Asset (UI)
         const asset = {

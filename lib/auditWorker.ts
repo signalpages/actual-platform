@@ -128,7 +128,7 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
             verification_status: stage4Result.truth_index > 85 ? 'verified' : 'provisional',
             last_updated: new Date().toISOString(),
             advertised_claims: stage1Result.claim_profile,
-            reality_ledger: [], // Don't use claim_profile as reality (misleading)
+            reality_ledger: stage3Result.reality_ledger || [],
             key_wins: stage2Result.independent_signal.most_praised.slice(0, 5).map(p => ({
                 label: p.text.substring(0, 50),
                 value: `${p.sources} sources`
