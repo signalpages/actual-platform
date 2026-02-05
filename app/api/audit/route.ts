@@ -81,9 +81,32 @@ export async function POST(req: NextRequest) {
     }
 
     // ✅ insert audit run
+    // 0) Check for an existing active run first (idempotent behavior)
+    const { data: existingRun, error: existingErr } = await sb
+    .from("audit_runs")
+    .select("id, status")
+    .eq("product_id", productId)
+    .in("status", ["pending", "running"])
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+    if (existingErr) {
+    console.error("Active run lookup failed:", existingErr);
+    }
+
+    if (existingRun?.id) {
+    return NextResponse.json({
+        ok: true,
+        runId: existingRun.id,
+        status: existingRun.status,
+    });
+    }
+
+    // 1) No active run → create a new one
     const { data, error } = await sb
-      .from("audit_runs")
-      .insert({
+    .from("audit_runs")
+    .insert({
         product_id: productId,
         status: "running",
         progress: 0,
@@ -92,14 +115,37 @@ export async function POST(req: NextRequest) {
         error: null,
         result_shadow_spec_id: null,
         stage_state: initialStageState(),
-      })
-      .select("id")
-      .single();
+    })
+    .select("id")
+    .single();
 
     if (error || !data?.id) {
-      throw new Error(error?.message ?? "Failed to create audit_run");
+    const msg = error?.message ?? "Failed to create audit_run";
+
+    // 2) Race condition: another request created the active run first
+    if (msg.includes("idx_audit_runs_active_product")) {
+        const { data: rerun } = await sb
+        .from("audit_runs")
+        .select("id, status")
+        .eq("product_id", productId)
+        .in("status", ["pending", "running"])
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+        if (rerun?.id) {
+        return NextResponse.json({
+            ok: true,
+            runId: rerun.id,
+            status: rerun.status,
+        });
+        }
     }
 
+    throw new Error(msg);
+    }
+
+    if (!data?.id) throw new Error("Missing run id after insert");
     const runId = data.id;
 
     // ✅ pass the RESOLVED productId to the worker
