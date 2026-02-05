@@ -9,7 +9,7 @@ import {
   runStage2_IndependentSignal,
   runStage3_ForensicDiscrepancies,
   runStage4_Verdict,
-} from "@/lib/auditStages";
+} from "./auditStages";
 
 const getSupabase = () => {
   const url = process.env.SUPABASE_URL;
