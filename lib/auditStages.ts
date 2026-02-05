@@ -1,212 +1,343 @@
 /**
  * Stage execution helpers for progressive audit loading
- * 
- * Stage 0: Ledger Check (silent, server-side)
- * Stage 1: Claim Profile (1-3s, cached)
- * Stage 2: Independent Signal (5-15s, Reddit/YouTube/forums)
- * Stage 3: Forensic Discrepancies (20-30s, Gemini synthesis)
- * Stage 4: Verdict & Truth Index (instant after stage 3)
+ *
+ * Stage 1: Claim Profile (from manufacturer/product data; no LLM)
+ * Stage 2: Independent Signal (Schematron extractor; structured JSON)
+ * Stage 3: Forensic Discrepancies (Gemini synthesis - placeholder for now)
+ * Stage 4: Verdict & Truth Index (computed - placeholder for now)
  */
 
-import { Product } from '@/types';
 import { createClient } from "@supabase/supabase-js";
-import { updateStageHelper } from './updateStageHelper';
+import { updateStageHelper } from "./updateStageHelper";
+import type { Product } from "@/types";
+import OpenAI from "openai";
 
-const getSupabase = () => {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) throw new Error("Missing Supabase credentials");
-    return createClient(url, key, { auth: { persistSession: false } });
-};
+type StageName = "stage_1" | "stage_2" | "stage_3" | "stage_4";
+type StageStatus = "pending" | "running" | "done" | "error";
 
-// Wrapper for updateStage
-async function updateStage(
-    productId: string,
-    stageName: 'stage_1' | 'stage_2' | 'stage_3' | 'stage_4',
-    stageData: any
-) {
-    const supabase = getSupabase();
-    return updateStageHelper({ productId, stageName, stageData, supabase });
+const STAGE_TTL_DAYS = {
+  stage_1: 30,
+  stage_2: 14,
+  stage_3: 30,
+  stage_4: 30,
+} as const;
+
+function getSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Missing Supabase credentials (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+async function updateStage(productId: string, stageName: StageName, stageData: any) {
+  const supabase = getSupabase();
+  return updateStageHelper({ productId, stageName, stageData, supabase });
 }
 
 /**
- * Stage 1: Extract claimed specifications from manufacturer
+ * -------------------------
+ * Schematron Client (Stage 2)
+ * -------------------------
+ */
+function getSchematronClient() {
+  const apiKey = process.env.SCHEMATRON_API_KEY;
+  if (!apiKey) throw new Error("Missing SCHEMATRON_API_KEY");
+  return new OpenAI({
+    baseURL: "https://api.inference.net/v1",
+    apiKey,
+  });
+}
+
+type Stage2Extract = {
+  most_praised: { text: string }[];
+  most_reported_issues: { text: string }[];
+};
+
+async function schematronStage2Extract(args: {
+  html: string;
+  brand?: string;
+  model?: string;
+}): Promise<Stage2Extract> {
+  const client = getSchematronClient();
+
+  const prompt = `
+Return JSON ONLY that matches this schema exactly:
+
+{
+  "most_praised": [{"text": "string"}],
+  "most_reported_issues": [{"text": "string"}]
+}
+
+Context:
+Brand: ${args.brand ?? "—"}
+Model: ${args.model ?? "—"}
+
+HTML:
+${args.html}
+`.trim();
+
+  // IMPORTANT: Schematron requires json_schema response format
+  const resp = await client.responses.create({
+    model: "inference-net/schematron-3b",
+    input: [
+      {
+        role: "user",
+        content: [{ type: "input_text", text: prompt }],
+      },
+    ],
+    response_format: {
+      type: "json_schema",
+      json_schema: {
+        name: "stage2_independent_signal",
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["most_praised", "most_reported_issues"],
+          properties: {
+            most_praised: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["text"],
+                properties: { text: { type: "string" } },
+              },
+            },
+            most_reported_issues: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["text"],
+                properties: { text: { type: "string" } },
+              },
+            },
+          },
+        },
+      },
+    },
+    temperature: 0,
+  });
+
+  // Inference/OpenAI Responses API: parsed JSON is here if schema worked
+  const parsed = (resp as any).output_parsed as Stage2Extract | undefined;
+
+  if (!parsed) {
+    // Helpful debug if it returns text instead
+    const outputText =
+      (resp as any)?.output?.[0]?.content?.find((c: any) => c?.type === "output_text")?.text ??
+      (resp as any)?.output_text ??
+      null;
+
+    throw new Error(`Schematron returned no parsed JSON. Output: ${outputText ?? "[no output_text]"}`);
+  }
+
+  // Extra safety: enforce shape at runtime
+  if (!Array.isArray(parsed.most_praised) || !Array.isArray(parsed.most_reported_issues)) {
+    throw new Error("Schematron parsed JSON missing required arrays");
+  }
+
+  return parsed;
+}
+
+/**
+ * -------------------------
+ * Stage 1: Claim Profile
  * TTL: 30 days
+ * Source: product.technical_specs (array or object)
+ * -------------------------
  */
 export async function runStage1_ClaimProfile(productId: string, product: Product) {
-  console.log(`[Stage 1] Starting claim profile extraction for ${product.model_name}`);
-
-  await updateStage(productId, 'stage_1', { status: 'running' });
+  console.log(`[Stage 1] Starting claim profile for ${product?.brand ?? ""} ${product?.model_name ?? ""}`);
+  await updateStage(productId, "stage_1", { status: "running" satisfies StageStatus });
 
   try {
-    const specsRaw: any[] = Array.isArray((product as any).technical_specs)
-      ? ((product as any).technical_specs as any[])
-      : [];
+    const raw = (product as any)?.technical_specs;
 
-    // Normalize any spec row into {label, value}
-    const normalizedSpecs = specsRaw
-      .map((s: any) => {
-        const label = s?.label ?? s?.name ?? s?.key ?? s?.title;
-        const value = s?.value ?? s?.val ?? s?.display_value ?? s?.displayValue;
+    const normalizedSpecs: { label: string; value: string }[] = (() => {
+      // array case: [{label,value}] etc
+      if (Array.isArray(raw)) {
+        return raw
+          .map((s: any) => {
+            const label = s?.label ?? s?.name ?? s?.key ?? s?.title;
+            const value = s?.value ?? s?.val ?? s?.display_value ?? s?.displayValue;
+            if (!label) return null;
+            return {
+              label: String(label),
+              value: value === undefined || value === null || value === "" ? "—" : String(value),
+            };
+          })
+          .filter(Boolean) as { label: string; value: string }[];
+      }
 
-        if (!label) return null;
+      // object case: { "Storage Capacity": "1024Wh", ... }
+      if (raw && typeof raw === "object") {
+        return Object.entries(raw)
+          .map(([k, v]) => ({
+            label: String(k),
+            value: v === undefined || v === null || v === "" ? "—" : String(v),
+          }))
+          .filter((row) => row.label);
+      }
 
-        return {
-          label: String(label),
-          value: value === undefined || value === null || value === '' ? '—' : String(value),
-        };
-      })
-      .filter(Boolean) as { label: string; value: string }[];
+      return [];
+    })();
 
-    // Always include identity at the top (prevents “missing Brand/Model/Category” regressions)
     const claimProfile = [
-      { label: 'Brand', value: product?.brand ? String(product.brand) : '—' },
-      { label: 'Model', value: product?.model_name ? String(product.model_name) : '—' },
-      { label: 'Category', value: product?.category ? String(product.category) : '—' },
+      { label: "Brand", value: product?.brand ? String(product.brand) : "—" },
+      { label: "Model", value: product?.model_name ? String(product.model_name) : "—" },
+      { label: "Category", value: product?.category ? String(product.category) : "—" },
       ...normalizedSpecs,
     ];
 
-    await updateStage(productId, 'stage_1', {
-      status: 'done',
-      data: { claim_profile: claimProfile },
+    await updateStage(productId, "stage_1", {
+      status: "done" satisfies StageStatus,
       completed_at: new Date().toISOString(),
+      ttl_days: STAGE_TTL_DAYS.stage_1,
+      data: { claim_profile: claimProfile },
     });
 
-    console.log(`[Stage 1] ✅ Completed for ${product.model_name}`);
+    console.log(`[Stage 1] ✅ Done (${claimProfile.length} rows)`);
     return { claim_profile: claimProfile };
   } catch (error: any) {
     console.error(`[Stage 1] ❌ Failed:`, error);
-    await updateStage(productId, 'stage_1', {
-      status: 'error',
-      error: error.message,
+    await updateStage(productId, "stage_1", {
+      status: "error" satisfies StageStatus,
+      error: error?.message ?? String(error),
     });
     throw error;
   }
 }
 
 /**
- * Stage 2: Aggregate independent signal from community sources
+ * -------------------------
+ * Stage 2: Independent Signal (Schematron)
  * TTL: 14 days
+ *
+ * IMPORTANT:
+ * UI expects:
+ *   stage_2.data.most_praised
+ *   stage_2.data.most_reported_issues
+ *
+ * No fallback. If Schematron fails -> stage_2 error.
+ * -------------------------
  */
-export async function runStage2_IndependentSignal(productId: string, product: Product) {
-    console.log(`[Stage 2] Starting independent signal aggregation for ${product.model_name}`);
+export async function runStage2_IndependentSignal(productId: string, args: { product: Product; html: string }) {
+  const { product, html } = args;
+  console.log(`[Stage 2] Starting independent signal for ${product?.brand ?? ""} ${product?.model_name ?? ""}`);
 
-    await updateStage(productId, 'stage_2', { status: 'running' });
+  await updateStage(productId, "stage_2", { status: "running" satisfies StageStatus });
 
-    try {
-        const query = `${product.brand} ${product.model_name}`;
+  try {
+    const extracted = await schematronStage2Extract({
+      html,
+      brand: product?.brand ? String(product.brand) : undefined,
+      model: product?.model_name ? String(product.model_name) : undefined,
+    });
 
-        // TODO: Implement Reddit/YouTube/Forum scraping
-        // Placeholder for now
-        const independentSignal = {
-            most_reported_issues: [],
-            most_praised: [],
-            sources: []
-        };
+    await updateStage(productId, "stage_2", {
+      status: "done" satisfies StageStatus,
+      completed_at: new Date().toISOString(),
+      ttl_days: STAGE_TTL_DAYS.stage_2,
+      data: {
+        most_praised: extracted.most_praised,
+        most_reported_issues: extracted.most_reported_issues,
+      },
+    });
 
-        await updateStage(productId, 'stage_2', {
-            status: 'done',
-            data: { independent_signal: independentSignal },
-            completed_at: new Date().toISOString()
-        });
-
-        console.log(`[Stage 2] ✅ Completed for ${product.model_name}`);
-        return { independent_signal: independentSignal };
-    } catch (error: any) {
-        console.error(`[Stage 2] ❌ Failed:`, error);
-        await updateStage(productId, 'stage_2', {
-            status: 'error',
-            error: error.message
-        });
-        throw error;
-    }
+    console.log(
+      `[Stage 2] ✅ Done (praise=${extracted.most_praised.length}, issues=${extracted.most_reported_issues.length})`
+    );
+    return extracted;
+  } catch (error: any) {
+    console.error(`[Stage 2] ❌ Failed:`, error);
+    await updateStage(productId, "stage_2", {
+      status: "error" satisfies StageStatus,
+      error: error?.message ?? String(error),
+    });
+    throw error;
+  }
 }
 
 /**
- * Stage 3: Forensic discrepancy detection via Gemini synthesis
+ * -------------------------
+ * Stage 3: Forensic Discrepancies (placeholder)
  * TTL: 30 days
+ * -------------------------
  */
-export async function runStage3_ForensicDiscrepancies(productId: string, stage1Data: any, stage2Data: any) {
-    console.log(`[Stage 3] Starting forensic analysis`);
+export async function runStage3_ForensicDiscrepancies(productId: string, input: { stage1: any; stage2: any }) {
+  console.log(`[Stage 3] Starting forensic discrepancies`);
+  await updateStage(productId, "stage_3", { status: "running" satisfies StageStatus });
 
-    await updateStage(productId, 'stage_3', { status: 'running' });
+  try {
+    // TODO: wire Gemini synthesis here (claims vs observed reality)
+    const claim_cards: any[] = [];
 
-    try {
-        // TODO: Implement Gemini synthesis to compare claims vs. reality
-        // Placeholder for now
-        const redFlags = [];
+    await updateStage(productId, "stage_3", {
+      status: "done" satisfies StageStatus,
+      completed_at: new Date().toISOString(),
+      ttl_days: STAGE_TTL_DAYS.stage_3,
+      data: { claim_cards },
+    });
 
-        await updateStage(productId, 'stage_3', {
-            status: 'done',
-            data: { red_flags: redFlags },
-            completed_at: new Date().toISOString()
-        });
-
-        console.log(`[Stage 3] ✅ Completed`);
-        return { red_flags: redFlags };
-    } catch (error: any) {
-        console.error(`[Stage 3] ❌ Failed:`, error);
-        await updateStage(productId, 'stage_3', {
-            status: 'error',
-            error: error.message
-        });
-        throw error;
-    }
+    console.log(`[Stage 3] ✅ Done (claim_cards=${claim_cards.length})`);
+    return { claim_cards };
+  } catch (error: any) {
+    console.error(`[Stage 3] ❌ Failed:`, error);
+    await updateStage(productId, "stage_3", {
+      status: "error" satisfies StageStatus,
+      error: error?.message ?? String(error),
+    });
+    throw error;
+  }
 }
 
 /**
- * Stage 4: Calculate truth index and generate verdict
+ * -------------------------
+ * Stage 4: Verdict & Truth Index (placeholder)
  * TTL: 30 days
+ * -------------------------
  */
-export async function runStage4_Verdict(productId: string, allStages: any) {
-    console.log(`[Stage 4] Calculating verdict`);
+export async function runStage4_Verdict(productId: string, input: { stages: any }) {
+  console.log(`[Stage 4] Computing verdict/truth index`);
+  await updateStage(productId, "stage_4", { status: "running" satisfies StageStatus });
 
-    await updateStage(productId, 'stage_4', { status: 'running' });
+  try {
+    const claimCards = input?.stages?.stage_3?.data?.claim_cards ?? [];
+    // Placeholder scoring logic (you will replace with your real gate)
+    const truth_index = Math.max(0, 100 - Math.min(60, claimCards.length * 5));
+    const verdict =
+      truth_index >= 80 ? "High integrity: claims align with observed reality." : "Provisional: insufficient evidence.";
 
-    try {
-        const redFlags = allStages.stage_3?.data?.red_flags || [];
-        const truthIndex = Math.max(0, 100 - (redFlags.length * 5)); // Simple calculation
-        const verificationStatus = redFlags.length < 3 ? 'verified' : 'provisional';
+    await updateStage(productId, "stage_4", {
+      status: "done" satisfies StageStatus,
+      completed_at: new Date().toISOString(),
+      ttl_days: STAGE_TTL_DAYS.stage_4,
+      data: {
+        truth_index,
+        verdict,
+      },
+    });
 
-        const verdict = redFlags.length === 0
-            ? 'Claims are accurate and well-supported.'
-            : `${redFlags.length} discrepancies found. Review carefully.`;
-
-        await updateStage(productId, 'stage_4', {
-            status: 'done',
-            data: {
-                truth_index: truthIndex,
-                verification_status: verificationStatus,
-                last_updated: new Date().toISOString(),
-                verdict
-            },
-            completed_at: new Date().toISOString()
-        });
-
-        console.log(`[Stage 4] ✅ Completed - Truth Index: ${truthIndex}`);
-        return { truth_index: truthIndex, verification_status: verificationStatus, verdict };
-    } catch (error: any) {
-        console.error(`[Stage 4] ❌ Failed:`, error);
-        await updateStage(productId, 'stage_4', {
-            status: 'error',
-            error: error.message
-        });
-        throw error;
-    }
+    console.log(`[Stage 4] ✅ Done (truth_index=${truth_index})`);
+    return { truth_index, verdict };
+  } catch (error: any) {
+    console.error(`[Stage 4] ❌ Failed:`, error);
+    await updateStage(productId, "stage_4", {
+      status: "error" satisfies StageStatus,
+      error: error?.message ?? String(error),
+    });
+    throw error;
+  }
 }
 
 /**
  * Check if a stage is fresh based on TTL
  */
 export function isStageFresh(stageData: any, ttlDays: number): boolean {
-    if (!stageData || stageData.status !== 'done' || !stageData.completed_at) {
-        return false;
-    }
-
-    const completedAt = new Date(stageData.completed_at);
-    const now = new Date();
-    const ageMs = now.getTime() - completedAt.getTime();
-    const ageDays = ageMs / (1000 * 60 * 60 * 24);
-
-    return ageDays < ttlDays;
+  if (!stageData || stageData.status !== "done" || !stageData.completed_at) return false;
+  const completedAt = new Date(stageData.completed_at);
+  const ageMs = Date.now() - completedAt.getTime();
+  const ageDays = ageMs / (1000 * 60 * 60 * 24);
+  return ageDays < ttlDays;
 }
