@@ -40,14 +40,21 @@ async function geminiJson(prompt: string): Promise<any> {
   const key = process.env.GOOGLE_AI_STUDIO_KEY;
   if (!key) throw new Error("Missing GOOGLE_AI_STUDIO_KEY");
 
-  // Minimal Gemini REST call. If you already have a wrapper, swap this.
-  const url =
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" +
-    encodeURIComponent(key);
+  const MODEL = "gemini-3-flash-preview";
 
-  const res = await fetch(url, {
+  const url =
+    `https://generativelanguage.googleapis.com/v1/models/${MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 12_000);
+
+ let res: Response;
+
+try {
+  res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
+    signal: ctrl.signal,
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: {
@@ -57,16 +64,37 @@ async function geminiJson(prompt: string): Promise<any> {
       },
     }),
   });
-
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`Gemini discovery failed: ${res.status} ${t}`);
+} catch (e: any) {
+  if (e?.name === "AbortError") {
+    throw new Error("Gemini discovery timed out (12s)");
   }
+  throw new Error(`Gemini discovery fetch failed: ${e?.message ?? String(e)}`);
+}
 
-  const json = await res.json();
-  const text =
-    json?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).join("") ?? "";
+if (!res.ok) {
+  const txt = await res.text().catch(() => "");
+  throw new Error(`Gemini discovery failed: ${res.status} ${txt}`);
+}
+
+let json: any;
+try {
+  json = await res.json();
+} catch {
+  throw new Error("Gemini discovery returned invalid JSON");
+}
+
+const text =
+  json?.candidates?.[0]?.content?.parts
+    ?.map((p: any) => p?.text)
+    .join("") ?? "";
+
+try {
   return JSON.parse(text);
+} catch {
+  throw new Error("Gemini discovery returned non-JSON payload");
+} finally {
+  clearTimeout(t);
+}
 }
 
 export async function discoverSources(product: any): Promise<Source[]> {

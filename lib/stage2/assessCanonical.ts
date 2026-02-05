@@ -2,8 +2,10 @@ async function geminiJson(prompt: string): Promise<any> {
   const key = process.env.GOOGLE_AI_STUDIO_KEY;
   if (!key) throw new Error("Missing GOOGLE_AI_STUDIO_KEY");
 
+  const MODEL = "gemini-3-flash-preview";
+
   const url =
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" +
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=" +
     encodeURIComponent(key);
 
   const res = await fetch(url, {
