@@ -1,132 +1,88 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getProductBySlug, getAudit, mapShadowToResult, getActiveAuditRun, createAuditRun } from "@/lib/dataBridge.server";
 import { waitUntil } from "@vercel/functions";
+import { createClient } from "@supabase/supabase-js";
 import { runAuditWorker } from "@/lib/auditWorker";
 
 export const runtime = "nodejs";
-export const maxDuration = 300; // Vercel Pro/Enterprise limit (was 120s)
+
+function supabaseAdmin() {
+  const url = process.env.SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+function initialStageState() {
+  return {
+    current: "discover",
+    stages: {
+      discover: { status: "running" }, // ✅ start immediately
+      fetch: { status: "queued" },
+      extract: { status: "queued" },
+      normalize: { status: "queued" },
+      assess: { status: "queued" },
+    },
+  };
+}
+
+function normalizeProduct(body: any) {
+  const p = body?.product ?? body ?? {};
+  return {
+    product_id: p.id ?? p.product_id ?? null,
+    brand: p.brand ?? null,
+    model_name: p.model_name ?? p.model ?? p.name ?? null,
+    category: p.category ?? null,
+    raw: p,
+  };
+}
 
 export async function POST(req: NextRequest) {
-    try {
-        // 1. Env Check
-        if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-            return NextResponse.json(
-                { ok: false, error: "SERVER_CONFIG_ERROR" },
-                { status: 500 }
-            );
-        }
+  try {
+    const body = await req.json().catch(() => ({}));
+    const product = normalizeProduct(body);
 
-        // 2. Parse Input
-        let body: any;
-        try {
-            body = await req.json();
-        } catch {
-            return NextResponse.json({ ok: false, error: "BAD_JSON" }, { status: 400 });
-        }
-
-        const slug = String(body?.slug || "").trim();
-        const forceRefresh = body?.forceRefresh === true;
-
-        if (!slug) {
-            return NextResponse.json({ ok: false, error: "MISSING_SLUG" }, { status: 400 });
-        }
-
-        // 3. Resolve Product
-        const product = await getProductBySlug(slug);
-        if (!product) {
-            return NextResponse.json({ ok: false, error: "ASSET_NOT_FOUND", slug }, { status: 404 });
-        }
-
-        // 4. Check for cached completed audit (cache-first serving)
-        const FRESHNESS_WINDOW_MS = 14 * 24 * 60 * 60 * 1000; // 14 days
-        const COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
-
-        const cached = await getAudit(product.id);
-
-        if (cached && cached.claimed_specs && cached.claimed_specs.length > 0) {
-            const lastRunAt = new Date(cached.last_run_at || cached.created_at).getTime();
-            const now = Date.now();
-            const age = now - lastRunAt;
-            const isFresh = age < FRESHNESS_WINDOW_MS;
-
-            // Calculate cache metadata
-            const cacheMetadata = {
-                hit: true,
-                last_synced_at: cached.last_run_at || cached.created_at,
-                age_days: Math.floor(age / (24 * 60 * 60 * 1000)),
-                refresh_available_at: new Date(lastRunAt + COOLDOWN_MS).toISOString(),
-                sources_count: cached.source_urls?.length || 0
-            };
-
-            // If fresh and not forcing refresh, return cached
-            if (isFresh && !forceRefresh) {
-                return NextResponse.json({
-                    ok: true,
-                    cached: true,
-                    audit: mapShadowToResult(cached),
-                    cache: cacheMetadata
-                });
-            }
-
-            // If forcing refresh, check cooldown
-            if (forceRefresh) {
-                const cooldownRemaining = COOLDOWN_MS - age;
-                if (cooldownRemaining > 0) {
-                    // Still in cooldown, return cached
-                    return NextResponse.json({
-                        ok: true,
-                        cached: true,
-                        audit: mapShadowToResult(cached),
-                        cache: {
-                            ...cacheMetadata,
-                            cooldown_remaining_ms: cooldownRemaining
-                        }
-                    });
-                }
-                // Cooldown expired, allow refresh to proceed
-            }
-        }
-
-        // 5. Check for active run
-        const activeRun = await getActiveAuditRun(product.id);
-        if (activeRun) {
-            return NextResponse.json({
-                ok: true,
-                runId: activeRun.id,
-                status: activeRun.status,
-                progress: activeRun.progress
-            });
-        }
-
-        // 6. Create new audit run
-        const newRun = await createAuditRun(product.id);
-        if (!newRun) {
-            return NextResponse.json(
-                { ok: false, error: "FAILED_TO_CREATE_RUN" },
-                { status: 500 }
-            );
-        }
-
-        // 7. Trigger background worker
-        waitUntil(runAuditWorker(newRun.id, product));
-
-        // 8. Return immediately
-        return NextResponse.json({
-            ok: true,
-            runId: newRun.id,
-            status: 'pending',
-            progress: 0
-        });
-
-    } catch (err: any) {
-        console.error("Queue endpoint error:", err);
-        return NextResponse.json(
-            {
-                ok: false,
-                error: "QUEUE_EXCEPTION",
-                message: err?.message ?? String(err)
-            },
-            { status: 500 }
-        );
+    if (!product.product_id) {
+      return NextResponse.json({ ok: false, error: "MISSING_PRODUCT_ID" }, { status: 400 });
     }
+
+    const sb = supabaseAdmin();
+
+    const { data, error } = await sb
+      .from("audit_runs")
+      .insert({
+        product_id: product.product_id,
+        status: "running",              // ✅ not pending
+        progress: 0,
+        started_at: new Date().toISOString(),
+        finished_at: null,
+        error: null,                    // ✅ clear stale errors
+        result_shadow_spec_id: null,     // ✅ clear legacy linkage
+        stage_state: initialStageState()
+      })
+      .select("id")
+      .single();
+
+    if (error || !data?.id) {
+      throw new Error(error?.message ?? "Failed to create audit_run");
+    }
+
+    const runId = data.id;
+
+    waitUntil(
+      runAuditWorker(runId, {
+        product_id: product.product_id,
+        brand: product.brand,
+        model_name: product.model_name,
+        category: product.category,
+        raw: product.raw,
+      })
+    );
+
+    return NextResponse.json({ ok: true, runId, status: "running" });
+  } catch (err: any) {
+    console.error("POST /api/audit failed:", err);
+    return NextResponse.json(
+      { ok: false, error: "AUDIT_START_FAILED", message: err?.message ?? String(err) },
+      { status: 500 }
+    );
+  }
 }
