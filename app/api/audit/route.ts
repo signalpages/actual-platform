@@ -40,59 +40,58 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const product = normalizeProduct(body);
 
-    let productId = product.product_id;
-
-// 🔁 Fallback: resolve product_id from slug if UI didn’t send it
-if (!productId) {
-  const slug =
-    product.raw?.slug ??
-    body?.slug ??
-    body?.product?.slug ??
-    null;
-
-  if (slug) {
-    const { data: row, error: lookupErr } = await sb
-      .from("products")
-      .select("id, brand, model_name, category")
-      .eq("slug", slug)
-      .single();
-
-    if (lookupErr) {
-      console.error("Product lookup by slug failed:", lookupErr);
-    }
-
-    if (row?.id) {
-      productId = row.id;
-
-      // Backfill missing fields (optional but helpful)
-      product.brand ??= row.brand;
-      product.model_name ??= row.model_name;
-      product.category ??= row.category;
-    }
-  }
-}
-
-if (!productId) {
-  return NextResponse.json(
-    { ok: false, error: "MISSING_PRODUCT_ID" },
-    { status: 400 }
-  );
-}
-
-
+    // ✅ declare ONCE, before any fallback logic
     const sb = supabaseAdmin();
 
+    let productId = product.product_id;
+
+    // 🔁 Fallback: resolve product_id from slug
+    if (!productId) {
+      const slug =
+        product.raw?.slug ??
+        body?.slug ??
+        body?.product?.slug ??
+        null;
+
+      if (slug) {
+        const { data: row, error: lookupErr } = await sb
+          .from("products")
+          .select("id, brand, model_name, category")
+          .eq("slug", slug)
+          .single();
+
+        if (lookupErr) {
+          console.error("Product lookup by slug failed:", lookupErr);
+        }
+
+        if (row?.id) {
+          productId = row.id;
+          product.brand ??= row.brand;
+          product.model_name ??= row.model_name;
+          product.category ??= row.category;
+        }
+      }
+    }
+
+    if (!productId) {
+      return NextResponse.json(
+        { ok: false, error: "MISSING_PRODUCT_ID" },
+        { status: 400 }
+      );
+    }
+
+    // ✅ insert audit run
     const { data, error } = await sb
       .from("audit_runs")
       .insert({
         product_id: productId,
-        status: "running",              // ✅ not pending
+        status: "running",
         progress: 0,
         started_at: new Date().toISOString(),
         finished_at: null,
-        error: null,                    // ✅ clear stale errors
-        result_shadow_spec_id: null,     // ✅ clear legacy linkage
-        stage_state: initialStageState()
+        error: null,
+        result_shadow_spec_id: null,
+        stage_state: initialStageState(),
       })
       .select("id")
       .single();
@@ -103,9 +102,10 @@ if (!productId) {
 
     const runId = data.id;
 
+    // ✅ pass the RESOLVED productId to the worker
     waitUntil(
       runAuditWorker(runId, {
-        product_id: product.product_id,
+        product_id: productId,
         brand: product.brand,
         model_name: product.model_name,
         category: product.category,
