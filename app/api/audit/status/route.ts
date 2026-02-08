@@ -1,38 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Fallback to your existing v1 dataBridge if Stage 2 tables aren’t ready
-import { getAuditRun, getAudit, mapShadowToResult } from "@/lib/dataBridge.server";
-
 export const runtime = "nodejs";
 
 function supabaseAdmin() {
   const url = process.env.SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   return createClient(url, key, { auth: { persistSession: false } });
-}
-
-function mapStage2Status(runStatus: string | null | undefined) {
-  switch (runStatus) {
-    case "complete":
-      return "done";
-    case "insufficient_signal":
-      return "done"; // ✅ terminal, not error
-    case "failed":
-      return "error";
-    case "running":
-      return "running";
-    case "pending":
-    default:
-      return "pending";
-  }
-}
-
-function computeProgress(stageState: any): number {
-  if (!stageState?.stages) return 0;
-  const order = ["discover", "fetch", "extract", "normalize", "assess"];
-  const doneCount = order.filter((s) => stageState.stages?.[s]?.status === "done").length;
-  return Math.round((doneCount / order.length) * 100);
 }
 
 export async function GET(req: NextRequest) {
@@ -43,105 +17,152 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "MISSING_RUN_ID" }, { status: 400 });
     }
 
-    // --- Stage 2 path: read directly from Supabase tables ---
-    try {
-      const sb = supabaseAdmin();
+    const sb = supabaseAdmin();
 
-      // If audit_runs exists and the row loads, we attempt Stage 2 response shape
-      const { data: run } = await sb
-        .from("audit_runs")
-        .select("*")
-        .eq("id", runId)
-        .single();
+    // 1. Get the requested run
+    const { data: run, error: runError } = await sb
+      .from("audit_runs")
+      .select("*")
+      .eq("id", runId)
+      .single();
 
-      if (run) {
-        // Stage 2 response — ALWAYS return here
-        }
-
-
-      if (run) {
-        const { data: chunks } = await sb
-          .from("evidence_chunks")
-          .select("*")
-          .eq("audit_run_id", runId)
-          .order("created_at", { ascending: true });
-
-        const { data: canonical } = await sb
-          .from("canonical_specs")
-          .select("*")
-          .eq("audit_run_id", runId)
-          .maybeSingle();
-
-        const { data: assessment } = await sb
-          .from("audit_assessments")
-          .select("*")
-          .eq("audit_run_id", runId)
-          .maybeSingle();
-
-        // Back-compat fields
-        const stageState = run.stage_state ?? null;
-        const progress =
-            typeof run.progress === "number"
-                ? run.progress
-                : computeProgress(stageState);
-
-        return NextResponse.json({
-          ok: true,
-
-          // Stage 2 fields (new)
-          run,
-          evidence_chunks: chunks ?? [],
-          canonical: canonical ?? null,
-          assessment: assessment ?? null,
-
-          // Back-compat fields (old UI)
-          status: mapStage2Status(run.status),
-          progress,
-          stages: stageState?.stages ?? null,
-        });
-      }
-    } catch (e) {
-      // If Stage 2 tables don’t exist yet, or schema is mid-migration, fall through to v1.
-    }
-
-    // --- V1 fallback (your existing behavior) ---
-    const run = await getAuditRun(runId);
-    if (!run) {
+    if (runError || !run) {
       return NextResponse.json({ ok: false, error: "RUN_NOT_FOUND" }, { status: 404 });
     }
 
-    if (run.status === "done" && run.result_shadow_spec_id) {
-      const audit = await getAudit(run.product_id);
-      if (audit) {
-        return NextResponse.json({
-          ok: true,
-          status: "done",
-          progress: 100,
-          audit: {
-            ...mapShadowToResult(audit),
-            stages: audit.stages || null,
-          },
-          stages: audit.stages || null,
-        });
+    // 2. Determine which run to load data from
+    let dataRunId = run.id;
+    let dataSource = "current";
+
+    // Criteria for fallback: current run is failed OR finished but has no canonical data (empty)
+    // We check for canonical existence briefly or just assume if status is 'done' it should check
+    // Optimization: Check if 'done' and 'result_shadow_spec_id' is null? Or just try to load later.
+    // Let's optimistic load.
+
+    // If run is running/pending, we still want to show previous success if available?
+    // Prompt says: "If latest run failed but older success exists → return older success."
+    // Also "UI always shows: last successful audit instantly"
+    // So if current run is running, we ALSO want the data from the last success.
+
+    const isWorking = run.status === "running" || run.status === "pending";
+    const isFailed = run.status === "failed" || run.status === "error"; // "error" is schema val
+
+    // We try to find a successful run if we are working or failed
+    if (isWorking || isFailed) {
+      const { data: lastSuccess } = await sb
+        .from("audit_runs")
+        .select("id")
+        .eq("product_id", run.product_id)
+        .in("status", ["done", "complete"]) // handle both legacy/new
+        .neq("id", run.id)
+        .order("finished_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastSuccess) {
+        dataRunId = lastSuccess.id;
+        dataSource = "cached";
       }
     }
 
-    if (run.status === "error") {
-      return NextResponse.json({
-        ok: true,
-        status: "error",
-        progress: run.progress,
-        error: run.error || "Unknown error",
-      });
+    // 3. Load data (Canonical, Assessment, Evidence) from dataRunId
+    const [
+      { data: canonical },
+      { data: assessment },
+      { data: evidence_chunks }
+    ] = await Promise.all([
+      sb.from("canonical_specs").select("*").eq("audit_run_id", dataRunId).maybeSingle(),
+      sb.from("audit_assessments").select("*").eq("audit_run_id", dataRunId).maybeSingle(),
+      sb.from("evidence_chunks").select("*").eq("audit_run_id", dataRunId).order("created_at", { ascending: true })
+    ]);
+
+    // Special case: if we tried to read "current" (finished) run but it was empty, try fallback?
+    if (dataSource === "current" && run.status === "done" && !canonical) {
+      // Retry fallback
+      const { data: lastSuccess } = await sb
+        .from("audit_runs")
+        .select("*") // Select all to get the full run object
+        .eq("product_id", run.product_id)
+        .in("status", ["done", "complete"])
+        .neq("id", run.id)
+        .order("finished_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (lastSuccess) {
+        // Load from fallback
+        const [c2, a2, e2] = await Promise.all([
+          sb.from("canonical_specs").select("*").eq("audit_run_id", lastSuccess.id).maybeSingle(),
+          sb.from("audit_assessments").select("*").eq("audit_run_id", lastSuccess.id).maybeSingle(),
+          sb.from("evidence_chunks").select("*").eq("audit_run_id", lastSuccess.id).order("created_at", { ascending: true })
+        ]);
+
+        if (c2.data) {
+          return NextResponse.json({
+            ok: true,
+            activeRun: run,
+            displayRun: lastSuccess, // The cached run we are showing
+            canonical: c2.data,
+            assessment: a2.data,
+            evidence: e2.data ?? [],
+            status: "cached",
+            data_source: "cached_success"
+          });
+        }
+      }
     }
 
-    const audit = await getAudit(run.product_id);
+    // Map high-level status
+    let status = "empty";
+    let finalDataSource: "latest_success" | "cached_success" | "none" = "none";
+    let displayRun = run; // Default to the active run
+
+    if (run.status === "pending" || run.status === "running") {
+      status = "running";
+      // If we are running, and we have data (from cache), data_source is cached_success
+      if (canonical) {
+        finalDataSource = "cached_success";
+        // If dataRunId is different from run.id, it means we loaded from a cached run
+        if (dataRunId !== run.id) {
+          const { data: cachedDisplayRun } = await sb.from("audit_runs").select("*").eq("id", dataRunId).single();
+          if (cachedDisplayRun) displayRun = cachedDisplayRun;
+        }
+      } else {
+        finalDataSource = "none";
+      }
+    } else if (run.status === "failed" || run.status === "error") {
+      status = "failed";
+      if (canonical) {
+        finalDataSource = "cached_success";
+        status = "cached"; // We are showing cached data, even if latest failed?
+        // User said: "If latest run failed but older success exists → return older success data with 'failed' status for the current run?"
+        // Actually they said: "Show cached audit" effectively masking failure?
+        // Re-reading: "UI always shows: last successful audit instantly"
+        // And: "activeRun (latest run, may be running/failed) displayRun (last successful run used for data)"
+        // So we return full context.
+        if (dataRunId !== run.id) {
+          const { data: cachedDisplayRun } = await sb.from("audit_runs").select("*").eq("id", dataRunId).single();
+          if (cachedDisplayRun) displayRun = cachedDisplayRun;
+        }
+      } else {
+        finalDataSource = "none";
+      }
+    } else if (canonical) {
+      status = "cached"; // It's done and we have data
+      finalDataSource = "latest_success";
+    }
+
     return NextResponse.json({
       ok: true,
-      status: run.status,
-      progress: run.progress,
-      stages: audit?.stages || null,
+      activeRun: run,
+      displayRun: displayRun, // This will be the run whose data is actually displayed
+      canonical: canonical ?? null,
+      assessment: assessment ?? null,
+      evidence: evidence_chunks ?? [],
+      status, // Legacy status field fallback
+      data_source: canonical ? finalDataSource : "none"
     });
+
   } catch (err: any) {
     console.error("Status endpoint error:", err);
     return NextResponse.json(

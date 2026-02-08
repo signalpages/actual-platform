@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { waitUntil } from "@vercel/functions";
 import { createClient } from "@supabase/supabase-js";
-import { runAuditWorker } from "@/lib/auditWorker";
 
 export const runtime = "nodejs";
 
@@ -15,11 +13,11 @@ function initialStageState() {
   return {
     current: "discover",
     stages: {
-      discover: { status: "running" }, // ✅ start immediately
-      fetch: { status: "queued" },
-      extract: { status: "queued" },
-      normalize: { status: "queued" },
-      assess: { status: "queued" },
+      discover: { status: "pending" },
+      fetch: { status: "pending" },
+      extract: { status: "pending" },
+      normalize: { status: "pending" },
+      assess: { status: "pending" },
     },
   };
 }
@@ -40,36 +38,22 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const product = normalizeProduct(body);
 
-    // ✅ declare ONCE, before any fallback logic
     const sb = supabaseAdmin();
-
     let productId = product.product_id;
 
     // 🔁 Fallback: resolve product_id from slug
     if (!productId) {
-      const slug =
-        product.raw?.slug ??
-        body?.slug ??
-        body?.product?.slug ??
-        null;
+      const slug = product.raw?.slug ?? body?.slug ?? body?.product?.slug ?? null;
 
       if (slug) {
         const { data: row, error: lookupErr } = await sb
           .from("products")
-          .select("id, brand, model_name, category")
+          .select("id")
           .eq("slug", slug)
           .single();
 
-        if (lookupErr) {
-          console.error("Product lookup by slug failed:", lookupErr);
-        }
-
-        if (row?.id) {
-          productId = row.id;
-          product.brand ??= row.brand;
-          product.model_name ??= row.model_name;
-          product.category ??= row.category;
-        }
+        if (lookupErr) console.error("Product lookup by slug failed:", lookupErr);
+        if (row?.id) productId = row.id;
       }
     }
 
@@ -80,86 +64,64 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ✅ insert audit run
-    // 0) Check for an existing active run first (idempotent behavior)
+    // ✅ insert audit run (Idempotent: check active first)
     const { data: existingRun, error: existingErr } = await sb
-    .from("audit_runs")
-    .select("id, status")
-    .eq("product_id", productId)
-    .in("status", ["pending", "running"])
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+      .from("audit_runs")
+      .select("id, status")
+      .eq("product_id", productId)
+      .in("status", ["pending", "running"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (existingErr) {
-    console.error("Active run lookup failed:", existingErr);
-    }
+    if (existingErr) console.error("Active run lookup failed:", existingErr);
 
     if (existingRun?.id) {
-    return NextResponse.json({
+      return NextResponse.json({
         ok: true,
         runId: existingRun.id,
         status: existingRun.status,
-    });
+      });
     }
 
-    // 1) No active run → create a new one
+    // 1) No active run → create a new one 'pending'
+    // Stage state is initialized to pending, waited for runner to pickup
     const { data, error } = await sb
-    .from("audit_runs")
-    .insert({
+      .from("audit_runs")
+      .insert({
         product_id: productId,
-        status: "running",
+        status: "pending",
         progress: 0,
-        started_at: new Date().toISOString(),
+        started_at: null, // Will be set by runner
         finished_at: null,
         error: null,
         result_shadow_spec_id: null,
         stage_state: initialStageState(),
-    })
-    .select("id")
-    .single();
+      })
+      .select("id")
+      .single();
 
     if (error || !data?.id) {
-    const msg = error?.message ?? "Failed to create audit_run";
+      const msg = error?.message ?? "Failed to create audit_run";
 
-    // 2) Race condition: another request created the active run first
-    if (msg.includes("idx_audit_runs_active_product")) {
+      // Race condition check logic
+      if (msg.includes("idx_audit_runs_active_product")) {
         const { data: rerun } = await sb
-        .from("audit_runs")
-        .select("id, status")
-        .eq("product_id", productId)
-        .in("status", ["pending", "running"])
-        .order("started_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+          .from("audit_runs")
+          .select("id, status")
+          .eq("product_id", productId)
+          .in("status", ["pending", "running"])
+          .limit(1)
+          .maybeSingle();
 
         if (rerun?.id) {
-        return NextResponse.json({
-            ok: true,
-            runId: rerun.id,
-            status: rerun.status,
-        });
+          return NextResponse.json({ ok: true, runId: rerun.id, status: rerun.status });
         }
+      }
+      throw new Error(msg);
     }
 
-    throw new Error(msg);
-    }
-
-    if (!data?.id) throw new Error("Missing run id after insert");
-    const runId = data.id;
-
-    // ✅ pass the RESOLVED productId to the worker
-    waitUntil(
-      runAuditWorker(runId, {
-        product_id: productId,
-        brand: product.brand,
-        model_name: product.model_name,
-        category: product.category,
-        raw: product.raw,
-      })
-    );
-
-    return NextResponse.json({ ok: true, runId, status: "running" });
+    return NextResponse.json({ ok: true, runId: data.id, status: "pending" });
   } catch (err: any) {
     console.error("POST /api/audit failed:", err);
     return NextResponse.json(
@@ -168,3 +130,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

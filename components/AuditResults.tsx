@@ -119,25 +119,33 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                             </div>
                         </div>
 
-                        {/* Reality Ledger */}
-                        <div className="bg-blue-50/30 p-5 rounded-xl border border-blue-50">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-400 mb-4 border-b border-blue-100 pb-2">
-                                Reality Ledger
+                        {/* Reality Ledger (Canonical V1) */}
+                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm col-span-1 md:col-span-1">
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4 border-b border-slate-100 pb-2">
+                                Canonical Ledger
                             </h4>
-                            <div className="space-y-4">
-                                {audit.reality_ledger.length > 0 ? (
-                                    audit.reality_ledger.map((item, idx) => (
-                                        <div key={idx}>
-                                            <div className="text-[9px] font-black text-blue-200 uppercase tracking-widest">{item.label}</div>
-                                            <div className="text-xs font-bold text-blue-900 break-words">{item.value}</div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="text-xs text-slate-400 italic py-4">
-                                        No reality measurements yet — fills after independent tests & evidence reconciliation.
-                                    </div>
-                                )}
-                            </div>
+                            {audit.reality_ledger.length > 0 ? (
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr>
+                                            <th className="py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 w-1/3">Label</th>
+                                            <th className="py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Value</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {audit.reality_ledger.map((item, idx) => (
+                                            <tr key={idx} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                                                <td className="py-3 pr-4 text-xs font-medium text-slate-500 align-top">{item.label}</td>
+                                                <td className="py-3 text-xs font-bold text-slate-800 break-words align-top">{item.value}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            ) : (
+                                <div className="text-xs text-slate-400 italic py-4">
+                                    No verified specs available yet.
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
