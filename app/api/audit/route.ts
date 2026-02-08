@@ -25,7 +25,7 @@ function initialStageState() {
 function normalizeProduct(body: any) {
   const p = body?.product ?? body ?? {};
   return {
-    product_id: p.id ?? p.product_id ?? null,
+    product_id: p.id ?? p.product_id ?? p.productId ?? null,
     brand: p.brand ?? null,
     model_name: p.model_name ?? p.model ?? p.name ?? null,
     category: p.category ?? null,

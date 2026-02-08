@@ -156,6 +156,7 @@ export async function GET(req: NextRequest) {
       ok: true,
       activeRun: run,
       displayRun: displayRun, // This will be the run whose data is actually displayed
+      run: run ?? displayRun ?? null, // Compat field
       canonical: canonical ?? null,
       assessment: assessment ?? null,
       evidence: evidence_chunks ?? [],
