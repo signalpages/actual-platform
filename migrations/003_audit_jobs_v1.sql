@@ -26,8 +26,8 @@ declare
   r record;
   -- IMPORTANT: Replace these with your actual Project URL/Key or manage via secrets
   -- In a real migration, often these are interpolated or fetched from a secure store
-  worker_url text := 'https://REPLACE_WITH_PROJECT_REF.supabase.co/functions/v1/audit-runner';
-  anon_key text := 'REPLACE_WITH_ANON_KEY';
+  worker_url text := 'https://lrosvvrbxkpyzlprlyzt.supabase.co/functions/v1/audit-runner';
+  anon_key text := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxyb3N2dnJieGtweXpscHJseXp0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzNTMxNjYsImV4cCI6MjA4NDkyOTE2Nn0.R-knhN4XbH03RGdXa1XgLEREBvxH2KFpicbnM25dFFY';
   payload jsonb;
 begin
   -- 1. Pick next pending run with SKIP LOCKED
