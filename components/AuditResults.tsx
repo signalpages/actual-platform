@@ -101,10 +101,102 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                     {/* Paired Claim ↔ Ledger Rows */}
                     <div className="space-y-3">
                         {audit.claim_profile.map((claim, idx) => {
-                            // Find matching ledger entry by label
-                            const ledgerMatch = audit.reality_ledger.find(
-                                (ledger) => ledger.label.toLowerCase().includes(claim.label.toLowerCase().split(' ')[0])
-                            );
+                            // STRICT CLAIM-TYPE-SCOPED VERIFICATION MATCHING
+                            // Each claim type has specific allowed verification metrics
+                            const claimType = claim.label.toLowerCase();
+
+                            // Helper: check if verified value has compatible unit for this claim type
+                            const isCompatibleUnit = (verifiedValue: string, claimType: string): boolean => {
+                                const val = verifiedValue.toLowerCase();
+
+                                // Storage Capacity: must contain Wh or Ah
+                                if (claimType.includes('storage') || claimType.includes('capacity') || claimType.includes('battery capacity')) {
+                                    return val.includes('wh') || val.includes('ah');
+                                }
+
+                                // AC Output / Power: must contain W (but not Wh)
+                                if (claimType.includes('ac output') || claimType.includes('output') || claimType.includes('power output')) {
+                                    return (val.includes('w') && !val.includes('wh')) || val.includes('watt');
+                                }
+
+                                // AC Charging Speed / Input: must contain W or input-related
+                                if (claimType.includes('charging') || claimType.includes('ac charging') || claimType.includes('input')) {
+                                    return (val.includes('w') && !val.includes('wh')) || val.includes('charge') || val.includes('input');
+                                }
+
+                                // Cycle Life: must contain 'cycle'
+                                if (claimType.includes('cycle')) {
+                                    return val.includes('cycle');
+                                }
+
+                                // Cell Chemistry: must contain chemistry term
+                                if (claimType.includes('chemistry') || claimType.includes('cell')) {
+                                    return val.includes('lfp') || val.includes('lifepo') || val.includes('li-ion') || val.includes('chemistry');
+                                }
+
+                                // Solar Input: must contain W
+                                if (claimType.includes('solar')) {
+                                    return val.includes('w') || val.includes('watt');
+                                }
+
+                                // UPS/EPS: must contain ms or switchover
+                                if (claimType.includes('ups') || claimType.includes('eps')) {
+                                    return val.includes('ms') || val.includes('switchover');
+                                }
+
+                                // Expansion: must contain kWh or expansion
+                                if (claimType.includes('expansion')) {
+                                    return val.includes('kwh') || val.includes('expansion');
+                                }
+
+                                // Weight: must contain kg or lb
+                                if (claimType.includes('weight')) {
+                                    return val.includes('kg') || val.includes('lb') || val.includes('lbs');
+                                }
+
+                                // Temperature/Operating: must contain °C, C, or F
+                                if (claimType.includes('temperature') || claimType.includes('thermal') || claimType.includes('operating')) {
+                                    return val.includes('°') || val.includes('c') || val.includes('f');
+                                }
+
+                                // Efficiency: must contain %
+                                if (claimType.includes('efficiency')) {
+                                    return val.includes('%') || val.includes('efficiency');
+                                }
+
+                                // Default: reject to avoid cross-contamination
+                                return false;
+                            };
+
+                            // Find STRICT matching ledger entry
+                            const ledgerMatch = audit.reality_ledger.find((ledger) => {
+                                const ledgerType = ledger.label.toLowerCase();
+
+                                // Exact label substring match (first word)
+                                const claimFirstWord = claimType.split(' ')[0];
+                                const ledgerFirstWord = ledgerType.split(' ')[0];
+
+                                const labelMatches =
+                                    ledgerType.includes(claimFirstWord) ||
+                                    claimType.includes(ledgerFirstWord) ||
+                                    ledgerType === claimType;
+
+                                // Unit validation guard
+                                const unitIsCompatible = isCompatibleUnit(ledger.value, claimType);
+
+                                // BOTH must be true
+                                const isValid = labelMatches && unitIsCompatible;
+
+                                // DEV GUARDRAIL: Log mismatches
+                                if (labelMatches && !unitIsCompatible && process.env.NODE_ENV === 'development') {
+                                    console.error(
+                                        `[Verification Error] Unit mismatch for "${claim.label}": ` +
+                                        `verified value "${ledger.value}" has incompatible unit. Rejecting.`
+                                    );
+                                }
+
+                                return isValid;
+                            });
 
                             return (
                                 <div
@@ -124,13 +216,13 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                                         </div>
                                     </div>
 
-                                    {/* Verified Ledger */}
+                                    {/* Verified Ledger - CONDITIONAL RENDERING */}
                                     <div className="space-y-1 border-l-2 border-blue-100 pl-4">
-                                        <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1">
-                                            <span>✓</span> Verified Data
-                                        </div>
                                         {ledgerMatch ? (
                                             <>
+                                                <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1">
+                                                    <span>✓</span> Verified Data
+                                                </div>
                                                 <div className="text-sm font-bold text-blue-900">
                                                     {ledgerMatch.value}
                                                 </div>
@@ -139,9 +231,14 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                                                 </div>
                                             </>
                                         ) : (
-                                            <div className="text-xs text-slate-400 italic">
-                                                No verification data yet
-                                            </div>
+                                            <>
+                                                <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
+                                                    Pending Verification
+                                                </div>
+                                                <div className="text-xs text-slate-400 italic">
+                                                    Not yet independently verified
+                                                </div>
+                                            </>
                                         )}
                                     </div>
                                 </div>
