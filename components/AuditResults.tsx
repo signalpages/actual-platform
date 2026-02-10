@@ -82,71 +82,71 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                 data={stage1}
             >
                 <div className="space-y-6">
-                    {claimsCount > 0 && (
-                        <div className="text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 p-3 rounded-lg">
-                            ✓ {claimsCount} technical claims extracted from official sources.
+                    {/* Product Metadata */}
+                    <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <div>
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Brand</div>
+                            <div className="text-sm font-bold text-slate-800">{product.brand}</div>
                         </div>
-                    )}
+                        <div>
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Model</div>
+                            <div className="text-sm font-bold text-slate-800">{product.model_name}</div>
+                        </div>
+                        <div>
+                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Category</div>
+                            <div className="text-sm font-bold text-slate-800">{product.category}</div>
+                        </div>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
-                        {/* Manufacturer Claims */}
-                        <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-200 pb-2">
-                                Manufacturer Claims
-                            </h4>
-                            <div className="space-y-4">
-                                {/* Base Metadata */}
-                                <div>
-                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Brand</div>
-                                    <div className="text-xs font-bold text-slate-700">{product.brand}</div>
-                                </div>
-                                <div>
-                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Model</div>
-                                    <div className="text-xs font-bold text-slate-700">{product.model_name}</div>
-                                </div>
-                                <div>
-                                    <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Category</div>
-                                    <div className="text-xs font-bold text-slate-700">{product.category}</div>
-                                </div>
+                    {/* Paired Claim ↔ Ledger Rows */}
+                    <div className="space-y-3">
+                        {audit.claim_profile.map((claim, idx) => {
+                            // Find matching ledger entry by label
+                            const ledgerMatch = audit.reality_ledger.find(
+                                (ledger) => ledger.label.toLowerCase().includes(claim.label.toLowerCase().split(' ')[0])
+                            );
 
-                                {/* Extracted Claims */}
-                                {audit.claim_profile.map((item, idx) => (
-                                    <div key={idx}>
-                                        <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{item.label}</div>
-                                        <div className="text-xs font-bold text-slate-700 break-words">{item.value}</div>
+                            return (
+                                <div
+                                    key={idx}
+                                    className="grid grid-cols-2 gap-6 p-4 rounded-lg border border-slate-200 hover:border-slate-300 transition-colors bg-white"
+                                >
+                                    {/* Manufacturer Claim */}
+                                    <div className="space-y-1">
+                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                            {claim.label}
+                                        </div>
+                                        <div className="text-sm font-bold text-slate-800">
+                                            {claim.value}
+                                        </div>
+                                        <div className="text-[10px] text-slate-400 font-medium">
+                                            Manufacturer Spec
+                                        </div>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
 
-                        {/* Reality Ledger (Canonical V1) */}
-                        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm col-span-1 md:col-span-1">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4 border-b border-slate-100 pb-2">
-                                Canonical Ledger
-                            </h4>
-                            {audit.reality_ledger.length > 0 ? (
-                                <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr>
-                                            <th className="py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 w-1/3">Label</th>
-                                            <th className="py-2 text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Value</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {audit.reality_ledger.map((item, idx) => (
-                                            <tr key={idx} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                                                <td className="py-3 pr-4 text-xs font-medium text-slate-500 align-top">{item.label}</td>
-                                                <td className="py-3 text-xs font-bold text-slate-800 break-words align-top">{item.value}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            ) : (
-                                <div className="text-xs text-slate-400 italic py-4">
-                                    No verified specs available yet.
+                                    {/* Verified Ledger */}
+                                    <div className="space-y-1 border-l-2 border-blue-100 pl-4">
+                                        <div className="text-[9px] font-black text-blue-600 uppercase tracking-widest flex items-center gap-1">
+                                            <span>✓</span> Verified Data
+                                        </div>
+                                        {ledgerMatch ? (
+                                            <>
+                                                <div className="text-sm font-bold text-blue-900">
+                                                    {ledgerMatch.value}
+                                                </div>
+                                                <div className="text-[10px] text-blue-500 font-medium">
+                                                    Lab Tested / Field Verified
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-xs text-slate-400 italic">
+                                                No verification data yet
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
-                        </div>
+                            );
+                        })}
                     </div>
                 </div>
             </StageCard>
