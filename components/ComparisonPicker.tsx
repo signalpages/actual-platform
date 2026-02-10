@@ -29,7 +29,7 @@ export const AssetSelector: React.FC<{
 
   useEffect(() => {
     const search = async () => {
-      if (query.length > 1) {
+      if (query.length >= 0) { // Fix: Allow empty query (show all/recent)
         const matches = await searchAssets(query, category);
         setResults(matches);
       } else {
@@ -86,7 +86,7 @@ export const AssetSelector: React.FC<{
             ) : (
               <div className="p-4 text-center">
                 <p className="text-[10px] font-bold text-slate-300 uppercase italic">
-                  {query.length > 1 ? "Asset not indexed." : "Enter search term..."}
+                  {query.length > 1 ? "Asset not indexed." : "Browse available assets..."}
                 </p>
               </div>
             )}

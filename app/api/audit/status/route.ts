@@ -65,16 +65,33 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3. Load data (Canonical, Assessment, Evidence) from dataRunId
+    // 3. Load data (Shadow Specs, Assessment, Evidence)
+    // V1 Persistence: Runner writes to 'shadow_specs', not 'canonical_specs'
+
     const [
-      { data: canonical },
+      { data: shadowSpec },
       { data: assessment },
       { data: evidence_chunks }
     ] = await Promise.all([
-      sb.from("canonical_specs").select("*").eq("audit_run_id", dataRunId).maybeSingle(),
+      // Fetch latest shadow spec for this product (authoritative for V1)
+      sb.from("shadow_specs")
+        .select("*")
+        .eq("product_id", run.product_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
       sb.from("audit_assessments").select("*").eq("audit_run_id", dataRunId).maybeSingle(),
       sb.from("evidence_chunks").select("*").eq("audit_run_id", dataRunId).order("created_at", { ascending: true })
     ]);
+
+    // Map shadow_specs to 'canonical' shape for frontend compat
+    let canonical = null;
+    if (shadowSpec) {
+      canonical = {
+        ...shadowSpec,
+        spec_json: shadowSpec.canonical_spec_json, // Map V1 field to Legacy field
+      };
+    }
 
     // Special case: if we tried to read "current" (finished) run but it was empty, try fallback?
     if (dataSource === "current" && run.status === "done" && !canonical) {
@@ -91,18 +108,28 @@ export async function GET(req: NextRequest) {
 
       if (lastSuccess) {
         // Load from fallback
-        const [c2, a2, e2] = await Promise.all([
-          sb.from("canonical_specs").select("*").eq("audit_run_id", lastSuccess.id).maybeSingle(),
+        const [s2, a2, e2] = await Promise.all([
+          sb.from("shadow_specs")
+            .select("*")
+            .eq("product_id", run.product_id) // Still product_id based for V1
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
           sb.from("audit_assessments").select("*").eq("audit_run_id", lastSuccess.id).maybeSingle(),
           sb.from("evidence_chunks").select("*").eq("audit_run_id", lastSuccess.id).order("created_at", { ascending: true })
         ]);
 
-        if (c2.data) {
+        if (s2.data) {
+          const c2 = {
+            ...s2.data,
+            spec_json: s2.data.canonical_spec_json
+          };
           return NextResponse.json({
             ok: true,
             activeRun: run,
             displayRun: lastSuccess, // The cached run we are showing
-            canonical: c2.data,
+            run: run ?? lastSuccess ?? null, // Compat field
+            canonical: c2,
             assessment: a2.data,
             evidence: e2.data ?? [],
             status: "cached",
@@ -152,17 +179,54 @@ export async function GET(req: NextRequest) {
       finalDataSource = "latest_success";
     }
 
-    return NextResponse.json({
+    // Flatten data for frontend consumption (match dataBridge expectations)
+    // The client expects: audit, stages, claim_profile, reality_ledger, discrepancies, truth_index, etc.
+    // We derive these from 'canonical' (Shadow Spec) and 'assessment'.
+
+    const flatResponse: any = {
       ok: true,
       activeRun: run,
-      displayRun: displayRun, // This will be the run whose data is actually displayed
-      run: run ?? displayRun ?? null, // Compat field
-      canonical: canonical ?? null,
-      assessment: assessment ?? null,
-      evidence: evidence_chunks ?? [],
+      displayRun: displayRun,
       status, // Legacy status field fallback
       data_source: canonical ? finalDataSource : "none"
-    });
+    };
+
+    if (canonical) {
+      // 1. Base Audit Object
+      flatResponse.audit = {
+        ...canonical,
+        ...RunDataParams(displayRun) // Helper to merge run meta if needed
+      };
+
+      // 2. Stages
+      // canonical.stages is the source of truth for V1
+      flatResponse.stages = canonical.stages;
+
+      // 3. Extracted / Normalized Data
+      // Map from canonical_spec_json (Shadow Spec)
+      const spec = canonical.canonical_spec_json || {};
+      flatResponse.claim_profile = spec.claim_profile || [];
+      flatResponse.reality_ledger = spec.reality_ledger || [];
+      flatResponse.discrepancies = spec.discrepancies || spec.red_flags || []; // Fallback to red_flags if discrepancies missing
+
+      // 4. Assessment Data
+      // Merge assessment data into analysis or top-level?
+      // Client normalizer checks: truth_index -> s4Data -> canonical.truth_score
+      // We provide truth_index explicitly
+      flatResponse.truth_index = assessment?.final_score ?? canonical.truth_score ?? null;
+
+      // 5. Analysis
+      // Construct analysis object from assessment
+      flatResponse.analysis = {
+        status: assessment ? 'verified' : (canonical.is_verified ? 'verified' : 'provisional'),
+        bms: assessment?.bms_analysis,
+        safety: assessment?.safety_analysis,
+        c_rate: assessment?.c_rate_analysis,
+        last_run_at: displayRun.finished_at
+      };
+    }
+
+    return NextResponse.json(flatResponse);
 
   } catch (err: any) {
     console.error("Status endpoint error:", err);
@@ -171,4 +235,13 @@ export async function GET(req: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+function RunDataParams(run: any) {
+  if (!run) return {};
+  return {
+    runId: run.id,
+    created_at: run.created_at,
+    platform_status: run.status
+  };
 }

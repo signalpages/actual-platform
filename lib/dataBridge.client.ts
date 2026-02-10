@@ -197,8 +197,8 @@ async function pollAuditStatus(runId: string): Promise<CanonicalAuditResult & { 
   if (existing) return existing;
 
   const pollPromise = (async (): Promise<CanonicalAuditResult & { cache?: any }> => {
-    const maxAttempts = 30;
-    const maxElapsedMs = 90_000;
+    const maxAttempts = 60; // Increased attempts to match new timeout
+    const maxElapsedMs = 180_000; // 3 minutes client-side timeout
     const startTime = Date.now();
 
     console.log(`[Polling] Started for runId ${runId}`);

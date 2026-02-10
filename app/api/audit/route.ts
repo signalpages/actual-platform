@@ -65,9 +65,11 @@ export async function POST(req: NextRequest) {
     }
 
     // ✅ insert audit run (Idempotent: check active first)
+    // Fix: STALE CHECK. If an active run exists but is stale (no heartbeat for > 2 mins),
+    // mark it as failed and proceed to create a new one.
     const { data: existingRun, error: existingErr } = await sb
       .from("audit_runs")
-      .select("id, status")
+      .select("id, status, last_heartbeat, created_at")
       .eq("product_id", productId)
       .in("status", ["pending", "running"])
       .order("created_at", { ascending: false })
@@ -77,11 +79,40 @@ export async function POST(req: NextRequest) {
     if (existingErr) console.error("Active run lookup failed:", existingErr);
 
     if (existingRun?.id) {
-      return NextResponse.json({
-        ok: true,
-        runId: existingRun.id,
-        status: existingRun.status,
-      });
+      const now = Date.now();
+      const heartbeatTime = existingRun.last_heartbeat ? new Date(existingRun.last_heartbeat).getTime() : 0;
+      const createdTime = new Date(existingRun.created_at).getTime();
+
+      const hbAge = now - heartbeatTime;
+      const createAge = now - createdTime;
+
+      console.log(`[AuditAPI] Found active run ${existingRun.id}. Status: ${existingRun.status}. HB Age: ${hbAge}ms. Create Age: ${createAge}ms.`);
+
+      // Thresholds: 2 mins (running), 5 mins (pending)
+      const isRunningStale = existingRun.status === 'running' && (hbAge > 120_000);
+      const isPendingStale = existingRun.status === 'pending' && (createAge > 300_000);
+
+      if (isRunningStale || isPendingStale) {
+        console.warn(`[AuditAPI] KILLING STALE RUN ${existingRun.id}`);
+        const { error: updateErr } = await sb.from("audit_runs").update({
+          status: 'error',
+          error: 'Stale run detected by API (Supervisor)',
+          finished_at: new Date().toISOString()
+        }).eq('id', existingRun.id);
+
+        if (updateErr) console.error("Failed to kill stale run:", updateErr);
+        // Fall through to create new run
+      } else {
+        console.log(`[AuditAPI] Returning existing active run ${existingRun.id}`);
+        // It's active and healthy, return it
+        return NextResponse.json({
+          ok: true,
+          runId: existingRun.id,
+          status: existingRun.status,
+        });
+      }
+    } else {
+      console.log(`[AuditAPI] No active run found. Creating new one.`);
     }
 
     // 1) No active run → create a new one 'pending'
@@ -102,6 +133,7 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error || !data?.id) {
+      console.error("Failed to insert run:", error);
       const msg = error?.message ?? "Failed to create audit_run";
 
       // Race condition check logic
@@ -119,6 +151,19 @@ export async function POST(req: NextRequest) {
         }
       }
       throw new Error(msg);
+    }
+
+    // 2) TRIGGER AUDIT RUNNER DIRECTLY (Bypass Cron)
+    console.log(`[AuditAPI] Triggering audit-runner for ${data.id}...`);
+    const { error: invokeErr } = await sb.functions.invoke('audit-runner', {
+      body: { runId: data.id }
+    });
+
+    if (invokeErr) {
+      console.error(`[AuditAPI] Failed to invoke audit-runner:`, invokeErr);
+      // We don't fail the request, but we log it. The cron might pick it up later if configured.
+    } else {
+      console.log(`[AuditAPI] Successfully invoked audit-runner.`);
     }
 
     return NextResponse.json({ ok: true, runId: data.id, status: "pending" });
