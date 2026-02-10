@@ -174,8 +174,13 @@ export async function GET(req: NextRequest) {
       } else {
         finalDataSource = "none";
       }
+    } else if (run.status === "done" && canonical) {
+      // Fix: Return 'done' status when the run is completed successfully
+      status = "done";
+      finalDataSource = "latest_success";
     } else if (canonical) {
-      status = "cached"; // It's done and we have data
+      // Fallback: older runs that might still have data
+      status = "cached";
       finalDataSource = "latest_success";
     }
 

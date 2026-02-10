@@ -213,12 +213,25 @@ async function pollAuditStatus(runId: string): Promise<CanonicalAuditResult & { 
           await sleep(delay);
         }
 
+
         const resp = await fetch(`/api/audit/status?runId=${encodeURIComponent(runId)}`);
         const data = await resp.json();
 
         if (!data?.ok) throw new Error(data?.error || "Failed to get audit status");
 
-        if (data.status === "done") {
+        // FIX: Check activeRun.status (source of truth), not top-level status field
+        const run = data.activeRun ?? data.displayRun;
+        const runStatus = (run?.status ?? "").toLowerCase();
+        const progress = run?.progress ?? 0;
+
+        // Terminal conditions: done, error, canceled, OR progress === 100
+        const isTerminal =
+          runStatus === "done" ||
+          runStatus === "error" ||
+          runStatus === "canceled" ||
+          progress === 100;
+
+        if (isTerminal) {
           // Create a composite object for normalization
           const rawForNormalization = {
             ...data.audit,
@@ -233,17 +246,22 @@ async function pollAuditStatus(runId: string): Promise<CanonicalAuditResult & { 
           const normalized = normalizeAuditResult(rawForNormalization);
 
           console.log(
-            `[Polling] Completed for ${runId} after ${i + 1} attempts (${Date.now() - startTime}ms)`
+            `[Polling] Completed for ${runId} after ${i + 1} attempts (${Date.now() - startTime}ms). Status: ${runStatus}`
           );
+
+          // If error status, throw to trigger error handling
+          if (runStatus === "error" || runStatus === "canceled") {
+            throw new Error(run?.error || "Audit failed");
+          }
+
           return normalized as CanonicalAuditResult & { cache?: any };
         }
 
-        if (data.status === "error") throw new Error(data?.error || "Audit failed");
-
         if (i % 5 === 0) {
-          console.log(`[Polling] runId ${runId}: ${data.status} (${data.progress || 0}%)`);
+          console.log(`[Polling] runId ${runId}: ${runStatus} (${progress}%)`);
         }
       }
+
 
       throw new Error("Audit timed out after too many attempts. Please try again.");
     } finally {
