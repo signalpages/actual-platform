@@ -153,18 +153,24 @@ export async function POST(req: NextRequest) {
       throw new Error(msg);
     }
 
-    // 2) TRIGGER AUDIT RUNNER DIRECTLY (Bypass Cron)
-    console.log(`[AuditAPI] Triggering audit-runner for ${data.id}...`);
-    const { error: invokeErr } = await sb.functions.invoke('audit-runner', {
-      body: { runId: data.id }
+    // 2) TRIGGER AUDIT WORKER (Next.js/Vercel)
+    console.log(`[AuditAPI] Triggering audit worker for ${data.id}...`);
+
+    // Fire-and-forget: invoke worker in background
+    const workerUrl = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}/api/audit/worker`
+      : `${req.nextUrl.origin}/api/audit/worker`;
+
+    fetch(workerUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runId: data.id })
+    }).catch((err) => {
+      console.error(`[AuditAPI] Failed to invoke worker:`, err);
+      // Don't await - fire and forget
     });
 
-    if (invokeErr) {
-      console.error(`[AuditAPI] Failed to invoke audit-runner:`, invokeErr);
-      // We don't fail the request, but we log it. The cron might pick it up later if configured.
-    } else {
-      console.log(`[AuditAPI] Successfully invoked audit-runner.`);
-    }
+    console.log(`[AuditAPI] Worker invocation sent (fire-and-forget).`);
 
     return NextResponse.json({ ok: true, runId: data.id, status: "pending" });
   } catch (err: any) {
