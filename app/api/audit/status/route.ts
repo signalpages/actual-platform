@@ -203,9 +203,16 @@ export async function GET(req: NextRequest) {
         ...RunDataParams(displayRun) // Helper to merge run meta if needed
       };
 
-      // 2. Stages
-      // canonical.stages is the source of truth for V1
-      flatResponse.stages = canonical.stages;
+      // 2. Stages - MERGE from both shadow_specs AND audit_runs
+      // Priority: audit_runs.stages (contains complete stage data) > shadow_specs.stages (legacy status)
+      const runStagesData = displayRun?.stages || {};
+      const shadowStagesStatus = canonical.stages || {};
+
+      // Merge: use run stages if available, fallback to shadow_specs
+      flatResponse.stages = {
+        ...shadowStagesStatus, // Legacy status indicators
+        ...runStagesData // Complete stage data from audit-runner
+      };
 
       // 3. Extracted / Normalized Data
       // Map from canonical_spec_json (Shadow Spec)
@@ -218,15 +225,15 @@ export async function GET(req: NextRequest) {
       // Merge assessment data into analysis or top-level?
       // Client normalizer checks: truth_index -> s4Data -> canonical.truth_score
       // We provide truth_index explicitly
-      flatResponse.truth_index = assessment?.final_score ?? canonical.truth_score ?? null;
+      flatResponse.truth_index = assessment?.assessment_json?.truth_index ?? assessment?.final_score ?? canonical.truth_score ?? null;
 
       // 5. Analysis
       // Construct analysis object from assessment
       flatResponse.analysis = {
         status: assessment ? 'verified' : (canonical.is_verified ? 'verified' : 'provisional'),
-        bms: assessment?.bms_analysis,
-        safety: assessment?.safety_analysis,
-        c_rate: assessment?.c_rate_analysis,
+        bms: assessment?.assessment_json?.bms_analysis,
+        safety: assessment?.assessment_json?.safety_analysis,
+        c_rate: assessment?.assessment_json?.c_rate_analysis,
         last_run_at: displayRun.finished_at
       };
     }
