@@ -209,10 +209,21 @@ export async function GET(req: NextRequest) {
       const shadowStagesStatus = canonical.stages || {};
 
       // Merge: use run stages if available, fallback to shadow_specs
-      flatResponse.stages = {
+      const mergedStages = {
         ...shadowStagesStatus, // Legacy status indicators
         ...runStagesData // Complete stage data from audit-runner
       };
+
+      // Normalize Stage 4 metric_bars: map 'value' to 'percentage' if needed
+      if (mergedStages.stage_4?.data?.metric_bars) {
+        mergedStages.stage_4.data.metric_bars = mergedStages.stage_4.data.metric_bars.map((bar: any) => ({
+          label: bar.label,
+          rating: bar.rating || (bar.value >= 85 ? 'High' : bar.value >= 70 ? 'Moderate' : 'Low'),
+          percentage: bar.percentage ?? bar.value ?? 0
+        }));
+      }
+
+      flatResponse.stages = mergedStages;
 
       // 3. Extracted / Normalized Data
       // Map from canonical_spec_json (Shadow Spec)
