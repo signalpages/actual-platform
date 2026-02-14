@@ -3,7 +3,7 @@
  * Each function executes one stage of the audit independently
  */
 
-import { safeParseLLMJson } from "./textSanitizer";
+import { safeParseLLMJson } from "./llmJsonParser";
 
 interface Stage1Result {
     claim_profile: Array<{ label: string; value: string }>;
@@ -127,7 +127,10 @@ export async function executeStage2(
 
     const prompt = `You are analyzing community feedback for: ${product.brand} ${product.model_name}
 
-Based on real-world user discussions, identify:
+CONTEXT (Manufacturer Claims):
+${stage1.claim_profile.slice(0, 10).map(c => `- ${c.label}: ${c.value}`).join('\n')}
+
+Based on real-world user discussions and your knowledge of this product category, identify:
 
 1. MOST CONSISTENT PRAISE (5-7 items):
    - What users consistently appreciate
@@ -384,14 +387,45 @@ Return JSON:
 
 /**
  * STAGE 4: Verdict & Truth Index
- * Synthesize final score and decision guidance
+ * Synthesize final score and decision guidance from NORMALIZED data
  */
+
+// Banned phrases for copy enforcement
+const BANNED_PHRASES: [RegExp, string][] = [
+    [/technical debt/gi, "ongoing maintenance cost"],
+    [/non-production environments?/gi, "casual or secondary use"],
+    [/\benterprise\b/gi, "professional"],
+    [/\bstakeholder/gi, "user"],
+    [/\bleverage\b/gi, "use"],
+    [/\bsynergy\b/gi, "compatibility"],
+    [/ecosystem lock-in/gi, "vendor dependency"],
+    [/\brobust\b/gi, "reliable"],
+    [/\bscalable\b/gi, "expandable"],
+    [/high raw (\w+ )?capacity/gi, "large advertised $1capacity"],
+];
+
+function sanitizeCopy(text: string): string {
+    let clean = text;
+    for (const [pattern, replacement] of BANNED_PHRASES) {
+        clean = clean.replace(pattern, replacement);
+    }
+    return clean;
+}
+
+function sanitizeCopyArray(arr: string[]): string[] {
+    return arr.map(sanitizeCopy);
+}
+
 export async function executeStage4(
     product: any,
     allStages: {
         stage1: Stage1Result;
         stage2: Stage2Result;
         stage3: Stage3Result;
+    },
+    precomputed?: {
+        baseScores: { overall: number; claimsAccuracy: number; realWorldFit: number; operationalNoise: number };
+        metricBars: Array<{ label: string; rating: string; percentage: number }>;
     }
 ): Promise<Stage4Result> {
     console.log(`[Stage 4] Computing truth index for ${product.model_name}`);
@@ -402,36 +436,68 @@ export async function executeStage4(
     }
 
     const { stage1, stage2, stage3 } = allStages;
+    const scores = precomputed?.baseScores;
+    const bars = precomputed?.metricBars;
 
-    const prompt = `Synthesize a Truth Index score (0-100) and decision guidance.
+    const prompt = `Synthesize a verdict for the following product audit.
 
-CLAIMS: ${stage1.claim_profile.length} specifications
-PRAISE: ${stage2.independent_signal.most_praised.length} items
-ISSUES: ${stage2.independent_signal.most_reported_issues.length} items
-DISCREPANCIES: ${stage3.red_flags.length} red flags
+PRODUCT: ${product.brand} ${product.model_name}
 
-Calculate score based on:
-- Claims accuracy (how many hold up)
-- Severity of discrepancies
-- Frequency of issues
+=== PRE-COMPUTED SCORES (deterministic, do not override) ===
+Truth Index Base Score: ${scores?.overall ?? 75}
+Claims Accuracy: ${scores?.claimsAccuracy ?? 75}
+Real-World Fit: ${scores?.realWorldFit ?? 75}
+Operational Noise: ${scores?.operationalNoise ?? 75}
+
+=== CONTEXT ===
+
+1. MANUFACTURER CLAIMS:
+${stage1.claim_profile.slice(0, 8).map(c => `- ${c.label}: ${c.value}`).join('\n')}
+
+2. COMMUNITY SIGNALS:
+Praised:
+${stage2.independent_signal.most_praised.map(p => `- ${p.text} (${p.sources} sources)`).join('\n') || '- No community praise data available'}
+
+Issues:
+${stage2.independent_signal.most_reported_issues.map(i => `- ${i.text} (${i.sources} sources)`).join('\n') || '- No community issue data available'}
+
+3. VERIFIED DISCREPANCIES (${stage3.red_flags.length} unique issues):
+${stage3.red_flags.map((f: any) => `- [${f.severity}] CLAIM: ${f.claim} → REALITY: ${f.reality} (Impact: ${f.impact})`).join('\n')}
+
+=== INSTRUCTIONS ===
+
+Your job is to INTERPRET and SUMMARIZE the data above. Do NOT invent new issues.
+
+RULES:
+- truth_index: Use the pre-computed base score (${scores?.overall ?? 75}). You may adjust by ±3 points based on narrative weight, but the base is deterministic.
+- strengths: Cite specific praised features from Section 2. If no community data, cite confirmed specifications.
+- limitations: Reference ONLY items from Section 3 (verified discrepancies). Use "Verified:" prefix.
+- practical_impact: Describe the real-world consequence of each discrepancy. Be specific (cite numbers, measurements). Do NOT give generic advice.
+- good_fit: Describe specific user types who would benefit despite the limitations.
+- consider_alternatives: Describe specific needs that this product does NOT meet well.
+
+COPY RULES:
+- Write for a consumer audience, not engineers
+- Use plain language. No jargon.
+- BANNED: technical debt, non-production environments, enterprise, stakeholder, leverage, synergy, ecosystem lock-in, robust, scalable
+- Say "large advertised capacity" not "high raw capacity"
 
 CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
-Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
+Return ONLY valid JSON. No markdown, no code fences.
 
-Return JSON:
 {
-  "truth_index": 85,
-  "score_interpretation": "One sentence explaining what this score means",
-  "strengths": ["strength 1", "strength 2"],
-  "limitations": ["Observed: issue 1", "Verified: issue 2"],
-  "practical_impact": ["impact 1", "impact 2"],
-  "good_fit": ["use case 1", "use case 2"],
-  "consider_alternatives": ["if you need X", "if you need Y"]
+  "truth_index": ${scores?.overall ?? 75},
+  "score_interpretation": "One sentence explaining the score based on verified discrepancies.",
+  "strengths": ["Specific strength from community data"],
+  "limitations": ["Verified: specific discrepancy from Section 3"],
+  "practical_impact": ["Specific technical consequence with numbers"],
+  "good_fit": ["Specific user type"],
+  "consider_alternatives": ["If you need [specific unmet need]..."]
 }`;
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
 
         const resp = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -478,48 +544,38 @@ Return JSON:
             }
         }
 
-        const truthIndex = Math.min(100, Math.max(0, result.truth_index || 85));
+        // Use deterministic truth index (LLM can adjust ±3)
+        const baseIndex = scores?.overall ?? 75;
+        const llmIndex = Math.min(100, Math.max(0, result.truth_index || baseIndex));
+        const truthIndex = Math.max(0, Math.min(100,
+            Math.abs(llmIndex - baseIndex) <= 3 ? llmIndex : baseIndex
+        ));
 
-        // Calculate metric bars
-        const claimsAccuracy = Math.round(truthIndex);
-        const realWorldFit = Math.round(truthIndex * 0.95);
-        const operationalNoise = stage3.red_flags.length > 0 ? 65 : 85;
+        console.log(`[Stage 4] Truth Index: base=${baseIndex} llm=${llmIndex} final=${truthIndex}`);
 
-        console.log(`[Stage 4] Truth Index: ${truthIndex}%`);
+        // Use deterministic metric bars (precomputed)
+        const finalBars = bars || [
+            { label: 'Claims Accuracy', rating: 'Moderate', percentage: truthIndex },
+            { label: 'Real-World Fit', rating: 'Moderate', percentage: Math.round(truthIndex * 0.95) },
+            { label: 'Operational Noise', rating: 'Moderate', percentage: 70 }
+        ];
 
+        // Copy enforcement: sanitize all string outputs
         return {
             truth_index: truthIndex,
-            metric_bars: [
-                { label: 'Claims Accuracy', rating: claimsAccuracy > 85 ? 'High' : 'Moderate', percentage: claimsAccuracy },
-                { label: 'Real-World Fit', rating: realWorldFit > 85 ? 'High' : 'Moderate', percentage: realWorldFit },
-                { label: 'Operational Noise', rating: operationalNoise > 75 ? 'Low' : 'Moderate', percentage: operationalNoise }
-            ],
-            score_interpretation: result.score_interpretation || 'Analysis complete',
-            strengths: result.strengths || [],
-            limitations: result.limitations || [],
-            practical_impact: result.practical_impact || [],
-            good_fit: result.good_fit || [],
-            consider_alternatives: result.consider_alternatives || [],
+            metric_bars: finalBars,
+            score_interpretation: sanitizeCopy(result.score_interpretation || 'Analysis complete'),
+            strengths: sanitizeCopyArray(result.strengths || []),
+            limitations: sanitizeCopyArray(result.limitations || []),
+            practical_impact: sanitizeCopyArray(result.practical_impact || []),
+            good_fit: sanitizeCopyArray(result.good_fit || []),
+            consider_alternatives: sanitizeCopyArray(result.consider_alternatives || []),
             data_confidence: `Data confidence: High · Sources: manufacturer docs, community feedback · Refresh cadence: ~14 days`
         };
     } catch (error: any) {
         console.error('[Stage 4] Error:', error);
-        console.error('[Stage 4] Stage failed but audit will continue');
-        // Return safe defaults
-        return {
-            truth_index: 75,
-            metric_bars: [
-                { label: 'Claims Accuracy', rating: 'Moderate', percentage: 75 },
-                { label: 'Real-World Fit', rating: 'Moderate', percentage: 72 },
-                { label: 'Operational Noise', rating: 'Moderate', percentage: 70 }
-            ],
-            score_interpretation: 'Unable to complete full synthesis. Partial data available.',
-            strengths: [],
-            limitations: ['Analysis incomplete due to timeout'],
-            practical_impact: [],
-            good_fit: [],
-            consider_alternatives: [],
-            data_confidence: 'Data confidence: Partial · Limited sources available'
-        };
+        // DO NOT return fake defaults — propagate the error
+        throw new Error(`STAGE4_FAILED: ${error.message}`);
     }
 }
+

@@ -42,13 +42,14 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
     // STAGE 3: Discrepancies
     // -------------------------
     const stage3 = stages.stage_3;
+
     const discrepancies = useMemo(() => {
         const data = stageData('stage_3');
         return [
             ...(data.red_flags || []),
             ...(data.discrepancies || [])
         ];
-    }, [stage3]);
+    }, [stages.stage_3?.data]);
 
     const stage3ParseError = (stageData('stage_3') as any)?._meta?.parse_error;
 

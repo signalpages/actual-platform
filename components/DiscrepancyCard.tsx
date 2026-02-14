@@ -29,18 +29,38 @@ export function DiscrepancyCard({ discrepancy, index }: DiscrepancyCardProps) {
     const hasNonEnglish = !!discrepancy.source_excerpt_original;
 
     // Safe rendering - never show empty/quoted strings
-    const safeIssue = renderSafeText(discrepancy.issue);
-    const safeDescription = renderSafeText(discrepancy.description);
+    // Support both old format (issue/description) and new format (claim/reality)
+    const issueText = discrepancy.issue || (discrepancy as any).claim;
+    const descText = discrepancy.description || (discrepancy as any).reality;
+
+    const safeIssue = renderSafeText(issueText);
+    const safeDescription = renderSafeText(descText);
 
     return (
         <div className="bg-red-50/30 border border-red-50 p-4 rounded-xl shadow-sm">
-            {/* Main content */}
-            <p className="text-xs font-black text-red-900 mb-1 leading-tight">
-                {safeIssue}
-            </p>
-            <p className="text-[11px] font-medium text-red-800/70 leading-relaxed italic">
-                "{safeDescription}"
-            </p>
+            <div className="flex flex-col md:flex-row gap-4 items-start">
+                <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-red-900 mb-1 leading-tight">
+                        {safeIssue}
+                    </p>
+                    <p className="text-[11px] font-medium text-red-800/70 leading-relaxed italic">
+                        "{safeDescription}"
+                    </p>
+                </div>
+
+                {(discrepancy as any).impact && (
+                    <div className="w-full md:w-1/3 flex-shrink-0">
+                        <div className="bg-red-100/50 px-3 py-2 rounded-lg h-full">
+                            <span className="text-[9px] font-black text-red-800 uppercase tracking-widest block mb-1">
+                                Impact
+                            </span>
+                            <p className="text-[10px] text-red-700 font-medium leading-relaxed">
+                                {(discrepancy as any).impact}
+                            </p>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Non-English evidence badge and toggle */}
             {hasNonEnglish && (

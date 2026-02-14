@@ -223,6 +223,12 @@ export async function GET(req: NextRequest) {
         }));
       }
 
+      console.log(`[StatusAPI] Stage 3 data:`, {
+        red_flags_count: mergedStages.stage_3?.data?.red_flags?.length,
+        discrepancies_count: mergedStages.stage_3?.data?.discrepancies?.length,
+        has_data: !!mergedStages.stage_3?.data
+      });
+
       flatResponse.stages = mergedStages;
 
       // 3. Extracted / Normalized Data
