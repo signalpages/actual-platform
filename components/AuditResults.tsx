@@ -45,10 +45,16 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
 
     const discrepancies = useMemo(() => {
         const data = stageData('stage_3');
-        return [
-            ...(data.red_flags || []),
-            ...(data.discrepancies || [])
-        ];
+        // Use entries (normalized) > discrepancies > red_flags, but NEVER concatenate
+        const raw = data.entries || data.discrepancies || data.red_flags || [];
+        // Deduplicate by key (safety net)
+        const seen = new Set<string>();
+        return raw.filter((d: any) => {
+            const key = d.key || `${(d.claim || d.issue || '').toLowerCase().trim()}::${(d.reality || d.description || '').toLowerCase().trim()}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
     }, [stages.stage_3?.data]);
 
     const stage3ParseError = (stageData('stage_3') as any)?._meta?.parse_error;
@@ -163,6 +169,14 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                                 // Efficiency: must contain %
                                 if (claimType.includes('efficiency')) {
                                     return val.includes('%') || val.includes('efficiency');
+                                }
+
+                                // Categorical/Identity fields: no unit validation needed
+                                if (claimType.includes('brand') || claimType.includes('model') ||
+                                    claimType.includes('category') || claimType.includes('name') ||
+                                    claimType.includes('manufacturer') || claimType.includes('type') ||
+                                    claimType.includes('series')) {
+                                    return true;
                                 }
 
                                 // Default: reject to avoid cross-contamination
@@ -370,7 +384,7 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                         <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
                             <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Practical Impact</h4>
                             <p className="text-sm text-slate-700 leading-relaxed font-medium">
-                                {verdict.practicalImpact.join(' ')}
+                                {verdict.practicalImpact.map((s: string) => s.trim().replace(/\.?$/, '.')).join(' ')}
                             </p>
                         </div>
 

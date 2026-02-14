@@ -26,7 +26,6 @@ export interface NormalizedStage3 {
 }
 
 export interface BaseScores {
-    overall: number;
     claimsAccuracy: number;
     realWorldFit: number;
     operationalNoise: number;
@@ -115,7 +114,8 @@ export function normalizeStage3(raw: any): NormalizedStage3 {
     for (const item of candidates) {
         const claim = String(item.claim || item.issue || "").trim();
         const reality = String(item.reality || item.description || "").trim();
-        const impact = String(item.impact || "").trim();
+        const rawImpact = String(item.impact || "").trim();
+        const impact = rawImpact ? rawImpact.replace(/\.?$/, '.') : "";
         const severity = normalizeSeverity(item.severity);
 
         if (!claim && !reality) continue; // Skip completely empty entries
@@ -160,13 +160,6 @@ function ratingLabel(score: number): "High" | "Moderate" | "Low" {
 }
 
 export function computeBaseScores(entries: NormalizedEntry[]): BaseScores {
-    // Overall: start at 100, deduct per entry
-    let overall = 100;
-    for (const e of entries) {
-        overall -= SEVERITY_PENALTY[e.severity];
-    }
-    overall = Math.max(0, Math.min(100, overall));
-
     // Per-bucket scores: start at 100, deduct only from relevant entries
     const bucketScores: Record<ScoringBucket, number> = {
         claims_accuracy: 100,
@@ -187,7 +180,6 @@ export function computeBaseScores(entries: NormalizedEntry[]): BaseScores {
     }
 
     return {
-        overall,
         claimsAccuracy: bucketScores.claims_accuracy,
         realWorldFit: bucketScores.real_world_fit,
         operationalNoise: bucketScores.operational_noise

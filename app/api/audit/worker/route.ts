@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { executeStage1, executeStage2, executeStage3, executeStage4 } from "@/lib/stageExecutors";
 import { validateStage3, validateStage4 } from "@/lib/stageValidators";
 import { normalizeStage3, computeBaseScores, buildMetricBars } from "@/lib/normalizeStage3";
+import { computeTruthIndex } from "@/lib/computeTruthIndex";
 
 export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max
@@ -249,19 +250,24 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "STAGE3_FAILED" }, { status: 500 });
         }
 
-        // STAGE 3.5: Deterministic Normalization
+        // STAGE 3.5: Deterministic Normalization + Truth Index
         await updateStageState(runId, "normalize", "running");
         const normalizedStage3 = normalizeStage3(stage3Result);
         const baseScores = computeBaseScores(normalizedStage3.entries);
         const metricBars = buildMetricBars(baseScores);
 
+        // Compute deterministic Truth Index (pre-LLM — base only)
+        const truthBreakdown = computeTruthIndex(normalizedStage3.entries, baseScores);
+
         console.log(`[Worker Normalize] ${normalizedStage3.totalCount} raw → ${normalizedStage3.uniqueCount} unique entries`);
-        console.log(`[Worker Normalize] Base scores: overall=${baseScores.overall} claims=${baseScores.claimsAccuracy} fit=${baseScores.realWorldFit} noise=${baseScores.operationalNoise}`);
+        console.log(`[Worker Normalize] Bucket scores: claims=${baseScores.claimsAccuracy} fit=${baseScores.realWorldFit} noise=${baseScores.operationalNoise}`);
+        console.log(`[Worker Normalize] Truth Index: base=${truthBreakdown.base} final=${truthBreakdown.final} penalties=${truthBreakdown.penalties.total}`);
 
         await updateStageState(runId, "normalize", "done", {
             totalCount: normalizedStage3.totalCount,
             uniqueCount: normalizedStage3.uniqueCount,
-            baseScores
+            baseScores,
+            truthBreakdown
         });
 
         // STAGE 5: Assess (Truth Index & Verdict)
@@ -301,7 +307,7 @@ export async function POST(req: NextRequest) {
                 stage1: stage1Result,
                 stage2: stage2Result,
                 stage3: { red_flags: normalizedStage3.entries, reality_ledger: stage3Result.reality_ledger || [] }
-            }, { baseScores, metricBars });
+            }, { baseScores, metricBars, truthBreakdown });
             const stage4Ms = Date.now() - stage4Start;
 
             // VALIDATE Stage 4 output
@@ -417,6 +423,7 @@ export async function POST(req: NextRequest) {
         };
 
         console.log(`[Worker] Final persist - ${normalizedStage3.uniqueCount} unique entries, truth_index=${stage4Result.truth_index}`);
+        console.log(`[Worker] Truth breakdown: base=${stage4Result.truth_index_breakdown?.base} final=${stage4Result.truth_index_breakdown?.final}`);
 
         await sb.from("shadow_specs").upsert({
             product_id: product.id,

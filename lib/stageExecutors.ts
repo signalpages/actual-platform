@@ -36,6 +36,7 @@ interface Stage3Result {
 
 interface Stage4Result {
     truth_index: number;
+    truth_index_breakdown: import("./computeTruthIndex").TruthIndexBreakdown;
     metric_bars: Array<{ label: string; rating: string; percentage: number }>;
     score_interpretation: string;
     strengths: string[];
@@ -424,11 +425,19 @@ export async function executeStage4(
         stage3: Stage3Result;
     },
     precomputed?: {
-        baseScores: { overall: number; claimsAccuracy: number; realWorldFit: number; operationalNoise: number };
+        baseScores: { claimsAccuracy: number; realWorldFit: number; operationalNoise: number };
         metricBars: Array<{ label: string; rating: string; percentage: number }>;
+        truthBreakdown: {
+            base: number;
+            final: number;
+            weights: { claims_accuracy: number; real_world_fit: number; operational_noise: number };
+            component_scores: { claims_accuracy: number; real_world_fit: number; operational_noise: number };
+            penalties: { severe: number; moderate: number; minor: number; total: number };
+            llm_adjustment: { delta: number; reason: string } | null;
+        };
     }
 ): Promise<Stage4Result> {
-    console.log(`[Stage 4] Computing truth index for ${product.model_name}`);
+    console.log(`[Stage 4] Computing verdict for ${product.model_name}`);
 
     const apiKey = process.env.GOOGLE_AI_STUDIO_KEY;
     if (!apiKey) {
@@ -436,18 +445,22 @@ export async function executeStage4(
     }
 
     const { stage1, stage2, stage3 } = allStages;
-    const scores = precomputed?.baseScores;
+    const breakdown = precomputed?.truthBreakdown;
     const bars = precomputed?.metricBars;
+    const baseScore = breakdown?.base ?? 75;
 
-    const prompt = `Synthesize a verdict for the following product audit.
+    const prompt = `You are a product audit analyst. Synthesize a verdict for the following audit.
 
 PRODUCT: ${product.brand} ${product.model_name}
 
-=== PRE-COMPUTED SCORES (deterministic, do not override) ===
-Truth Index Base Score: ${scores?.overall ?? 75}
-Claims Accuracy: ${scores?.claimsAccuracy ?? 75}
-Real-World Fit: ${scores?.realWorldFit ?? 75}
-Operational Noise: ${scores?.operationalNoise ?? 75}
+=== DETERMINISTIC TRUTH INDEX (pre-computed, do NOT override) ===
+Formula: 0.45 × Claims Accuracy + 0.35 × Real-World Fit + 0.20 × Operational Noise + penalties
+Claims Accuracy Score: ${breakdown?.component_scores.claims_accuracy ?? 75}
+Real-World Fit Score: ${breakdown?.component_scores.real_world_fit ?? 75}
+Operational Noise Score: ${breakdown?.component_scores.operational_noise ?? 75}
+Weighted Base: ${baseScore}
+Issue Penalties: ${breakdown?.penalties.total ?? 0} (${breakdown?.penalties.severe ?? 0} severe, ${breakdown?.penalties.moderate ?? 0} moderate, ${breakdown?.penalties.minor ?? 0} minor)
+Current Final: ${breakdown?.final ?? baseScore}
 
 === CONTEXT ===
 
@@ -462,22 +475,26 @@ Issues:
 ${stage2.independent_signal.most_reported_issues.map(i => `- ${i.text} (${i.sources} sources)`).join('\n') || '- No community issue data available'}
 
 3. VERIFIED DISCREPANCIES (${stage3.red_flags.length} unique issues):
-${stage3.red_flags.map((f: any) => `- [${f.severity}] CLAIM: ${f.claim} → REALITY: ${f.reality} (Impact: ${f.impact})`).join('\n')}
+${stage3.red_flags.map((f: any) => `- [${f.severity}] KEY: ${f.key} | CLAIM: ${f.claim} → REALITY: ${f.reality} (Impact: ${f.impact})`).join('\n')}
 
 === INSTRUCTIONS ===
 
 Your job is to INTERPRET and SUMMARIZE the data above. Do NOT invent new issues.
 
 RULES:
-- truth_index: Use the pre-computed base score (${scores?.overall ?? 75}). You may adjust by ±3 points based on narrative weight, but the base is deterministic.
-- strengths: Cite specific praised features from Section 2. If no community data, cite confirmed specifications.
-- limitations: Reference ONLY items from Section 3 (verified discrepancies). Use "Verified:" prefix.
-- practical_impact: Describe the real-world consequence of each discrepancy. Be specific (cite numbers, measurements). Do NOT give generic advice.
-- good_fit: Describe specific user types who would benefit despite the limitations.
-- consider_alternatives: Describe specific needs that this product does NOT meet well.
+- The Truth Index score of ${breakdown?.final ?? baseScore} is deterministic. You CANNOT change it directly.
+- You MAY suggest an adjustment_delta (integer, -3 to +3) if you believe the score should be slightly adjusted.
+  - The reason MUST reference a specific discrepancy entry by its KEY or claim text.
+  - Example: "weight issue is usability-only, not a safety concern"
+  - If you have no strong reason, set adjustment_delta to 0 and leave adjustment_reason empty.
+- strengths: Cite specific praised features from Section 2.
+- limitations: Reference ONLY items from Section 3. Use "Verified:" prefix.
+- practical_impact: Real-world consequence of each discrepancy. Be specific (cite numbers).
+- good_fit: Specific user types who benefit despite limitations.
+- consider_alternatives: Specific needs this product does NOT meet well.
 
 COPY RULES:
-- Write for a consumer audience, not engineers
+- Write for a consumer audience, not engineers.
 - Use plain language. No jargon.
 - BANNED: technical debt, non-production environments, enterprise, stakeholder, leverage, synergy, ecosystem lock-in, robust, scalable
 - Say "large advertised capacity" not "high raw capacity"
@@ -486,7 +503,8 @@ CRITICAL: Do not use quotation marks (") inside any string values. Use apostroph
 Return ONLY valid JSON. No markdown, no code fences.
 
 {
-  "truth_index": ${scores?.overall ?? 75},
+  "adjustment_delta": 0,
+  "adjustment_reason": "",
   "score_interpretation": "One sentence explaining the score based on verified discrepancies.",
   "strengths": ["Specific strength from community data"],
   "limitations": ["Verified: specific discrepancy from Section 3"],
@@ -544,27 +562,35 @@ Return ONLY valid JSON. No markdown, no code fences.
             }
         }
 
-        // Use deterministic truth index (LLM can adjust ±3)
-        const baseIndex = scores?.overall ?? 75;
-        const llmIndex = Math.min(100, Math.max(0, result.truth_index || baseIndex));
-        const truthIndex = Math.max(0, Math.min(100,
-            Math.abs(llmIndex - baseIndex) <= 3 ? llmIndex : baseIndex
-        ));
+        // Re-compute Truth Index with LLM's adjustment suggestion
+        // computeTruthIndex validates the adjustment (bounded ±3, reason references entry)
+        const { computeTruthIndex } = await import("@/lib/computeTruthIndex");
+        const finalBreakdown = precomputed
+            ? computeTruthIndex(
+                stage3.red_flags as any,
+                precomputed.baseScores,
+                {
+                    delta: result.adjustment_delta,
+                    reason: result.adjustment_reason
+                }
+            )
+            : breakdown!;
 
-        console.log(`[Stage 4] Truth Index: base=${baseIndex} llm=${llmIndex} final=${truthIndex}`);
+        console.log(`[Stage 4] Truth Index: base=${finalBreakdown.base} final=${finalBreakdown.final} adj=${finalBreakdown.llm_adjustment?.delta ?? 'none'}`);
 
-        // Use deterministic metric bars (precomputed)
+        // Metric bars = truth_index_breakdown.component_scores (single source)
         const finalBars = bars || [
-            { label: 'Claims Accuracy', rating: 'Moderate', percentage: truthIndex },
-            { label: 'Real-World Fit', rating: 'Moderate', percentage: Math.round(truthIndex * 0.95) },
-            { label: 'Operational Noise', rating: 'Moderate', percentage: 70 }
+            { label: 'Claims Accuracy', rating: 'Moderate', percentage: finalBreakdown.component_scores.claims_accuracy },
+            { label: 'Real-World Fit', rating: 'Moderate', percentage: finalBreakdown.component_scores.real_world_fit },
+            { label: 'Operational Noise', rating: 'Moderate', percentage: finalBreakdown.component_scores.operational_noise }
         ];
 
         // Copy enforcement: sanitize all string outputs
         return {
-            truth_index: truthIndex,
+            truth_index: finalBreakdown.final,
+            truth_index_breakdown: finalBreakdown,
             metric_bars: finalBars,
-            score_interpretation: sanitizeCopy(result.score_interpretation || 'Analysis complete'),
+            score_interpretation: sanitizeCopy(result.score_interpretation || 'Analysis complete.'),
             strengths: sanitizeCopyArray(result.strengths || []),
             limitations: sanitizeCopyArray(result.limitations || []),
             practical_impact: sanitizeCopyArray(result.practical_impact || []),

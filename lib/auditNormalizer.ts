@@ -6,6 +6,7 @@ export interface CanonicalAuditResult extends AuditResult {
     reality_ledger: AuditItem[];
     discrepancies: Discrepancy[];
     truth_index: number | null;
+    truth_index_breakdown?: any;
     stages: AuditStages;
     // Metadata for dev usage
     _schema_source?: 'forensic' | 'summary' | 'unknown';
@@ -105,6 +106,7 @@ export function normalizeAuditResult(raw: any, product?: any): CanonicalAuditRes
 
         // Pass through other S4 fields if they exist
         metric_bars: canonicalBase.metric_bars || s4Data.metric_bars,
+        truth_index_breakdown: canonicalBase.truth_index_breakdown || s4Data.truth_index_breakdown,
         strengths: canonicalBase.strengths || s4Data.strengths,
         limitations: canonicalBase.limitations || s4Data.limitations,
         practical_impact: canonicalBase.practical_impact || s4Data.practical_impact,

@@ -40,6 +40,21 @@ export function DiscrepancyCard({ discrepancy, index }: DiscrepancyCardProps) {
         <div className="bg-red-50/30 border border-red-50 p-4 rounded-xl shadow-sm">
             <div className="flex flex-col md:flex-row gap-4 items-start">
                 <div className="flex-1 min-w-0">
+                    {/* Severity Badge */}
+                    {(discrepancy as any).severity && (
+                        <div className="inline-flex items-center gap-1.5 mb-2">
+                            <span className={`
+                                text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded
+                                ${(discrepancy as any).severity === 'severe' ? 'bg-red-600 text-white' : ''}
+                                ${(discrepancy as any).severity === 'moderate' ? 'bg-amber-500 text-white' : ''}
+                                ${(discrepancy as any).severity === 'minor' ? 'bg-yellow-400 text-slate-900' : ''}
+                            `}>
+                                {(discrepancy as any).severity === 'severe' && '🔴 Severe'}
+                                {(discrepancy as any).severity === 'moderate' && '🟠 Moderate'}
+                                {(discrepancy as any).severity === 'minor' && '🟡 Minor'}
+                            </span>
+                        </div>
+                    )}
                     <p className="text-xs font-black text-red-900 mb-1 leading-tight">
                         {safeIssue}
                     </p>
@@ -55,7 +70,7 @@ export function DiscrepancyCard({ discrepancy, index }: DiscrepancyCardProps) {
                                 Impact
                             </span>
                             <p className="text-[10px] text-red-700 font-medium leading-relaxed">
-                                {(discrepancy as any).impact}
+                                {((discrepancy as any).impact || '').trim().replace(/\.?$/, '.')}
                             </p>
                         </div>
                     </div>

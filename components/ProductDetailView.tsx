@@ -30,6 +30,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
   const [isScanning, setIsScanning] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
 
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [showSubmissionFlow, setShowSubmissionFlow] = useState(false);
@@ -243,7 +244,82 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                 >
                   <span>+</span> Compare
                 </button>
+
+                {/* Why this score? */}
+                {isVerifiedAudit && audit?.truth_index_breakdown && (
+                  <button
+                    onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
+                    className="mt-1 text-[9px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors ml-auto flex items-center gap-1"
+                  >
+                    {showScoreBreakdown ? '▾' : '▸'} Why this score?
+                  </button>
+                )}
               </div>
+
+              {/* Score Breakdown Expandable */}
+              {showScoreBreakdown && audit?.truth_index_breakdown && (() => {
+                const b = audit.truth_index_breakdown;
+                return (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[10px] font-mono space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="font-black uppercase tracking-widest text-slate-400 text-[9px] mb-2">Score Breakdown</div>
+                    <table className="w-full">
+                      <tbody>
+                        <tr className="border-b border-slate-100">
+                          <td className="py-1 text-slate-500">Claims Accuracy</td>
+                          <td className="py-1 text-right font-bold text-slate-700">{b.component_scores.claims_accuracy}</td>
+                          <td className="py-1 text-right text-slate-400">× {(b.weights.claims_accuracy * 100).toFixed(0)}%</td>
+                        </tr>
+                        <tr className="border-b border-slate-100">
+                          <td className="py-1 text-slate-500">Real-World Fit</td>
+                          <td className="py-1 text-right font-bold text-slate-700">{b.component_scores.real_world_fit}</td>
+                          <td className="py-1 text-right text-slate-400">× {(b.weights.real_world_fit * 100).toFixed(0)}%</td>
+                        </tr>
+                        <tr className="border-b border-slate-100">
+                          <td className="py-1 text-slate-500">Operational Noise</td>
+                          <td className="py-1 text-right font-bold text-slate-700">{b.component_scores.operational_noise}</td>
+                          <td className="py-1 text-right text-slate-400">× {(b.weights.operational_noise * 100).toFixed(0)}%</td>
+                        </tr>
+                        <tr className="border-b border-slate-100">
+                          <td className="py-1 text-slate-500">Weighted Base</td>
+                          <td className="py-1 text-right font-bold text-blue-600" colSpan={2}>{b.base}</td>
+                        </tr>
+                        {b.penalties.total !== 0 && (
+                          <tr className="border-b border-slate-100">
+                            <td className="py-1 text-red-500">Penalties</td>
+                            <td className="py-1 text-right font-bold text-red-600" colSpan={2}>
+                              {b.penalties.total}
+                              <span className="text-slate-400 font-normal ml-1">
+                                ({b.penalties.severe > 0 ? `${b.penalties.severe} severe` : ''}
+                                {b.penalties.severe > 0 && b.penalties.moderate > 0 ? ', ' : ''}
+                                {b.penalties.moderate > 0 ? `${b.penalties.moderate} moderate` : ''}
+                                {(b.penalties.severe > 0 || b.penalties.moderate > 0) && b.penalties.minor > 0 ? ', ' : ''}
+                                {b.penalties.minor > 0 ? `${b.penalties.minor} minor` : ''})
+                              </span>
+                            </td>
+                          </tr>
+                        )}
+                        {b.llm_adjustment && (
+                          <tr className="border-b border-slate-100">
+                            <td className="py-1 text-amber-600">AI Adjustment</td>
+                            <td className="py-1 text-right font-bold text-amber-600" colSpan={2}>
+                              {b.llm_adjustment.delta > 0 ? '+' : ''}{b.llm_adjustment.delta}
+                            </td>
+                          </tr>
+                        )}
+                        <tr>
+                          <td className="py-1.5 font-black text-slate-900">Final</td>
+                          <td className="py-1.5 text-right font-black text-blue-600 text-sm" colSpan={2}>{b.final}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    {b.llm_adjustment?.reason && (
+                      <p className="text-[9px] text-amber-600 italic mt-1">
+                        "{b.llm_adjustment.reason}"
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {!isVerifiedAudit && !isScanning && (
                 <button
