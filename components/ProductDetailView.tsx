@@ -251,13 +251,13 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                   <span>+</span> Compare
                 </button>
 
-                {/* Why this score? */}
-                {isVerifiedAudit && effectiveAudit?.truth_index_breakdown && (
+                {/* Why this score? - Show if we have a breakdown (even if provisional) */}
+                {effectiveAudit?.truth_index_breakdown && (
                   <button
                     onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
                     className="mt-1 text-[9px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors ml-auto flex items-center gap-1"
                   >
-                    {showScoreBreakdown ? '▾' : '▸'} Why this score?
+                    {showScoreBreakdown ? '▾' : '▸'} {isVerifiedAudit ? 'Why this score?' : 'Scoring Methodology'}
                   </button>
                 )}
               </div>
@@ -272,22 +272,22 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                       <tbody>
                         <tr className="border-b border-slate-100">
                           <td className="py-1 text-slate-500">Claims Accuracy</td>
-                          <td className="py-1 text-right font-bold text-slate-700">{b.component_scores.claims_accuracy}</td>
+                          <td className="py-1 text-right font-bold text-slate-700">{isVerifiedAudit ? b.component_scores.claims_accuracy : '--'}</td>
                           <td className="py-1 text-right text-slate-400">× {(b.weights.claims_accuracy * 100).toFixed(0)}%</td>
                         </tr>
                         <tr className="border-b border-slate-100">
                           <td className="py-1 text-slate-500">Real-World Fit</td>
-                          <td className="py-1 text-right font-bold text-slate-700">{b.component_scores.real_world_fit}</td>
+                          <td className="py-1 text-right font-bold text-slate-700">{isVerifiedAudit ? b.component_scores.real_world_fit : '--'}</td>
                           <td className="py-1 text-right text-slate-400">× {(b.weights.real_world_fit * 100).toFixed(0)}%</td>
                         </tr>
                         <tr className="border-b border-slate-100">
                           <td className="py-1 text-slate-500">Operational Noise</td>
-                          <td className="py-1 text-right font-bold text-slate-700">{b.component_scores.operational_noise}</td>
+                          <td className="py-1 text-right font-bold text-slate-700">{isVerifiedAudit ? b.component_scores.operational_noise : '--'}</td>
                           <td className="py-1 text-right text-slate-400">× {(b.weights.operational_noise * 100).toFixed(0)}%</td>
                         </tr>
                         <tr className="border-b border-slate-100">
                           <td className="py-1 text-slate-500">Weighted Base</td>
-                          <td className="py-1 text-right font-bold text-blue-600" colSpan={2}>{b.base}</td>
+                          <td className="py-1 text-right font-bold text-blue-600" colSpan={2}>{isVerifiedAudit ? b.base : 'Pending'}</td>
                         </tr>
                         {b.penalties.total !== 0 && (
                           <tr className="border-b border-slate-100">

@@ -14,6 +14,28 @@ export interface CanonicalAuditResult extends AuditResult {
     _schema_source?: 'forensic' | 'summary' | 'unknown';
 }
 
+const DEFAULT_METHODOLOGY = {
+    base: 0,
+    final: 0,
+    weights: {
+        claims_accuracy: 0.45,
+        real_world_fit: 0.35,
+        operational_noise: 0.20
+    },
+    component_scores: {
+        claims_accuracy: 0,
+        real_world_fit: 0,
+        operational_noise: 0
+    },
+    penalties: {
+        severe: 0,
+        moderate: 0,
+        minor: 0,
+        total: 0
+    },
+    llm_adjustment: null
+};
+
 export function normalizeAuditResult(raw: any, product?: any): CanonicalAuditResult {
     const canonicalBase = raw || createEmptyAudit();
 
@@ -116,7 +138,7 @@ export function normalizeAuditResult(raw: any, product?: any): CanonicalAuditRes
 
         // Pass through other S4 fields if they exist
         metric_bars: canonicalBase.metric_bars || s4Data.metric_bars,
-        truth_index_breakdown: canonicalBase.truth_index_breakdown || s4Data.truth_index_breakdown,
+        truth_index_breakdown: canonicalBase.truth_index_breakdown || s4Data.truth_index_breakdown || DEFAULT_METHODOLOGY,
         strengths: canonicalBase.strengths || s4Data.strengths,
         limitations: canonicalBase.limitations || s4Data.limitations,
         practical_impact: canonicalBase.practical_impact || s4Data.practical_impact,
