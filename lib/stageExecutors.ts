@@ -492,7 +492,7 @@ Issues:
 ${stage2.independent_signal.most_reported_issues.map(i => `- ${i.text} (${i.sources} sources)`).join('\n') || '- No community issue data available'}
 
 3. VERIFIED DISCREPANCIES (${stage3.red_flags.length} unique issues):
-${stage3.red_flags.map((f: any) => `- [${f.severity}] KEY: ${f.key} | CLAIM: ${f.claim} → REALITY: ${f.reality} (Impact: ${f.impact})`).join('\n')}
+${stage3.red_flags.map((f: any) => `- [${f.severity}] CLAIM: ${f.claim} → REALITY: ${f.reality} (Impact: ${f.impact})`).join('\n')}
 
 === INSTRUCTIONS ===
 
@@ -501,11 +501,11 @@ Your job is to INTERPRET and SUMMARIZE the data above. Do NOT invent new issues.
 RULES:
 - The Truth Index score of ${breakdown?.final ?? baseScore} is deterministic. You CANNOT change it directly.
 - You MAY suggest an adjustment_delta (integer, -3 to +3) if you believe the score should be slightly adjusted.
-  - The reason MUST reference a specific discrepancy entry by its KEY or claim text.
+  - The reason MUST reference a specific discrepancy entry by its claim text.
   - Example: "weight issue is usability-only, not a safety concern"
   - If you have no strong reason, set adjustment_delta to 0 and leave adjustment_reason empty.
 - strengths: Cite specific praised features from Section 2.
-- limitations: Reference ONLY items from Section 3. Use "Verified:" prefix.
+- limitations: Summarize verified discrepancies from Section 3 in natural language. Start with "Verified: ". Do NOT include technical keys (e.g. claim::reality).
 - practical_impact: Real-world consequence of each discrepancy. Be specific (cite numbers).
 - good_fit: Specific user types who benefit despite limitations.
 - consider_alternatives: Specific needs this product does NOT meet well.
@@ -524,7 +524,7 @@ Return ONLY valid JSON. No markdown, no code fences.
   "adjustment_reason": "",
   "score_interpretation": "One sentence explaining the score based on verified discrepancies.",
   "strengths": ["Specific strength from community data"],
-  "limitations": ["Verified: specific discrepancy from Section 3"],
+  "limitations": ["Verified: specific discrepancy from Section 3 (natural language summary)"],
   "practical_impact": ["Specific technical consequence with numbers"],
   "good_fit": ["Specific user type"],
   "consider_alternatives": ["If you need [specific unmet need]..."]

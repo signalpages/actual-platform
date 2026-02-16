@@ -36,6 +36,27 @@ const DEFAULT_METHODOLOGY = {
     llm_adjustment: null
 };
 
+// Helper to flatten nested specs
+function flattenSpecs(obj: any, prefix = ''): Array<{ label: string; value: string }> {
+    let results: Array<{ label: string; value: string }> = [];
+    if (!obj || typeof obj !== 'object') return [];
+
+    for (const [key, value] of Object.entries(obj)) {
+        if (['spec_sources', 'evidence', 'content_hash'].includes(key)) continue;
+        const newKey = prefix ? `${prefix} ${key}` : key;
+
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            results = results.concat(flattenSpecs(value, newKey));
+        } else {
+            const label = newKey
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, c => c.toUpperCase());
+            results.push({ label, value: String(value) });
+        }
+    }
+    return results;
+}
+
 export function normalizeAuditResult(raw: any, product?: any): CanonicalAuditResult {
     const canonicalBase = raw || createEmptyAudit();
 
@@ -85,18 +106,11 @@ export function normalizeAuditResult(raw: any, product?: any): CanonicalAuditRes
                     return v !== 'not specified' && v !== 'null' && v !== 'undefined' && v !== '';
                 });
         } else if (typeof product.technical_specs === 'object') {
-            claim_profile = Object.entries(product.technical_specs)
-                .filter(([key]) => key !== 'spec_sources' && key !== 'evidence' && key !== 'content_hash')
-                .map(([key, value]) => {
-                    return {
-                        label: formatLabel(key),
-                        value: String(value)
-                    };
-                })
-                .filter((i: any) => {
-                    const v = i.value.toLowerCase().trim();
-                    return v !== 'not specified' && v !== 'null' && v !== 'undefined' && v !== '';
-                });
+            const flattened = flattenSpecs(product.technical_specs);
+            claim_profile = flattened.filter((i: any) => {
+                const v = i.value.toLowerCase().trim();
+                return v !== 'not specified' && v !== 'null' && v !== 'undefined' && v !== '';
+            });
         }
     }
 

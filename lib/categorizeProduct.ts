@@ -7,9 +7,8 @@ import { ProductCategory } from '@/types';
  * 1. Solar generator kits (bundles with panels)
  * 2. Portable power stations
  * 3. Solar panels
- * 4. Batteries (power banks, mAh-based)
- * 5. Inverters
- * 6. Charge controllers
+ * 4. Inverters
+ * 5. Charge controllers
  * 7. Home batteries
  * 8. Microinverters
  * 9. Optimizers
@@ -17,11 +16,6 @@ import { ProductCategory } from '@/types';
  */
 export function categorizeProduct(modelName: string, brand: string = ''): ProductCategory {
     const text = `${brand} ${modelName}`.toUpperCase().trim();
-
-    // 1. Solar generator kits (must be explicit bundles)
-    if (/\bKIT\b|\+ PANEL|SOLAR GENERATOR KIT|WITH PANEL/i.test(text)) {
-        return 'solar_generator_kit';
-    }
 
     // 2. Portable power stations (all-in-one battery + inverter)
     if (
@@ -48,16 +42,7 @@ export function categorizeProduct(modelName: string, brand: string = ''): Produc
         return 'solar_panel';
     }
 
-    // 4. Batteries (power banks, expansion batteries)
-    if (
-        /\bmAh\b/.test(text) ||
-        /\bPOWER BANK\b/.test(text) ||
-        /\bPRIME POWER BANK/.test(text) || // Anker Prime
-        /\bEXPANSION BATTERY\b/.test(text) ||
-        /\bB\d{3,4}\b/.test(text) // B230, B300, etc (expansion batteries)
-    ) {
-        return 'battery';
-    }
+
 
     // 5. Charge controllers
     if (
@@ -98,24 +83,7 @@ export function categorizeProduct(modelName: string, brand: string = ''): Produc
         return 'inverter';
     }
 
-    // 9. Optimizers
-    if (
-        /\bOPTIMIZER\b/.test(text) ||
-        /\bRAPID SHUTDOWN/.test(text) ||
-        /\bTIGO/.test(text) ||
-        /(SOLAREDGE).*(OPTIMIZER)/.test(text)
-    ) {
-        return 'accessory';
-    }
 
-    // 10. DC converters
-    if (
-        /\bDC-DC|DC TO DC/.test(text) ||
-        /\bDC CONVERTER|DC CHARGER/.test(text) ||
-        /(VICTRON|RENOGY).*(DC-DC|ORION)/.test(text)
-    ) {
-        return 'accessory';
-    }
 
     // Default fallback - portable_power_station is most common
     // (This should rarely be hit if seeding is done correctly)
@@ -129,15 +97,11 @@ export function categorizeProduct(modelName: string, brand: string = ''): Produc
 export function getCategoryLabel(category: ProductCategory): string {
     const labels: Record<ProductCategory, string> = {
         portable_power_station: 'Portable Power Station',
-        solar_generator_kit: 'Solar Generator Kit',
         solar_panel: 'Solar Panel',
         inverter: 'Inverter',
-        battery: 'Battery',
         charge_controller: 'Charge Controller',
-        home_backup_system: 'Home Battery',
-        ev_charger: 'EV Charger',
-        accessory: 'Accessory',
-        off_grid_appliance: 'Off-Grid Appliance'
+        home_backup_system: 'Solar Backup Battery',
+        ev_charger: 'EV Charger'
     };
     return labels[category] || category;
 }
@@ -148,15 +112,11 @@ export function getCategoryLabel(category: ProductCategory): string {
 export function isValidCategory(category: string): category is ProductCategory {
     const validCategories: ProductCategory[] = [
         'portable_power_station',
-        'solar_generator_kit',
         'solar_panel',
         'inverter',
-        'battery',
         'charge_controller',
         'home_backup_system',
         'ev_charger',
-        'accessory',
-        'off_grid_appliance',
     ];
     return validCategories.includes(category as ProductCategory);
 }

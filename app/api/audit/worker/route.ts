@@ -82,6 +82,27 @@ async function updateProgress(runId: string, progress: number) {
     }).eq("id", runId);
 }
 
+// Helper to flatten nested specs (e.g. ac_output.voltage -> "Ac Output Voltage")
+function flattenSpecs(obj: any, prefix = ''): Array<{ label: string; value: string }> {
+    let results: Array<{ label: string; value: string }> = [];
+    if (!obj || typeof obj !== 'object') return [];
+
+    for (const [key, value] of Object.entries(obj)) {
+        if (['spec_sources', 'evidence', 'content_hash'].includes(key)) continue;
+        const newKey = prefix ? `${prefix} ${key}` : key;
+
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            results = results.concat(flattenSpecs(value, newKey));
+        } else {
+            const label = newKey
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, c => c.toUpperCase());
+            results.push({ label, value: String(value) });
+        }
+    }
+    return results;
+}
+
 export async function POST(req: NextRequest) {
     let capturedRunId: string | null = null; // Captured for error handler
     try {
@@ -147,12 +168,8 @@ export async function POST(req: NextRequest) {
                     value: s.value || s.spec_value || 'Not specified'
                 }));
             } else if (typeof product.technical_specs === 'object') {
-                claims = Object.entries(product.technical_specs)
-                    .filter(([key]) => key !== 'spec_sources' && key !== 'evidence' && key !== 'content_hash')
-                    .map(([key, value]) => ({
-                        label: key,
-                        value: String(value)
-                    }));
+                // Use flattening helper for nested objects (e.g. inverters)
+                claims = flattenSpecs(product.technical_specs);
             }
 
             // Filter invalid

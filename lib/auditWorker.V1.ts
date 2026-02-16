@@ -26,12 +26,12 @@ function makeStage2HtmlBundle(product: any, stage1: any): string {
   const claimProfile = stage1?.claim_profile ?? stage1?.data?.claim_profile ?? [];
   const listItems = Array.isArray(claimProfile)
     ? claimProfile
-        .map((r: any) => {
-          const label = r?.label ?? r?.name ?? r?.key ?? "Unknown";
-          const value = r?.value ?? r?.val ?? r?.display_value ?? r?.displayValue ?? "—";
-          return `<li><b>${String(label)}:</b> ${String(value)}</li>`;
-        })
-        .join("")
+      .map((r: any) => {
+        const label = r?.label ?? r?.name ?? r?.key ?? "Unknown";
+        const value = r?.value ?? r?.val ?? r?.display_value ?? r?.displayValue ?? "—";
+        return `<li><b>${String(label)}:</b> ${String(value)}</li>`;
+      })
+      .join("")
     : "";
 
   const desc = product?.description ? String(product.description) : "";
@@ -167,7 +167,7 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
     const redFlags = arr(stage3?.red_flags);
     const realityLedger = arr(stage3?.reality_ledger);
 
-    const truthIndexRaw = stage4?.truth_index ?? stage4?.data?.truth_index ?? stage4?.truthIndex;
+    const truthIndexRaw = stage4?.truth_index ?? (stage4 as any)?.data?.truth_index ?? (stage4 as any)?.truthIndex;
     const truthIndex = Number.isFinite(Number(truthIndexRaw)) ? Number(truthIndexRaw) : 0;
 
     const isVerified = truthIndex >= 85;
@@ -177,7 +177,7 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
       verification_status: isVerified ? "verified" : "provisional",
       last_updated: new Date().toISOString(),
 
-      advertised_claims: stage1?.claim_profile ?? stage1?.data?.claim_profile ?? [],
+      advertised_claims: stage1?.claim_profile ?? (stage1 as any)?.data?.claim_profile ?? [],
       reality_ledger: realityLedger,
 
       key_wins: mostPraised.slice(0, 5).map((p: any) => ({
@@ -199,19 +199,19 @@ export async function runAuditWorker(runId: string, product: any): Promise<void>
       })),
 
       // Optional pass-throughs if Stage 4 provides them
-      metric_bars: stage4?.metric_bars ?? stage4?.data?.metric_bars ?? [],
-      score_interpretation: stage4?.score_interpretation ?? stage4?.data?.score_interpretation,
-      strengths: stage4?.strengths ?? stage4?.data?.strengths ?? [],
-      limitations: stage4?.limitations ?? stage4?.data?.limitations ?? [],
-      practical_impact: stage4?.practical_impact ?? stage4?.data?.practical_impact,
-      good_fit: stage4?.good_fit ?? stage4?.data?.good_fit ?? [],
-      consider_alternatives: stage4?.consider_alternatives ?? stage4?.data?.consider_alternatives ?? [],
-      data_confidence: stage4?.data_confidence ?? stage4?.data?.data_confidence,
+      metric_bars: stage4?.metric_bars ?? (stage4 as any)?.data?.metric_bars ?? [],
+      score_interpretation: stage4?.score_interpretation ?? (stage4 as any)?.data?.score_interpretation,
+      strengths: stage4?.strengths ?? (stage4 as any)?.data?.strengths ?? [],
+      limitations: stage4?.limitations ?? (stage4 as any)?.data?.limitations ?? [],
+      practical_impact: stage4?.practical_impact ?? (stage4 as any)?.data?.practical_impact,
+      good_fit: stage4?.good_fit ?? (stage4 as any)?.data?.good_fit ?? [],
+      consider_alternatives: stage4?.consider_alternatives ?? (stage4 as any)?.data?.consider_alternatives ?? [],
+      data_confidence: stage4?.data_confidence ?? (stage4 as any)?.data?.data_confidence,
 
       // Required DB fields (keep as stubs until your search step fills it)
       source_urls: arr(s2?.sources).map((s: any) => s?.url).filter(Boolean),
       is_verified: isVerified,
-      verdict: stage4?.verdict ?? stage4?.data?.verdict ?? null,
+      verdict: stage4?.verdict ?? (stage4 as any)?.data?.verdict ?? null,
     };
 
     console.log("[Worker] Saving audit for product:", productId);

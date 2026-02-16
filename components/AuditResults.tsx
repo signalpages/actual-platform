@@ -201,6 +201,11 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                                         return val.includes('%') || val.includes('efficiency');
                                     }
 
+                                    // Dimensions: in, cm, mm, x, or stackable
+                                    if (claimType.includes('dimensions')) {
+                                        return val.includes('in') || val.includes('cm') || val.includes('mm') || val.includes('x') || val.includes('stackable');
+                                    }
+
                                     // Categorical/Identity fields: no unit validation needed
                                     if (claimType.includes('brand') || claimType.includes('model') ||
                                         claimType.includes('category') || claimType.includes('name') ||
@@ -227,12 +232,18 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                                         ledgerType === claimType;
 
                                     // Unit validation guard
-                                    const unitIsCompatible = isCompatibleUnit(ledger.value, claimType);
+                                    // RELAXED PRE-CHECK: If verified value is "Not verified", "Pending", "TBD" etc, SKIP unit check
+                                    const notVerifiedKeywords = ['not verified', 'pending', 'tbd', 'unknown', 'n/a'];
+                                    const isNotVerified = notVerifiedKeywords.some(kw => ledger.value.toLowerCase().includes(kw));
+
+                                    // If not verified, we consider it "compatible" (or rather, irrelevant to check) to avoid noise
+                                    const unitIsCompatible = isNotVerified || isCompatibleUnit(ledger.value, claimType);
 
                                     // BOTH must be true
                                     const isValid = labelMatches && unitIsCompatible;
 
                                     // DEV GUARDRAIL: Log mismatches
+                                    // Only log if we found a label match but unit failed (and it WAS verified)
                                     if (labelMatches && !unitIsCompatible && process.env.NODE_ENV === 'development') {
                                         console.error(
                                             `[Verification Error] Unit mismatch for "${claim.label}": ` +

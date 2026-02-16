@@ -41,8 +41,7 @@ export async function getProductPageData(slug: string): Promise<ProductPageData>
         model_name,
         category,
         technical_specs,
-        spec_status,
-        is_verified,
+        is_audited,
         current_audit_run_id
     `)
     .eq("slug", slug)
@@ -141,16 +140,28 @@ export async function getProductPageData(slug: string): Promise<ProductPageData>
 
   if (displayedRunCandidate) {
     // We perform the load check.
-    // If existing code already does `loadRun`, we can reuse it, but we need to match it to `displayedRunCandidate.id`.
     const loaded = await loadRun(displayedRunCandidate.id);
     if (loaded.ok || displayedRunCandidate.status === "failed" || displayedRunCandidate.status === "error" || displayedRunCandidate.status === "running" || displayedRunCandidate.status === "pending") {
-      // We accept it even if !ok if we are just showing status? 
-      // But `loadRun` returns `ok` only if canonical exists.
-      // If we are showing "failure" or "running", canonical might be null.
       auditRun = displayedRunCandidate;
       canonical = loaded.canonical;
       assessment = loaded.assessment;
     }
+  }
+
+  // FORCE CANONICAL IF MISSING (Enable Instant Profile)
+  if (!canonical && product) {
+    // Determine status based on what we found
+    const status = auditRun ? auditRun.status : 'pending';
+
+    // Create a shell canonical result from the product itself
+    canonical = normalizeAuditResult({
+      stages: {
+        stage_1: { status, data: {} },
+        stage_2: { status: 'pending', data: {} },
+        stage_3: { status: 'pending', data: {} },
+        stage_4: { status: 'pending', data: {} }
+      }
+    }, product);
   }
 
   // 4) dropdown list (optional): include artifact metadata if you added it

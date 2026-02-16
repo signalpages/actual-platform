@@ -1,15 +1,11 @@
 
 export type ProductCategory =
   | 'portable_power_station'
-  | 'solar_generator_kit'
   | 'solar_panel'
   | 'inverter'
-  | 'battery'
   | 'charge_controller'
   | 'home_backup_system'
-  | 'ev_charger'
-  | 'accessory'
-  | 'off_grid_appliance';
+  | 'ev_charger';
 
 export type VerificationStatus = 'verified' | 'provisional';
 
@@ -21,15 +17,11 @@ export interface Category {
 // UI labels for categories (Identity map since IDs are now readable)
 export const CATEGORY_LABELS: Record<ProductCategory, string> = {
   'portable_power_station': 'Portable Power Stations',
-  'solar_generator_kit': 'Solar Generator Kits',
   'solar_panel': 'Solar Panels',
   'inverter': 'Inverters',
-  'battery': 'Batteries',
   'charge_controller': 'Charge Controllers',
-  'home_backup_system': 'Home Backup Systems',
-  'ev_charger': 'EV Chargers',
-  'accessory': 'Accessories',
-  'off_grid_appliance': 'Off-Grid Appliances'
+  'home_backup_system': 'Solar Backup Batteries',
+  'ev_charger': 'EV Chargers'
 };
 
 // Aligned with 'products' table in ERD

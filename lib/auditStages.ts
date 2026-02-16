@@ -34,6 +34,27 @@ async function updateStage(productId: string, stageName: StageName, stageData: a
   return updateStageHelper({ productId, stageName, stageData, supabase });
 }
 
+// Helper to flatten nested specs
+function flattenSpecs(obj: any, prefix = ''): Array<{ label: string; value: string }> {
+  let results: Array<{ label: string; value: string }> = [];
+  if (!obj || typeof obj !== 'object') return [];
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (['spec_sources', 'evidence', 'content_hash'].includes(key)) continue;
+    const newKey = prefix ? `${prefix} ${key}` : key;
+
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      results = results.concat(flattenSpecs(value, newKey));
+    } else {
+      const label = newKey
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, c => c.toUpperCase());
+      results.push({ label, value: String(value) });
+    }
+  }
+  return results;
+}
+
 /**
  * -------------------------
  * Stage 1: Claim Profile
@@ -51,6 +72,7 @@ export async function runStage1_ClaimProfile(productId: string, product: Product
     // 1) [{label,value}] array
     // 2) { "Storage Capacity": "1024Wh", ... } object
     const normalizedSpecs: { label: string; value: string }[] = (() => {
+      // 1. Is it an array?
       if (Array.isArray(raw)) {
         return raw
           .map((s: any) => {
@@ -65,13 +87,13 @@ export async function runStage1_ClaimProfile(productId: string, product: Product
           .filter(Boolean) as { label: string; value: string }[];
       }
 
+      // 2. Is it a flat object?
       if (raw && typeof raw === "object") {
-        return Object.entries(raw)
-          .map(([k, v]) => ({
-            label: String(k),
-            value: v === undefined || v === null || v === "" ? "—" : String(v),
-          }))
-          .filter((row) => row.label);
+        const claims = flattenSpecs(raw);
+        return claims.filter((row) => {
+          const v = String(row.value).toLowerCase().trim();
+          return v !== "not specified" && v !== "null" && v !== "undefined" && v !== "";
+        });
       }
 
       return [];

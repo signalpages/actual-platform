@@ -78,6 +78,23 @@ export const PPS_SCHEMA_V1: SpecSchema = {
             key: 'warranty_years',
             label: 'Warranty',
             formatter: (v) => `${v} years`
+        },
+        {
+            key: 'operating_temp_range',
+            label: 'Operating Temp',
+            altKeys: ['operating_temp', 'operating_temperature', 'operating_temp_display']
+        },
+        {
+            key: 'dimensions',
+            label: 'Dimensions',
+            altKeys: ['dimensions_display']
+        },
+        // Fallback for recharge time if not AC charging speed
+        {
+            key: 'recharge_time_minutes',
+            label: 'Recharge Time',
+            formatter: (v) => `${v} mins`,
+            altKeys: ['recharge_time_display']
         }
     ]
 };
@@ -161,9 +178,189 @@ export const CHARGE_CONTROLLER_SCHEMA_V1: SpecSchema = {
     ]
 };
 
+// --------------------------------------------------------
+// SCHEMA: SOLAR PANEL (V1)
+// --------------------------------------------------------
+export const SOLAR_PANEL_SCHEMA_V1: SpecSchema = {
+    id: 'solar_panel.v1',
+    version: '1.0.0',
+    fields: [
+        {
+            key: 'rated_power_w',
+            label: 'Rated Power',
+            unit: 'W',
+            formatter: (v) => `${v}W`,
+            altKeys: ['power', 'wattage']
+        },
+        {
+            key: 'efficiency_pct',
+            label: 'Efficiency',
+            unit: '%',
+            formatter: (v) => `${v}%`,
+            altKeys: ['efficiency']
+        },
+        {
+            key: 'voc_v',
+            label: 'Open Circuit Voltage (Voc)',
+            unit: 'V',
+            formatter: (v) => `${v}V`
+        },
+        {
+            key: 'vmpp_v',
+            label: 'Max Power Voltage (Vmpp)',
+            unit: 'V',
+            formatter: (v) => `${v}V`
+        },
+        {
+            key: 'isc_a',
+            label: 'Short Circuit Current (Isc)',
+            unit: 'A',
+            formatter: (v) => `${v}A`
+        },
+        {
+            key: 'impp_a',
+            label: 'Max Power Current (Impp)',
+            unit: 'A',
+            formatter: (v) => `${v}A`
+        },
+        {
+            key: 'cell_type',
+            label: 'Cell Type',
+            altKeys: ['cell_chemistry']
+        },
+        {
+            key: 'connector_type',
+            label: 'Connector',
+            altKeys: ['connector']
+        },
+        {
+            key: 'dimensions',
+            label: 'Dimensions'
+        },
+        {
+            key: 'weight_kg',
+            label: 'Weight',
+            formatter: (v) => `${v}kg`
+        },
+        {
+            key: 'bifacial',
+            label: 'Bifacial',
+            formatter: (v) => v ? 'Yes' : 'No'
+        }
+    ]
+};
+
+// --------------------------------------------------------
+// SCHEMA: EV CHARGER (V1)
+// --------------------------------------------------------
+export const EV_CHARGER_SCHEMA_V1: SpecSchema = {
+    id: 'ev_charger.v1',
+    version: '1.0.0',
+    fields: [
+        {
+            key: 'max_power_kw',
+            label: 'Max Power',
+            unit: 'kW',
+            formatter: (v) => `${v}kW`,
+            altKeys: ['max_output_kw']
+        },
+        {
+            key: 'max_current_a',
+            label: 'Max Current',
+            unit: 'A',
+            formatter: (v) => `${v}A`,
+            altKeys: ['max_amperage_a']
+        },
+        {
+            key: 'input_voltage_v',
+            label: 'Input Voltage',
+            unit: 'V',
+            formatter: (v) => `${v}V`
+        },
+        {
+            key: 'connector_type',
+            label: 'Connector',
+            altKeys: ['connector']
+        },
+        {
+            key: 'cable_length_ft',
+            label: 'Cable Length',
+            unit: 'ft',
+            formatter: (v) => `${v} ft`
+        },
+        {
+            key: 'hardwired',
+            label: 'Hardwired',
+            formatter: (v) => v ? 'Yes' : 'No'
+        },
+        {
+            key: 'wifi_enabled',
+            label: 'WiFi',
+            formatter: (v) => v ? 'Yes' : 'No'
+        },
+        {
+            key: 'app_required',
+            label: 'App Required',
+            formatter: (v) => v ? 'Yes' : 'No'
+        },
+        {
+            key: 'ip_rating',
+            label: 'IP Rating',
+            altKeys: ['indoor_outdoor_rating', 'rating']
+        },
+        {
+            key: 'utility_metering',
+            label: 'Utility Grade Metering',
+            // Sometimes mapped from 'ocpp_support' or similar if needed, 
+            // but for now let's map 'energy_star_certified' as a proxy for high quality? 
+            // actually better to just map what we have.
+            // Let's add 'ocpp_support'
+        },
+        {
+            key: 'ocpp_support',
+            label: 'OCPP',
+            formatter: (v) => v ? 'Yes' : 'No'
+        },
+        {
+            key: 'warranty_years',
+            label: 'Warranty',
+            formatter: (v) => `${v} years`
+        },
+        {
+            key: 'weight_lbs',
+            label: 'Weight',
+            formatter: (v) => `${v} lbs`
+        }
+    ]
+};
+
 const REGISTRY: Record<string, SpecSchema> = {
     [PPS_SCHEMA_V1.id]: PPS_SCHEMA_V1,
-    [CHARGE_CONTROLLER_SCHEMA_V1.id]: CHARGE_CONTROLLER_SCHEMA_V1
+    [CHARGE_CONTROLLER_SCHEMA_V1.id]: CHARGE_CONTROLLER_SCHEMA_V1,
+    [SOLAR_PANEL_SCHEMA_V1.id]: SOLAR_PANEL_SCHEMA_V1,
+    [EV_CHARGER_SCHEMA_V1.id]: EV_CHARGER_SCHEMA_V1,
+    'battery.v1': {
+        id: 'battery.v1',
+        version: '1.0.0',
+        fields: [
+            { key: 'capacity_wh', label: 'Capacity', unit: 'Wh', formatter: (v) => `${v}Wh`, altKeys: ['energy', 'capacity'] },
+            { key: 'capacity_kwh', label: 'Capacity', unit: 'kWh', formatter: (v) => `${v}kWh`, altKeys: ['energy_kwh'] },
+            { key: 'voltage_v', label: 'Voltage', unit: 'V', formatter: (v) => `${v}V`, altKeys: ['system_voltage'] },
+            { key: 'ah', label: 'Amp Hours', unit: 'Ah', formatter: (v) => `${v}Ah`, altKeys: ['amp_hours'] },
+            { key: 'continuous_a', label: 'Continuous Discharge', unit: 'A', formatter: (v) => `${v}A`, altKeys: ['max_continuous_discharge'] },
+            { key: 'continuous_kw', label: 'Continuous Output', unit: 'kW', formatter: (v) => `${v}kW`, altKeys: ['continuous_power'] },
+            { key: 'peak_a', label: 'Peak Discharge', unit: 'A', formatter: (v) => `${v}A`, altKeys: ['peak_discharge', 'surge_current'] },
+            { key: 'peak_kw', label: 'Peak Output', unit: 'kW', formatter: (v) => `${v}kW`, altKeys: ['peak_power'] },
+            { key: 'chemistry', label: 'Chemistry', altKeys: ['cell_chemistry', 'type'] },
+            { key: 'cycles', label: 'Cycle Life', formatter: (v) => `${v} cycles`, altKeys: ['cycle_life', 'lifecycles'] },
+            { key: 'warranty_years', label: 'Warranty', formatter: (v) => `${v} years` },
+            { key: 'weight_lbs', label: 'Weight', formatter: (v) => `${v} lbs` },
+            { key: 'dimensions', label: 'Dimensions' },
+            { key: 'expandable_to_kwh', label: 'Expandable To', formatter: (v) => `${v}kWh` },
+            { key: 'communication', label: 'Comms', altKeys: ['communication_ports'] },
+            { key: 'rating', label: 'IP Rating', altKeys: ['ip_rating'] }
+        ]
+    }
 };
 
 export function getSchema(id: string): SpecSchema | undefined {

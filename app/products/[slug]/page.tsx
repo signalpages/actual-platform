@@ -2,6 +2,8 @@ import { getProductPageData } from "@/lib/productPage.server";
 import { ProductAuditPanel } from "./ProductAuditPanel";
 import { AuditResults } from "@/components/AuditResults";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProductPage({ params }: { params: { slug: string } }) {
   const data = await getProductPageData(params.slug);
 
