@@ -31,7 +31,7 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
     // Primary: Compose from Technical Specs (Human Readable)
     // Fallback: Use audit claim_profile (Raw/Legacy)
     // Fallback C: Empty array
-    let claimItems = composeClaimProfile(product.technical_specs);
+    let claimItems = composeClaimProfile(product.technical_specs, product.category);
 
     if (claimItems.length === 0) {
         // Fallback to raw if composer returned nothing (e.g. specs missing standard keys)
