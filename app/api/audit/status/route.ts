@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function supabaseAdmin() {
   const url = process.env.SUPABASE_URL!;
@@ -255,7 +256,12 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    return NextResponse.json(flatResponse);
+    return NextResponse.json(flatResponse, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0, must-revalidate',
+        'Pragma': 'no-cache'
+      }
+    });
 
   } catch (err: any) {
     console.error("Status endpoint error:", err);

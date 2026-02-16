@@ -49,3 +49,29 @@ _archive/
 # Cloudflare (deprecated runtime)
 .wrangler/
 __next-on-pages-dist__/
+
+# Supabase temp
+supabase/.temp/
+*.ps1
+*.csv
+seed/
+scripts/
+migrations/
+
+
+# Local scripts + seeds (optional, if you don’t want these in repo)
+scripts/
+seed/
+
+# PowerShell local tools
+*.ps1
+
+# Local CSV test files
+*.csv
+
+# Local dev docs
+DEV_*.md
+
+# Node
+node_modules/
+

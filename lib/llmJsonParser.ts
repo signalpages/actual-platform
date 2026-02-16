@@ -11,6 +11,75 @@ export interface ParseResult {
 }
 
 /**
+ * Attempt to repair common JSON syntax errors from LLMs
+ */
+function repairJson(jsonString: string): string {
+    let repaired = jsonString.trim();
+
+    // 1. Remove trailing commas in objects and arrays (before closing braces)
+    repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+
+    // 2. Count open braces/brackets to close truncation
+    let openBraces = 0;
+    let openBrackets = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < repaired.length; i++) {
+        const char = repaired[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (char === '\\') {
+            escaped = true;
+            continue;
+        }
+        if (char === '"') {
+            inString = !inString;
+            continue;
+        }
+        if (!inString) {
+            if (char === '{') openBraces++;
+            else if (char === '}') openBraces = Math.max(0, openBraces - 1);
+            else if (char === '[') openBrackets++;
+            else if (char === ']') openBrackets = Math.max(0, openBrackets - 1);
+        }
+    }
+
+    // 3. Close open structures (brackets first, then braces usually, but we assume simple nesting)
+    // Naively append closing characters. A purely stack-based approach would be better but this covers 90% of LLM truncation.
+    // If it's a mix, this might fail, but it's a repair attempt.
+    // Ideally we'd maintain a stack of what opened last.
+
+    // Rerun with stack for correctness
+    const stack: string[] = [];
+    inString = false;
+    escaped = false;
+    for (let i = 0; i < repaired.length; i++) {
+        const char = repaired[i];
+        if (escaped) { escaped = false; continue; }
+        if (char === '\\') { escaped = true; continue; }
+        if (char === '"') { inString = !inString; continue; }
+        if (!inString) {
+            if (char === '{') stack.push('}');
+            else if (char === '[') stack.push(']');
+            else if (char === '}' || char === ']') {
+                const expected = stack[stack.length - 1];
+                if (expected === char) stack.pop();
+            }
+        }
+    }
+
+    // Append missing closers in reverse order
+    while (stack.length > 0) {
+        repaired += stack.pop();
+    }
+
+    return repaired;
+}
+
+/**
  * Safely parse JSON from LLM output
  * Strategy: Extract JSON boundaries only, never mutate interior content
  */
@@ -35,6 +104,15 @@ export function safeParseLLMJson(rawText: string): ParseResult {
         const parsed = JSON.parse(cleaned);
         return { success: true, data: parsed };
     } catch (e) {
+        // Continue to repair/extraction
+    }
+
+    // Step 2b: Try repairing common syntax errors (trailing commas)
+    try {
+        const repaired = repairJson(cleaned);
+        const parsed = JSON.parse(repaired);
+        return { success: true, data: parsed };
+    } catch (e) {
         // Continue to boundary extraction
     }
 
@@ -50,7 +128,14 @@ export function safeParseLLMJson(rawText: string): ParseResult {
             const parsed = JSON.parse(extracted);
             return { success: true, data: parsed };
         } catch (e) {
-            // Try array extraction
+            // Try repairing the extracted segment
+            try {
+                const repaired = repairJson(extracted);
+                const parsed = JSON.parse(repaired);
+                return { success: true, data: parsed };
+            } catch (e2) {
+                // Try array extraction
+            }
         }
     }
 
@@ -65,7 +150,14 @@ export function safeParseLLMJson(rawText: string): ParseResult {
             const parsed = JSON.parse(extracted);
             return { success: true, data: parsed };
         } catch (e) {
-            // All strategies failed
+            // Try repairing the extracted segment
+            try {
+                const repaired = repairJson(extracted);
+                const parsed = JSON.parse(repaired);
+                return { success: true, data: parsed };
+            } catch (e2) {
+                // All strategies failed
+            }
         }
     }
 

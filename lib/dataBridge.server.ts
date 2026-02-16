@@ -167,6 +167,16 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
         ? specs.actual_specs as any
         : {};
 
+    // Helper to pick first non-empty array
+    const pickNonEmpty = (arr: any) => (Array.isArray(arr) && arr.length > 0 ? arr : null);
+
+    // Robust Reality Ledger Extraction
+    // Priority: Stage 4 (Final) -> Stage 3 (Source) -> Stage 1 (Shim) -> Empty
+    const reality_ledger =
+        pickNonEmpty(stage4Data.reality_ledger) ??
+        pickNonEmpty(specs.stages?.stage_3?.data?.reality_ledger) ??
+        pickNonEmpty(specs.stages?.stage_1?.data?.reality_ledger) ??
+        [];
     return {
         assetId: specs.product_id,
         analysis: {
@@ -174,7 +184,7 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
             last_run_at: specs.created_at,
         },
         claim_profile: Array.isArray(specs.claimed_specs) ? specs.claimed_specs : [],
-        reality_ledger: stage4Data.reality_ledger || [], // Extract from combined object
+        reality_ledger,
         discrepancies: Array.isArray(specs.red_flags) ? specs.red_flags : [],
         truth_index: specs.truth_score,
         // Include Stage 4 fields

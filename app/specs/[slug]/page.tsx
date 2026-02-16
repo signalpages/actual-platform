@@ -33,8 +33,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
         const asset = {
             ...product,
             // products table has is_audited. Mapping to UI model:
-            verified: (product as any).is_audited || false,
-            verification_status: (product as any).is_audited ? 'verified' : 'provisional'
+            verified: (product as any).is_audited || (product as any).is_verified || false,
+            verification_status: ((product as any).is_audited || (product as any).is_verified) ? 'verified' : 'provisional'
         };
 
         return (

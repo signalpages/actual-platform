@@ -41,9 +41,9 @@ export function validateStage3(data: any): Stage3ValidationResult {
         return { valid: false, error: "no_valid_array_found", itemCount: 0 };
     }
 
-    // REJECT EMPTY ARRAYS - must have at least 1 item
+    // ALLOW EMPTY ARRAYS - Valid result (no discrepancies found)
     if (foundArray.length === 0) {
-        return { valid: false, error: "empty_array", itemCount: 0 };
+        return { valid: true, itemCount: 0, arrayKey: foundKey || 'red_flags' };
     }
 
     // Validate each item has required fields (flexible based on actual schema)

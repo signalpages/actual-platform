@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { normalizeAuditResult } from "@/lib/auditNormalizer";
 
 function sbAdmin() {
   const url = process.env.SUPABASE_URL!;
@@ -26,16 +27,30 @@ export type ProductPageData = {
   activeRun: any | null;
 };
 
-export async function getProductPageData(productId: string): Promise<ProductPageData> {
+export async function getProductPageData(slug: string): Promise<ProductPageData> {
   const sb = sbAdmin();
 
   // 1) product
   const { data: product, error: pErr } = await sb
     .from("products")
-    .select("*")
-    .eq("id", productId)
+    // Select specific fields to ensure we get specs even if * is partial in some contexts (though * is usually fine)
+    .select(`
+        id,
+        slug,
+        brand,
+        model_name,
+        category,
+        technical_specs,
+        spec_status,
+        is_verified,
+        current_audit_run_id
+    `)
+    .eq("slug", slug)
     .single();
+
   if (pErr || !product) throw new Error(pErr?.message ?? "PRODUCT_NOT_FOUND");
+
+  const productId = product.id;
 
   // 2) candidate runs: last few
   const { data: runs } = await sb
@@ -71,17 +86,17 @@ export async function getProductPageData(productId: string): Promise<ProductPage
     ]);
 
     // Map shadow -> canonical shape
-    const canonical = shadow ? {
+    const canonical = shadow ? normalizeAuditResult({
       ...shadow,
       normalized_json: shadow.canonical_spec_json, // MAP V1 TO LEGACY
       claim_count: shadow.canonical_spec_json?.claim_profile?.length ?? 0,
       source_count: shadow.source_urls?.length ?? 0
-    } : null;
+    }, product) : null;
 
     // payload gate: “empty results are illegal”
     const ok =
-      !!canonical?.normalized_json &&
-      (canonical?.claim_count ?? 0) >= 1 && // Lowered threshold for mock data (1 claim is enough for now)
+      !!canonical &&
+      (canonical.claim_profile?.length ?? 0) >= 1 && // Lowered threshold for mock data (1 claim is enough for now)
       // (canonical?.source_count ?? 0) >= 3 && // Mock has 1 source
       !!assessment; // Assessment is required (it holds the scores)
 

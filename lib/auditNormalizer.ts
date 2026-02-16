@@ -1,5 +1,7 @@
 import { AuditResult, AuditStages, Discrepancy, AuditItem } from "../types";
 
+import { formatLabel } from "./formatters";
+
 export interface CanonicalAuditResult extends AuditResult {
     // Explicitly enforce presence of key fields for UI
     claim_profile: AuditItem[];
@@ -62,10 +64,13 @@ export function normalizeAuditResult(raw: any, product?: any): CanonicalAuditRes
                 });
         } else if (typeof product.technical_specs === 'object') {
             claim_profile = Object.entries(product.technical_specs)
-                .map(([key, value]) => ({
-                    label: key,
-                    value: String(value)
-                }))
+                .filter(([key]) => key !== 'spec_sources' && key !== 'evidence' && key !== 'content_hash')
+                .map(([key, value]) => {
+                    return {
+                        label: formatLabel(key),
+                        value: String(value)
+                    };
+                })
                 .filter((i: any) => {
                     const v = i.value.toLowerCase().trim();
                     return v !== 'not specified' && v !== 'null' && v !== 'undefined' && v !== '';
@@ -74,9 +79,14 @@ export function normalizeAuditResult(raw: any, product?: any): CanonicalAuditRes
     }
 
     // 3. Canonicalize Reality Ledger
-    // Priority: raw -> stage_1.data.reality_ledger -> empty
-    let reality_ledger = Array.isArray(canonicalBase.reality_ledger) ? canonicalBase.reality_ledger :
-        (Array.isArray(s1Data.reality_ledger) ? s1Data.reality_ledger : []);
+    // Priority: raw -> stage_3.data.reality_ledger -> stage_1.data.reality_ledger -> empty
+    // Note: 'raw' (canonicalBase) now comes pre-populated from bridge with the best available ledger
+    // We also check 'actual_specs' which is the DB column name
+    let reality_ledger = Array.isArray(canonicalBase.reality_ledger) && canonicalBase.reality_ledger.length > 0
+        ? canonicalBase.reality_ledger
+        : (Array.isArray(canonicalBase.actual_specs) ? canonicalBase.actual_specs :
+            (Array.isArray(s3Data.reality_ledger) ? s3Data.reality_ledger :
+                (Array.isArray(s1Data.reality_ledger) ? s1Data.reality_ledger : [])));
 
     // 4. Canonicalize Discrepancies
     // Priority: raw.discrepancies -> raw.forensic.claim_cards -> stage_3.data.discrepancies -> stage_3.data.claim_cards -> stage_3.data.red_flags -> empty

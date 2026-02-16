@@ -131,26 +131,56 @@ export async function POST(req: NextRequest) {
             started_at: new Date().toISOString()
         }).eq("id", runId);
 
-        // STAGE 1: Extract Claim Profile
+        // STAGE 1 (Deterministic): Map Claims directly from Product Specs
+        // We do NOT run an LLM stage here. It is purely deterministic.
+        console.log(`[Worker] Mapping claims for ${product.brand} ${product.model_name}`);
         await updateStageState(runId, "discover", "running");
-        let stage1Result;
+
+        let stage1Result: { claim_profile: any[] };
         try {
-            stage1Result = await executeStage1(product);
-            console.log(`[Worker Stage 1] Extracted ${stage1Result.claim_profile.length} claims`);
-            await updateStageState(runId, "discover", "done", { claim_count: stage1Result.claim_profile.length });
+            // DIRECT MAPPING - No "executeStage1"
+            let claims: any[] = [];
+
+            if (Array.isArray(product.technical_specs)) {
+                claims = product.technical_specs.map((s: any) => ({
+                    label: s.label || s.name || 'Unknown',
+                    value: s.value || s.spec_value || 'Not specified'
+                }));
+            } else if (typeof product.technical_specs === 'object') {
+                claims = Object.entries(product.technical_specs)
+                    .filter(([key]) => key !== 'spec_sources' && key !== 'evidence' && key !== 'content_hash')
+                    .map(([key, value]) => ({
+                        label: key,
+                        value: String(value)
+                    }));
+            }
+
+            // Filter invalid
+            claims = claims.filter((i: any) => {
+                const v = String(i.value).toLowerCase().trim();
+                return v !== 'not specified' && v !== 'null' && v !== 'undefined' && v !== '';
+            });
+
+            stage1Result = { claim_profile: claims };
+
+            console.log(`[Worker Stage 1] Mapped ${claims.length} claims inside worker`);
+
+            if (claims.length === 0) {
+                console.warn("[Worker] No claims found in technical_specs. Audit might have weak signal.");
+            }
+
+            await updateStageState(runId, "discover", "done", { claim_count: claims.length });
             await updateProgress(runId, 25);
+
         } catch (error: any) {
-            console.error("[Worker Stage 1] Error:", error);
-            await updateStageState(runId, "discover", "error", { error: error.message });
-            // Use fallback
-            stage1Result = {
-                claim_profile: Array.isArray(product.technical_specs)
-                    ? product.technical_specs.map((s: any) => ({
-                        label: s.label || s.name || 'Unknown',
-                        value: s.value || s.spec_value || 'Not specified'
-                    }))
-                    : []
-            };
+            console.error("[Worker Stage 1] Mapping Error:", error);
+            // Critical failure - cannot audit without claims
+            await sb.from("audit_runs").update({
+                status: "error",
+                error: `Stage 1 Failed: ${error.message}`,
+                finished_at: new Date().toISOString()
+            }).eq("id", runId);
+            return NextResponse.json({ ok: false, error: "STAGE1_FAILED" }, { status: 500 });
         }
 
         // STAGE 2: Gather Independent Signals
@@ -167,7 +197,14 @@ export async function POST(req: NextRequest) {
         } catch (error: any) {
             console.error("[Worker Stage 2] Error:", error);
             await updateStageState(runId, "fetch", "error", { error: error.message });
-            stage2Result = { independent_signal: { most_praised: [], most_reported_issues: [] } };
+
+            // TERMINAL ERROR - Do not proceed with empty signals
+            await sb.from("audit_runs").update({
+                status: "error",
+                error: `Stage 2 Failed: ${error.message}`,
+                finished_at: new Date().toISOString()
+            }).eq("id", runId);
+            return NextResponse.json({ ok: false, error: "STAGE2_FAILED", details: error.message }, { status: 500 });
         }
 
         // STAGE 3: Fact Verification
@@ -414,7 +451,10 @@ export async function POST(req: NextRequest) {
             }
         };
 
-        // Persist to shadow_specs (normalized only)
+        // Persist to shadow_specs (using correct schema columns)
+        // Schema: claimed_specs, actual_specs, red_flags, stages, truth_score, source_urls
+        // Removed: canonical_spec_json, updated_at (not in schema)
+
         const canonicalSpec = {
             claim_profile: stage1Result.claim_profile,
             reality_ledger: stage3Result.reality_ledger || [],
@@ -425,17 +465,50 @@ export async function POST(req: NextRequest) {
         console.log(`[Worker] Final persist - ${normalizedStage3.uniqueCount} unique entries, truth_index=${stage4Result.truth_index}`);
         console.log(`[Worker] Truth breakdown: base=${stage4Result.truth_index_breakdown?.base} final=${stage4Result.truth_index_breakdown?.final}`);
 
-        await sb.from("shadow_specs").upsert({
-            product_id: product.id,
-            canonical_spec_json: canonicalSpec,
-            stages: completeStages,
-            is_verified: true,
-            truth_score: stage4Result.truth_index,
-            source_urls: [],
-            updated_at: now
-        }, {
-            onConflict: 'product_id'
-        });
+        // Manual Upsert to avoid "missing unique constraint" error
+        // 1. Check if exists
+        const { data: existingShadow, error: fetchShadowError } = await sb
+            .from("shadow_specs")
+            .select("id")
+            .eq("product_id", product.id)
+            .maybeSingle();
+
+        if (fetchShadowError) {
+            throw new Error(`SHADOW_SPEC_FETCH_FAILED: ${fetchShadowError.message}`);
+        }
+
+        let upsertError;
+        if (existingShadow) {
+            // Update
+            const { error } = await sb.from("shadow_specs").update({
+                claimed_specs: canonicalSpec.claim_profile,
+                actual_specs: canonicalSpec.reality_ledger,
+                red_flags: canonicalSpec.red_flags,
+                stages: completeStages,
+                is_verified: true,
+                truth_score: stage4Result.truth_index,
+                source_urls: []
+            }).eq("id", existingShadow.id);
+            upsertError = error;
+        } else {
+            // Insert
+            const { error } = await sb.from("shadow_specs").insert({
+                product_id: product.id,
+                claimed_specs: canonicalSpec.claim_profile,
+                actual_specs: canonicalSpec.reality_ledger,
+                red_flags: canonicalSpec.red_flags,
+                stages: completeStages,
+                is_verified: true,
+                truth_score: stage4Result.truth_index,
+                source_urls: []
+            });
+            upsertError = error;
+        }
+
+        if (upsertError) {
+            console.error("[Worker] Failed to persist shadow_spec:", upsertError);
+            throw new Error(`SHADOW_SPEC_PERSIST_FAILED: ${upsertError.message}`);
+        }
 
         // Persist assessment
         await sb.from("audit_assessments").upsert({

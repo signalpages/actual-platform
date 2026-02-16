@@ -120,6 +120,17 @@ export function normalizeStage3(raw: any): NormalizedStage3 {
 
         if (!claim && !reality) continue; // Skip completely empty entries
 
+        // FALSE POSITIVE FILTER: Add-on misconceptions
+        // If the issue mentions capacity AND add-ons, it's likely the AI confusing an optional battery for the main unit.
+        const combinedText = (claim + " " + reality + " " + impact).toLowerCase();
+        const isCapacityIssue = combinedText.includes('capacity') || combinedText.includes('wh');
+        const isAddonContext = combinedText.includes('add-on') || combinedText.includes('expansion') || combinedText.includes('extra battery') || combinedText.includes('shelf');
+
+        if (isCapacityIssue && isAddonContext) {
+            // Skip this entry entirely
+            continue;
+        }
+
         const key = deriveKey(claim, reality, impact);
 
         if (seen.has(key)) continue; // Dedup: skip duplicates

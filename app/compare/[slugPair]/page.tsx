@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { getAssetBySlug, runAudit } from '@/lib/dataBridge.client';
 import { Asset, AuditResult, AuditItem } from '@/types';
 import { AssetSelector } from '@/components/ComparisonPicker';
+import { formatCategoryLabel } from '@/lib/categoryFormatter';
 
 type AuditState = 'idle' | 'running' | 'ready' | 'error';
 
@@ -113,7 +114,7 @@ export default function Comparison() {
                                 {assetA.brand} {assetA.model_name}
                             </p>
                             <p className="text-xs font-bold text-blue-600">
-                                {assetA.category.replace(/_/g, ' ')}
+                                {formatCategoryLabel(assetA.category)}
                             </p>
                         </div>
                         <span className="text-slate-300 font-black">≠</span>
@@ -122,7 +123,7 @@ export default function Comparison() {
                                 {assetB.brand} {assetB.model_name}
                             </p>
                             <p className="text-xs font-bold text-blue-600">
-                                {assetB.category.replace(/_/g, ' ')}
+                                {formatCategoryLabel(assetB.category)}
                             </p>
                         </div>
                     </div>
@@ -295,7 +296,7 @@ const AssetColumn: React.FC<AssetColumnProps> = ({ asset, audit, status, onRetry
                 <div className="flex flex-col gap-6">
                     <div className="space-y-1">
                         <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-blue-600">
-                            {asset.brand} <span className="text-slate-300">—</span> {asset.category.replace(/_/g, ' ')}
+                            {asset.brand} <span className="text-slate-300">—</span> {formatCategoryLabel(asset.category)}
                         </div>
                         <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-900 leading-[0.9] py-2">
                             {asset.model_name}

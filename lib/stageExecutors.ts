@@ -126,7 +126,7 @@ export async function executeStage2(
     // Build search query focusing on product experience
     const searchQuery = `${product.brand} ${product.model_name} review real world experience`;
 
-    const prompt = `You are analyzing community feedback for: ${product.brand} ${product.model_name}
+    let prompt = `You are analyzing community feedback for: ${product.brand} ${product.model_name}
 
 CONTEXT (Manufacturer Claims):
 ${stage1.claim_profile.slice(0, 10).map(c => `- ${c.label}: ${c.value}`).join('\n')}
@@ -147,6 +147,7 @@ Focus on objective, verifiable observations. Avoid marketing language.
 
 CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
 Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
+If there is insufficient data, return empty arrays, but do not invent data.
 
 Return JSON in this EXACT format:
 {
@@ -158,70 +159,73 @@ Return JSON in this EXACT format:
   ]
 }`;
 
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+    let lastError: any;
 
-        const resp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(apiKey)}`,
-            {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        temperature: 0.3,
-                        maxOutputTokens: 2048,
-                        responseMimeType: 'application/json'
+    // RETRY LOOP (Max 2 Attempts)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+            console.log(`[Stage 2] LLM Request (Attempt ${attempt}/2)`);
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout (increased for retry safety)
+
+            const resp = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(apiKey)}`,
+                {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            temperature: 0.3,
+                            maxOutputTokens: 2048,
+                            responseMimeType: 'application/json'
+                        }
+                    }),
+                    signal: controller.signal
+                }
+            );
+
+            clearTimeout(timeoutId);
+
+            if (!resp.ok) {
+                throw new Error(`Gemini API error: ${resp.statusText}`);
+            }
+
+            const data = await resp.json();
+            const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+
+            // Safe JSON parsing with fallback
+            const parseResult = safeParseLLMJson(rawText);
+
+            if (parseResult.success) {
+                const result = parseResult.data;
+                console.log(`[Stage 2] Found ${result.most_praised?.length || 0} praise items, ${result.most_reported_issues?.length || 0} issues`);
+
+                return {
+                    independent_signal: {
+                        most_praised: result.most_praised || [],
+                        most_reported_issues: result.most_reported_issues || []
                     }
-                }),
-                signal: controller.signal
+                };
+            } else {
+                console.warn(`[Stage 2] JSON parse failed on attempt ${attempt}:`, parseResult.error);
+                lastError = parseResult.error;
+
+                // If failed, make prompt stricter for next attempt
+                if (attempt === 1) {
+                    prompt += `\n\nPREVIOUS ATTEMPT FAILED JSON PARSING. \nCRITICAL: Return ONLY valid JSON. Check for trailing commas, unescaped quotes, or markdown.`;
+                }
             }
-        );
-
-        clearTimeout(timeoutId);
-
-        if (!resp.ok) {
-            throw new Error(`Gemini API error: ${resp.statusText}`);
+        } catch (error: any) {
+            console.error(`[Stage 2] Error on attempt ${attempt}:`, error);
+            lastError = error;
         }
-
-        const data = await resp.json();
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-
-        // Safe JSON parsing with fallback
-        const parseResult = safeParseLLMJson(rawText);
-        let result: any = {};
-
-        if (parseResult.success) {
-            result = parseResult.data;
-        } else {
-            console.error('[Stage 2] JSON parse failed, using empty fallback:', parseResult.error);
-            // Don't crash the stage, just return empty data so UI doesn't hang
-            result = {
-                most_praised: [],
-                most_reported_issues: []
-            };
-        }
-
-        console.log(`[Stage 2] Found ${result.most_praised?.length || 0} praise items, ${result.most_reported_issues?.length || 0} issues`);
-
-        return {
-            independent_signal: {
-                most_praised: result.most_praised || [],
-                most_reported_issues: result.most_reported_issues || []
-            }
-        };
-    } catch (error: any) {
-        console.error('[Stage 2] Error:', error);
-        console.error('[Stage 2] Stage failed but audit will continue');
-        // Return minimal data rather than failing
-        return {
-            independent_signal: {
-                most_praised: [],
-                most_reported_issues: []
-            }
-        };
     }
+
+    // If we get here, all attempts failed
+    console.error('[Stage 2] All retry attempts failed.');
+    throw new Error(`STAGE2_JSON_PARSE_FAILED: ${lastError}`);
 }
 
 /**
@@ -249,24 +253,20 @@ COMMUNITY FEEDBACK:
 Most Praised: ${stage2.independent_signal.most_praised.map(p => p.text).join('; ')}
 Issues: ${stage2.independent_signal.most_reported_issues.map(i => i.text).join('; ')}
 
-TASK 1: REALITY LEDGER
+TASK 1: DISCREPANCIES
+Identify ONLY meaningful discrepancies (>3% variance or functional impact).
+
+TASK 2: REALITY LEDGER
 For EACH manufacturer claim above, determine the "Real World" value based on feedback.
 - If confirmed: Use the claimed value (e.g. "Confirmed 2000W").
 - If different: Use the real observed value (e.g. "Actually ~1800W").
 - If unknown: write "Not verified".
-
-TASK 2: DISCREPANCIES
-Identify ONLY meaningful discrepancies (>3% variance or functional impact).
 
 CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
 Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
 
 Return JSON:
 {
-  "reality_ledger": [
-    { "label": "Battery Capacity", "value": "2850Wh (tested avg)" },
-    { "label": "AC Output", "value": "Confirmed 3000W" }
-  ],
   "red_flags": [
     {
       "claim": "exact claim text",
@@ -274,12 +274,16 @@ Return JSON:
       "severity": "minor|moderate|severe",
       "impact": "practical effect on users"
     }
+  ],
+  "reality_ledger": [
+    { "label": "Battery Capacity", "value": "2850Wh (tested avg)" },
+    { "label": "AC Output", "value": "Confirmed 3000W" }
   ]
 }`;
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout
 
         const resp = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -329,20 +333,26 @@ Return JSON:
             isPartial = true;
             parseError = 'Response truncated mid-JSON';
 
-            // Try to extract partial array even if truncated
-            const arrayMatch = cleanedText.match(/"red_flags"\s*:\s*\[([\s\S]*)/);
-            if (arrayMatch) {
-                // Attempt to close the JSON manually
-                let attempt = `{"red_flags":[${arrayMatch[1]}`;
-                // Remove incomplete last item
-                const lastComma = attempt.lastIndexOf(',');
-                if (lastComma > 0) {
-                    attempt = attempt.substring(0, lastComma) + ']}';
+            // Attempt repair first (new robust parser might catch it)
+            const repairResult = safeParseLLMJson(cleanedText);
+            if (repairResult.success && repairResult.data?.red_flags?.length > 0) {
+                console.log('[Stage 3] Auto-repair succeeded. Recovered', repairResult.data.red_flags.length, 'red_flags');
+                result = repairResult.data;
+            } else {
+                // Fallback: Try regex extraction if repair failed (e.g. malformed middle)
+                // We prioritize red_flags (now first)
+                const redFlagsMatch = cleanedText.match(/"red_flags"\s*:\s*\[([\s\S]*?)\]/); // Lazy match ] to find end of array
+
+                if (redFlagsMatch) {
                     try {
-                        result = JSON.parse(attempt);
-                        console.log('[Stage 3] Recovered partial array with', result.red_flags?.length, 'items');
-                    } catch {
-                        // Still couldn't parse, leave as null
+                        const redFlagsJson = `[${redFlagsMatch[1]}]`;
+                        const redFlags = JSON.parse(redFlagsJson);
+                        result = { red_flags: redFlags, reality_ledger: [] };
+                        console.log('[Stage 3] Regex recovered red_flags array with', redFlags.length, 'items');
+                    } catch (e) {
+                        // If that failed, maybe the array itself was truncated?
+                        // The new parser repair should have handled it, but let's be safe.
+                        console.warn('[Stage 3] Regex recovery failed:', e);
                     }
                 }
             }
@@ -354,15 +364,22 @@ Return JSON:
                 console.error('[Stage 3] JSON parse failed:', err.message);
                 parseError = err.message;
 
-                // Try extracting first balanced object as fallback
-                const match = cleanedText.match(/\{[\s\S]*\}/);
-                if (match) {
-                    try {
-                        result = JSON.parse(match[0]);
-                        console.log('[Stage 3] Recovered using balanced object extraction');
-                        isPartial = true;
-                    } catch {
-                        console.error('[Stage 3] Balanced extraction also failed');
+                // Try safe parser/repair
+                const repairResult = safeParseLLMJson(cleanedText);
+                if (repairResult.success) {
+                    result = repairResult.data;
+                    console.log('[Stage 3] JSON repaired successfully');
+                } else {
+                    // Try extracting first balanced object as final resort
+                    const match = cleanedText.match(/\{[\s\S]*\}/);
+                    if (match) {
+                        try {
+                            result = JSON.parse(match[0]);
+                            console.log('[Stage 3] Recovered using balanced object extraction');
+                            isPartial = true;
+                        } catch {
+                            console.error('[Stage 3] Balanced extraction also failed');
+                        }
                     }
                 }
             }
@@ -449,7 +466,7 @@ export async function executeStage4(
     const bars = precomputed?.metricBars;
     const baseScore = breakdown?.base ?? 75;
 
-    const prompt = `You are a product audit analyst. Synthesize a verdict for the following audit.
+    let prompt = `You are a product audit analyst. Synthesize a verdict for the following audit.
 
 PRODUCT: ${product.brand} ${product.model_name}
 
@@ -513,95 +530,100 @@ Return ONLY valid JSON. No markdown, no code fences.
   "consider_alternatives": ["If you need [specific unmet need]..."]
 }`;
 
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+    let lastError: any;
 
-        const resp = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(apiKey)}`,
-            {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                    generationConfig: {
-                        temperature: 0.1,
-                        maxOutputTokens: 1536,
-                        responseMimeType: 'application/json'
-                    }
-                }),
-                signal: controller.signal
-            }
-        );
-
-        clearTimeout(timeoutId);
-
-        if (!resp.ok) {
-            throw new Error(`Gemini API error: ${resp.statusText}`);
-        }
-
-        const data = await resp.json();
-        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-
-        // Safe JSON parsing
-        let cleanedText = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        let result;
+    // RETRY LOOP (Max 2 Attempts)
+    for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-            result = JSON.parse(cleanedText);
-        } catch (parseError: any) {
-            console.error('[Stage 4] JSON parse failed:', parseError.message);
-            const match = cleanedText.match(/\{[\s\S]*\}/);
-            if (match) {
-                try {
-                    result = JSON.parse(match[0]);
-                } catch {
-                    throw new Error('STAGE_JSON_PARSE_FAILED: ' + parseError.message);
-                }
-            } else {
-                throw new Error('STAGE_JSON_PARSE_FAILED: No valid JSON');
-            }
-        }
+            console.log(`[Stage 4] LLM Request (Attempt ${attempt}/2)`);
 
-        // Re-compute Truth Index with LLM's adjustment suggestion
-        // computeTruthIndex validates the adjustment (bounded ±3, reason references entry)
-        const { computeTruthIndex } = await import("@/lib/computeTruthIndex");
-        const finalBreakdown = precomputed
-            ? computeTruthIndex(
-                stage3.red_flags as any,
-                precomputed.baseScores,
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
+
+            const resp = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${encodeURIComponent(apiKey)}`,
                 {
-                    delta: result.adjustment_delta,
-                    reason: result.adjustment_reason
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            temperature: 0.1,
+                            maxOutputTokens: 4096,
+                            responseMimeType: 'application/json'
+                        }
+                    }),
+                    signal: controller.signal
                 }
-            )
-            : breakdown!;
+            );
 
-        console.log(`[Stage 4] Truth Index: base=${finalBreakdown.base} final=${finalBreakdown.final} adj=${finalBreakdown.llm_adjustment?.delta ?? 'none'}`);
+            clearTimeout(timeoutId);
 
-        // Metric bars = truth_index_breakdown.component_scores (single source)
-        const finalBars = bars || [
-            { label: 'Claims Accuracy', rating: 'Moderate', percentage: finalBreakdown.component_scores.claims_accuracy },
-            { label: 'Real-World Fit', rating: 'Moderate', percentage: finalBreakdown.component_scores.real_world_fit },
-            { label: 'Operational Noise', rating: 'Moderate', percentage: finalBreakdown.component_scores.operational_noise }
-        ];
+            if (!resp.ok) {
+                throw new Error(`Gemini API error: ${resp.statusText}`);
+            }
 
-        // Copy enforcement: sanitize all string outputs
-        return {
-            truth_index: finalBreakdown.final,
-            truth_index_breakdown: finalBreakdown,
-            metric_bars: finalBars,
-            score_interpretation: sanitizeCopy(result.score_interpretation || 'Analysis complete.'),
-            strengths: sanitizeCopyArray(result.strengths || []),
-            limitations: sanitizeCopyArray(result.limitations || []),
-            practical_impact: sanitizeCopyArray(result.practical_impact || []),
-            good_fit: sanitizeCopyArray(result.good_fit || []),
-            consider_alternatives: sanitizeCopyArray(result.consider_alternatives || []),
-            data_confidence: `Data confidence: High · Sources: manufacturer docs, community feedback · Refresh cadence: ~14 days`
-        };
-    } catch (error: any) {
-        console.error('[Stage 4] Error:', error);
-        // DO NOT return fake defaults — propagate the error
-        throw new Error(`STAGE4_FAILED: ${error.message}`);
+            const data = await resp.json();
+            const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+
+            // Safe JSON parsing with logging
+            console.log('[Stage 4] Raw Output (First 500 chars):', rawText.slice(0, 500));
+
+            const parseResult = safeParseLLMJson(rawText);
+
+            if (parseResult.success) {
+                const result = parseResult.data;
+
+                // Re-compute Truth Index with LLM's adjustment suggestion
+                const { computeTruthIndex } = await import("@/lib/computeTruthIndex");
+                const finalBreakdown = precomputed
+                    ? computeTruthIndex(
+                        stage3.red_flags as any,
+                        precomputed.baseScores,
+                        {
+                            delta: result.adjustment_delta,
+                            reason: result.adjustment_reason
+                        }
+                    )
+                    : breakdown!;
+
+                console.log(`[Stage 4] Truth Index: base=${finalBreakdown.base} final=${finalBreakdown.final} adj=${finalBreakdown.llm_adjustment?.delta ?? 'none'}`);
+
+                // Metric bars = truth_index_breakdown.component_scores (single source)
+                const finalBars = bars || [
+                    { label: 'Claims Accuracy', rating: 'Moderate', percentage: finalBreakdown.component_scores.claims_accuracy },
+                    { label: 'Real-World Fit', rating: 'Moderate', percentage: finalBreakdown.component_scores.real_world_fit },
+                    { label: 'Operational Noise', rating: 'Moderate', percentage: finalBreakdown.component_scores.operational_noise }
+                ];
+
+                // Copy enforcement: sanitize all string outputs
+                return {
+                    truth_index: finalBreakdown.final,
+                    truth_index_breakdown: finalBreakdown,
+                    metric_bars: finalBars,
+                    score_interpretation: sanitizeCopy(result.score_interpretation || 'Analysis complete.'),
+                    strengths: sanitizeCopyArray(result.strengths || []),
+                    limitations: sanitizeCopyArray(result.limitations || []),
+                    practical_impact: sanitizeCopyArray(result.practical_impact || []),
+                    good_fit: sanitizeCopyArray(result.good_fit || []),
+                    consider_alternatives: sanitizeCopyArray(result.consider_alternatives || []),
+                    data_confidence: `Data confidence: High · Sources: manufacturer docs, community feedback · Refresh cadence: ~14 days`
+                };
+            } else {
+                console.warn(`[Stage 4] JSON parse failed on attempt ${attempt}:`, parseResult.error);
+                lastError = parseResult.error;
+
+                if (attempt === 1) {
+                    prompt += `\n\nPREVIOUS ATTEMPT FAILED JSON PARSING. \nCRITICAL: Return ONLY valid JSON. Check for trailing commas, unescaped quotes, or markdown.`;
+                }
+            }
+        } catch (error: any) {
+            console.error(`[Stage 4] Error on attempt ${attempt}:`, error);
+            lastError = error;
+        }
     }
+
+    console.error('[Stage 4] All retry attempts failed.');
+    throw new Error(`STAGE4_FAILED: ${lastError}`);
 }
 

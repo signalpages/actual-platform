@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { searchAssets, listCategories } from '@/lib/dataBridge.client';
 import { Asset, Category } from '@/types';
+import { formatCategoryLabel } from '@/lib/categoryFormatter';
 
 function SpecLedgerContent() {
     const searchParams = useSearchParams();
@@ -133,7 +134,7 @@ function SpecLedgerContent() {
                                     )}
                                 </div>
                                 <h2 className="text-xl font-black text-slate-900 mb-1 leading-tight uppercase tracking-tight">{asset.model_name}</h2>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{asset.category.replace(/_/g, ' ')}</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{formatCategoryLabel(asset.category)}</p>
                             </div>
                             <Link href={`/specs/${asset.slug}`} className={`mt-6 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all ${asset.verification_status === 'verified' ? 'text-slate-400 group-hover:text-blue-600' : 'text-amber-500 group-hover:text-amber-700'}`}>
                                 Forensic Audit <span className="text-sm font-normal">→</span>

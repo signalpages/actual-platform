@@ -76,7 +76,7 @@ export const searchAssets = async (
     const productIds = products.map((p: any) => p.id);
     const { data: shadows, error: sErr } = await client
       .from("shadow_specs")
-      .select("product_id, is_verified, truth_score, updated_at")
+      .select("product_id, is_verified, truth_score, created_at")
       .in("product_id", productIds);
 
     if (sErr) throw sErr;
@@ -86,14 +86,14 @@ export const searchAssets = async (
 
     return products.map((p: any) => {
       const shadow = shadowMap.get(p.id);
-      const isVerified = shadow ? !!shadow.is_verified : !!p.is_audited;
+      const isVerified = shadow ? !!shadow.is_verified : (!!p.is_audited || !!p.is_verified);
       const truthScore = shadow ? shadow.truth_score : null;
 
       return {
         ...p,
         verified: isVerified,
         verification_status: isVerified ? "verified" : "provisional",
-        last_updated: shadow?.updated_at || p.created_at,
+        last_updated: shadow?.created_at || p.created_at,
         truth_score: truthScore,
       };
     }) as Asset[];
@@ -119,8 +119,8 @@ export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
 
     return {
       ...data,
-      verified: !!data.is_audited,
-      verification_status: data.is_audited ? "verified" : "provisional",
+      verified: !!data.is_audited || !!data.is_verified,
+      verification_status: (data.is_audited || data.is_verified) ? "verified" : "provisional",
     } as Asset;
   } catch (e) {
     console.warn("[DataBridge] getAssetBySlug failed:", e);
@@ -130,7 +130,7 @@ export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
 
 // -------------------- Audit Queue + Polling --------------------
 
-type RunAuditPayload = string | { slug: string; forceRefresh?: boolean };
+type RunAuditPayload = string | { slug: string; forceRefresh?: boolean; asset?: Asset };
 
 type AuditWithCache = AuditResult & { cache?: any };
 
@@ -147,6 +147,7 @@ import { normalizeAuditResult, CanonicalAuditResult } from "./auditNormalizer";
 export const runAudit = async (payload: RunAuditPayload): Promise<CanonicalAuditResult & { cache?: any }> => {
   const slug = typeof payload === "string" ? payload : payload.slug;
   const forceRefresh = typeof payload === "object" ? !!payload.forceRefresh : false;
+  const asset = typeof payload === "object" ? payload.asset : undefined;
 
   if (!slug) throw new Error("Missing slug for audit");
 
@@ -176,7 +177,7 @@ export const runAudit = async (payload: RunAuditPayload): Promise<CanonicalAudit
       analysis: data.analysis
     };
 
-    const normalized = normalizeAuditResult(rawForNormalization);
+    const normalized = normalizeAuditResult(rawForNormalization, asset);
     return { ...normalized, cache: data.cache };
   }
 
@@ -184,7 +185,7 @@ export const runAudit = async (payload: RunAuditPayload): Promise<CanonicalAudit
   const runId = data.runId;
   if (!runId) throw new Error("No runId returned from queue");
 
-  const result = await pollAuditStatus(runId);
+  const result = await pollAuditStatus(runId, asset);
   if (data.cache) (result as any).cache = data.cache;
   return result;
 };
@@ -192,7 +193,7 @@ export const runAudit = async (payload: RunAuditPayload): Promise<CanonicalAudit
 // Promise-based deduplication - return same promise for duplicate requests
 const pollPromises = new Map<string, Promise<CanonicalAuditResult & { cache?: any }>>();
 
-async function pollAuditStatus(runId: string): Promise<CanonicalAuditResult & { cache?: any }> {
+async function pollAuditStatus(runId: string, asset?: Asset): Promise<CanonicalAuditResult & { cache?: any }> {
   const existing = pollPromises.get(runId);
   if (existing) return existing;
 
@@ -201,7 +202,7 @@ async function pollAuditStatus(runId: string): Promise<CanonicalAuditResult & { 
     const maxElapsedMs = 180_000; // 3 minutes client-side timeout
     const startTime = Date.now();
 
-    console.log(`[Polling] Started for runId ${runId}`);
+    console.log(`[Polling] Started for runId ${runId} with asset: ${asset ? 'YES' : 'NO'}`);
 
     try {
       for (let i = 0; i < maxAttempts; i++) {
@@ -214,13 +215,17 @@ async function pollAuditStatus(runId: string): Promise<CanonicalAuditResult & { 
         }
 
 
-        const resp = await fetch(`/api/audit/status?runId=${encodeURIComponent(runId)}`);
+        const resp = await fetch(`/api/audit/status?runId=${encodeURIComponent(runId)}`, { cache: 'no-store' });
         const data = await resp.json();
 
-        if (!data?.ok) throw new Error(data?.error || "Failed to get audit status");
+        if (!data?.ok) {
+          console.error(`[Polling] API Error for ${runId}:`, data?.error);
+          throw new Error(data?.error || "Failed to get audit status");
+        }
 
         // FIX: Check activeRun.status (source of truth), not top-level status field
         const run = data.activeRun ?? data.displayRun;
+        console.log(`[Polling] Debug ${runId}: active=${data.activeRun?.status}, display=${data.displayRun?.status}, topStatus=${data.status}, progress=${run?.progress}`);
         const runStatus = (run?.status ?? "").toLowerCase();
         const progress = run?.progress ?? 0;
 
@@ -243,7 +248,7 @@ async function pollAuditStatus(runId: string): Promise<CanonicalAuditResult & { 
             analysis: data.analysis
           };
 
-          const normalized = normalizeAuditResult(rawForNormalization);
+          const normalized = normalizeAuditResult(rawForNormalization, asset);
 
           console.log(
             `[Polling] Completed for ${runId} after ${i + 1} attempts (${Date.now() - startTime}ms). Status: ${runStatus}`
@@ -258,7 +263,7 @@ async function pollAuditStatus(runId: string): Promise<CanonicalAuditResult & { 
         }
 
         if (i % 5 === 0) {
-          console.log(`[Polling] runId ${runId}: ${runStatus} (${progress}%)`);
+          console.log(`[Polling] runId ${runId}: ${runStatus} (${progress}%) - Waiting...`);
         }
       }
 

@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Discrepancy } from '@/types';
 
+import { formatLabel } from '@/lib/formatters';
+
 interface DiscrepancyCardProps {
     discrepancy: Discrepancy;
     index: number;
@@ -33,7 +35,7 @@ export function DiscrepancyCard({ discrepancy, index }: DiscrepancyCardProps) {
     const issueText = discrepancy.issue || (discrepancy as any).claim;
     const descText = discrepancy.description || (discrepancy as any).reality;
 
-    const safeIssue = renderSafeText(issueText);
+    const safeIssue = formatLabel(renderSafeText(issueText));
     const safeDescription = renderSafeText(descText);
 
     return (

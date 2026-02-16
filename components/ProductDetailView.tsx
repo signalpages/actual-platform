@@ -6,9 +6,10 @@ import Link from "next/link";
 import { runAudit, getAssetBySlug } from "@/lib/dataBridge.client";
 import { AssetSelector } from "@/components/ComparisonPicker";
 import type { Asset, AuditResult } from "@/types";
-import { CanonicalAuditResult } from "@/lib/auditNormalizer";
+import { CanonicalAuditResult, normalizeAuditResult } from "@/lib/auditNormalizer";
 import SubmissionSuccess from "@/components/SubmissionSuccess";
 import { AuditResults } from "@/components/AuditResults";
+import { formatCategoryLabel } from "@/lib/categoryFormatter";
 
 interface ProductDetailViewProps {
   initialAsset: Asset | null;
@@ -76,7 +77,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
       setIsScanning(true);
 
       try {
-        const result = await runAudit({ slug: targetAsset.slug, forceRefresh });
+        const result = await runAudit({ slug: targetAsset.slug, forceRefresh, asset: targetAsset });
 
         setAudit(result);
 
@@ -89,8 +90,9 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
           // ignore cache failure
         }
 
-        // Show submission flow only if still empty after analysis
-        if (result?.analysis?.status === "failed" || (result?.claim_profile?.length ?? 0) === 0) {
+        // Show submission flow only if product has no specs
+        const hasProductSpecs = (asset?.technical_specs?.items?.length ?? 0) >= 3;
+        if (result?.analysis?.status === "failed" || !hasProductSpecs) {
           setShowSubmissionFlow(true);
         } else {
           setShowSubmissionFlow(false);
@@ -114,30 +116,34 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     }
   }, [mounted, asset, shouldAutoRun, slug, audit, handleDeepScan]);
 
-  // ---------- Derived state (no hooks) ----------
-  const hasClaims = !!(audit?.claim_profile && audit.claim_profile.length > 0);
+  // Stage 1 is done if product has technical_specs (independent of audit)
+  const productHasSpecs = (asset?.technical_specs?.items?.length ?? 0) >= 3 || (asset?.technical_specs && Object.keys(asset.technical_specs).length >= 3);
+  const stage1Done = productHasSpecs;
 
-  // Treat Stage 1 as done if stage flag says done OR claim_profile exists
-  const stage1Done =
-    audit?.stages?.stage_1?.status === "done" ||
-    (audit?.stages as any)?.["stage_1"]?.status === "done" ||
-    hasClaims;
+  // COMPUTE EFFECTIVE AUDIT
+  // If we have no audit but we DO have specs, we normalize the asset into a skeleton audit
+  // so that AuditResults can render Stage 1.
+  const effectiveAudit = audit || (asset && productHasSpecs ? normalizeAuditResult(null, asset) : null);
 
   const allStagesComplete = !!(
     stage1Done &&
-    audit?.stages?.stage_2?.status === "done" &&
-    audit?.stages?.stage_3?.status === "done" &&
-    audit?.stages?.stage_4?.status === "done"
+    effectiveAudit?.stages?.stage_2?.status === "done" &&
+    effectiveAudit?.stages?.stage_3?.status === "done" &&
+    effectiveAudit?.stages?.stage_4?.status === "done"
   );
 
-  const isVerifiedAudit = hasClaims && allStagesComplete && !!audit?.truth_index;
+  const isVerifiedAudit = stage1Done && allStagesComplete && !!effectiveAudit?.truth_index;
   const isProvisional = asset?.verification_status === "provisional";
 
+  // Only show "No Data Found" if we TRULY have nothing:
+  // 1. No specs
+  // 2. No audit (effective or otherwise)
   const noDataFound =
     !!asset &&
     isProvisional &&
     !isScanning &&
-    (!audit || audit?.analysis?.status === "failed" || (audit?.claim_profile?.length ?? 0) === 0);
+    !productHasSpecs &&
+    (!effectiveAudit || effectiveAudit?.analysis?.status === "failed");
 
   let auditStatusLabel = "Verified Ledger Entry";
   if (isScanning) auditStatusLabel = "Verifying...";
@@ -191,13 +197,13 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12 relative">
       {/* Dev Debug Badge */}
-      {process.env.NODE_ENV === 'development' && audit && (
+      {process.env.NODE_ENV === 'development' && effectiveAudit && (
         <div className="fixed bottom-4 right-4 z-[9999] bg-black/80 text-white p-3 rounded-lg text-[10px] font-mono shadow-xl border border-slate-700">
           <div className="font-bold text-emerald-400 mb-1">DEBUG: Audit Schema</div>
-          <div>Source: <span className="text-yellow-300">{audit._schema_source || 'unknown'}</span></div>
-          <div>Claims: {audit.claim_profile?.length || 0}</div>
-          <div>Ledger: {audit.reality_ledger?.length || 0}</div>
-          <div>Truth: {audit.truth_index ?? 'null'}</div>
+          <div>Source: <span className="text-yellow-300">{effectiveAudit._schema_source || 'unknown'}</span></div>
+          <div>Claims: {asset?.technical_specs?.items?.length || 0}</div>
+          <div>Ledger: {effectiveAudit.reality_ledger?.length || 0}</div>
+          <div>Truth: {effectiveAudit.truth_index ?? 'null'}</div>
         </div>
       )}
 
@@ -217,7 +223,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             <div className="space-y-1 flex-grow">
               <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-blue-600">
                 {asset.brand} <span className="text-slate-300">—</span>{" "}
-                {asset.category.replace(/_/g, " ")}
+                {formatCategoryLabel(asset.category)}
               </div>
               <h1 className="text-5xl font-black uppercase tracking-tighter text-slate-900 leading-none py-2">
                 {asset.model_name}
@@ -233,7 +239,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             <div className="flex flex-col items-end gap-6 min-w-[220px]">
               <div className="text-right">
                 <div className={`text-7xl font-black ${truthColor} leading-none`}>
-                  {isVerifiedAudit ? audit?.truth_index || "--" : "--"}%
+                  {isVerifiedAudit ? effectiveAudit?.truth_index || "--" : "--"}%
                 </div>
                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">
                   {isVerifiedAudit ? "Truth Index" : "Pending Verification"}
@@ -246,7 +252,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                 </button>
 
                 {/* Why this score? */}
-                {isVerifiedAudit && audit?.truth_index_breakdown && (
+                {isVerifiedAudit && effectiveAudit?.truth_index_breakdown && (
                   <button
                     onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
                     className="mt-1 text-[9px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors ml-auto flex items-center gap-1"
@@ -257,8 +263,8 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
               </div>
 
               {/* Score Breakdown Expandable */}
-              {showScoreBreakdown && audit?.truth_index_breakdown && (() => {
-                const b = audit.truth_index_breakdown;
+              {showScoreBreakdown && effectiveAudit?.truth_index_breakdown && (() => {
+                const b = effectiveAudit.truth_index_breakdown;
                 return (
                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-[10px] font-mono space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
                     <div className="font-black uppercase tracking-widest text-slate-400 text-[9px] mb-2">Score Breakdown</div>
@@ -416,7 +422,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
           </div>
         ) : (
           <div className="p-10 md:p-14">
-            <AuditResults product={asset} audit={audit} />
+            <AuditResults product={asset} audit={effectiveAudit} />
           </div>
         )}
       </div>
@@ -446,7 +452,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             <AssetSelector
               category={asset.category}
               onSelect={(target) => router.push(`/compare/${asset.slug}-vs-${target.slug}`)}
-              placeholder={`Search competitor ${asset.category.replace(/_/g, " ")}...`}
+              placeholder={`Search competitor ${formatCategoryLabel(asset.category).toLowerCase()}...`}
               className="text-left"
             />
           </div>
