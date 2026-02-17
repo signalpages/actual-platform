@@ -32,10 +32,9 @@ function getPublicClient(): SupabaseClient {
 }
 
 import { CATEGORY_LABELS } from "../types";
+import { CATEGORY_DESCRIPTIONS, getCategoryIcon, listCategories as listCategoriesShared } from "./productCategories";
 
-export const listCategories = (): Category[] => {
-  return PRODUCT_CATEGORIES.map((cat) => ({ id: cat, label: CATEGORY_LABELS[cat] || cat }));
-};
+export const listCategories = listCategoriesShared;
 
 export const listManufacturers = async (): Promise<string[]> => {
   try {
@@ -76,7 +75,7 @@ export const searchAssets = async (
     const productIds = products.map((p: any) => p.id);
     const { data: shadows, error: sErr } = await client
       .from("shadow_specs")
-      .select("product_id, is_verified, truth_score, created_at")
+      .select("product_id, is_verified, truth_score, created_at, red_flags, actual_specs, claimed_specs")
       .in("product_id", productIds);
 
     if (sErr) throw sErr;
@@ -86,7 +85,8 @@ export const searchAssets = async (
 
     return products.map((p: any) => {
       const shadow = shadowMap.get(p.id);
-      const isVerified = shadow ? !!shadow.is_verified : (!!p.is_audited || !!p.is_verified);
+      // Promote all seeded items to verified (if no shadow record exists) per user request
+      const isVerified = shadow ? !!shadow.is_verified : true;
       const truthScore = shadow ? shadow.truth_score : null;
 
       return {
@@ -95,6 +95,9 @@ export const searchAssets = async (
         verification_status: isVerified ? "verified" : "provisional",
         last_updated: shadow?.created_at || p.created_at,
         truth_score: truthScore,
+        latest_discrepancies: shadow?.red_flags || [],
+        latest_actual_specs: shadow?.actual_specs || [],
+        latest_claimed_specs: shadow?.claimed_specs || []
       };
     }) as Asset[];
   } catch (e) {

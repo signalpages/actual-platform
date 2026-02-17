@@ -166,9 +166,11 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                                         return val.includes('cycle');
                                     }
 
-                                    // Cell Chemistry: must contain chemistry term
+                                    // Cell Chemistry / Type: must contain chemistry or solar cell type term
                                     if (claimType.includes('chemistry') || claimType.includes('cell')) {
-                                        return val.includes('lfp') || val.includes('lifepo') || val.includes('li-ion') || val.includes('chemistry');
+                                        return val.includes('lfp') || val.includes('lifepo') || val.includes('li-ion') ||
+                                            val.includes('chemistry') || val.includes('mono') || val.includes('poly') ||
+                                            val.includes('crystalline') || val.includes('perc') || val.includes('topcon');
                                     }
 
                                     // Solar Input: must contain W

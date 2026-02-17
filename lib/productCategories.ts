@@ -90,3 +90,19 @@ export function getCategoryIcon(category: string): string {
     };
     return icons[category] || '📦';
 }
+
+import { Category, CATEGORY_LABELS } from "../types";
+
+/**
+ * List all categories with metadata (Safe for Server Components)
+ */
+export const listCategories = (): Category[] => {
+    return PRODUCT_CATEGORIES.map((cat) => ({
+        id: cat,
+        label: CATEGORY_LABELS[cat] || cat,
+        description: CATEGORY_DESCRIPTIONS[CATEGORY_LABELS[cat]] || CATEGORY_DESCRIPTIONS[cat] || '',
+        icon: getCategoryIcon(cat)
+    }));
+};
+
+export const getCategories = listCategories;

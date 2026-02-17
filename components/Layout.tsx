@@ -8,45 +8,13 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-function NavContent() {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const status = searchParams.get('status');
-  const isDetailPage = pathname.startsWith('/specs/') && pathname.split('/').length > 2;
-
-  return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-200">
-      <div className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center">
-        <Link href="/" className="text-xl font-black uppercase tracking-tighter hover:text-blue-600 transition-colors">
-          Actual<span className="text-blue-600">.</span>fyi
-        </Link>
-        <div className="flex items-center gap-4 md:gap-8">
-          <Link href="/specs?status=verified" className={`text-[10px] font-black uppercase tracking-widest transition-colors ${status === 'verified' || (!status && !pathname.includes('status')) ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}>
-            Ledger
-          </Link>
-          <Link href="/specs?status=provisional" className={`text-[10px] font-black uppercase tracking-widest transition-colors ${status === 'provisional' ? 'text-amber-600' : 'text-slate-500 hover:text-amber-600'}`}>
-            Provisional
-          </Link>
-          {isDetailPage ? (
-            <Link href="/contribute" className="hidden md:block text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors">
-              New Audit
-            </Link>
-          ) : (
-            <Link href="/contribute" className="text-[10px] font-black uppercase tracking-widest text-white bg-slate-900 px-4 py-2 rounded-lg hover:bg-blue-600 transition-all shadow-sm">
-              Submit
-            </Link>
-          )}
-        </div>
-      </div>
-    </nav>
-  );
-}
+import AuditNav from '@/components/nav/AuditNav';
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
     <div className="flex flex-col min-h-screen">
       <Suspense fallback={<div className="h-16 border-b border-slate-200" />}>
-        <NavContent />
+        <AuditNav />
       </Suspense>
 
       <main className="flex-grow">

@@ -12,6 +12,8 @@ export type VerificationStatus = 'verified' | 'provisional';
 export interface Category {
   id: ProductCategory;
   label: string;
+  description?: string;
+  icon?: string;
 }
 
 // UI labels for categories (Identity map since IDs are now readable)
@@ -100,6 +102,10 @@ export interface Asset extends Product {
   truth_score?: number | null;
   is_verified?: boolean | null;
   updated_at?: string | null;
+  // Forensic Data
+  latest_discrepancies?: Discrepancy[];
+  latest_actual_specs?: any[];
+  latest_claimed_specs?: any[];
 }
 
 export interface AuditItem {
