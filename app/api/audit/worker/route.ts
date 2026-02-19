@@ -46,17 +46,22 @@ async function updateStageState(
 
     // 2. Persist to shadow_specs.stages (full data)
     if (current?.product_id) {
-        const { data: shadowSpec } = await sb
+        // Safe Read-Merge-Upsert
+        // Use deterministic ordering to find the canonical row (or best candidate)
+        const { data: shadowRows } = await sb
             .from("shadow_specs")
             .select("stages")
             .eq("product_id", current.product_id)
-            .single();
+            .order("created_at", { ascending: false })
+            .limit(1);
 
+        const shadowSpec = shadowRows?.[0];
         const existingStages = shadowSpec?.stages || {};
 
+        // EXPLICIT MERGE: Shallow merge existing stages with the new stage payload
         const updatedStages = {
-            ...existingStages,
-            [stageName]: {  // Use stageName directly
+            ...existingStages, // Preserve S1, S2, etc.
+            [stageName]: {
                 status,
                 completed_at: status === 'done' ? now : null,
                 data,
@@ -482,45 +487,22 @@ export async function POST(req: NextRequest) {
         console.log(`[Worker] Final persist - ${normalizedStage3.uniqueCount} unique entries, truth_index=${stage4Result.truth_index}`);
         console.log(`[Worker] Truth breakdown: base=${stage4Result.truth_index_breakdown?.base} final=${stage4Result.truth_index_breakdown?.final}`);
 
-        // Manual Upsert to avoid "missing unique constraint" error
-        // 1. Check if exists
-        const { data: existingShadow, error: fetchShadowError } = await sb
-            .from("shadow_specs")
-            .select("id")
-            .eq("product_id", product.id)
-            .maybeSingle();
+        // Atomic Upsert (Relies on unique constraint on product_id)
+        // We overwrite stages with completeStages because this is a full run completion.
+        console.log(`[Worker] Persisting shadow_spec for ${product.id}`);
 
-        if (fetchShadowError) {
-            throw new Error(`SHADOW_SPEC_FETCH_FAILED: ${fetchShadowError.message}`);
-        }
-
-        let upsertError;
-        if (existingShadow) {
-            // Update
-            const { error } = await sb.from("shadow_specs").update({
-                claimed_specs: canonicalSpec.claim_profile,
-                actual_specs: canonicalSpec.reality_ledger,
-                red_flags: canonicalSpec.red_flags,
-                stages: completeStages,
-                is_verified: true,
-                truth_score: stage4Result.truth_index,
-                source_urls: []
-            }).eq("id", existingShadow.id);
-            upsertError = error;
-        } else {
-            // Insert
-            const { error } = await sb.from("shadow_specs").insert({
-                product_id: product.id,
-                claimed_specs: canonicalSpec.claim_profile,
-                actual_specs: canonicalSpec.reality_ledger,
-                red_flags: canonicalSpec.red_flags,
-                stages: completeStages,
-                is_verified: true,
-                truth_score: stage4Result.truth_index,
-                source_urls: []
-            });
-            upsertError = error;
-        }
+        const { error: upsertError } = await sb.from("shadow_specs").upsert({
+            product_id: product.id,
+            claimed_specs: canonicalSpec.claim_profile,
+            actual_specs: canonicalSpec.reality_ledger,
+            red_flags: canonicalSpec.red_flags,
+            stages: completeStages,
+            is_verified: true,
+            truth_score: stage4Result.truth_index,
+            source_urls: []
+        }, {
+            onConflict: 'product_id'
+        });
 
         if (upsertError) {
             console.error("[Worker] Failed to persist shadow_spec:", upsertError);

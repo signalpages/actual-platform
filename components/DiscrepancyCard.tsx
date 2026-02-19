@@ -6,7 +6,7 @@ import { Discrepancy } from '@/types';
 import { formatLabel } from '@/lib/formatters';
 
 interface DiscrepancyCardProps {
-    discrepancy: Discrepancy;
+    discrepancy: any; // Explicitly any to handle loose schema
     index: number;
 }
 
@@ -26,57 +26,55 @@ function renderSafeText(value: string | undefined | null): string {
     return trimmed;
 }
 
+// New Layout: Claim vs Actual (No Strikethrough)
 export function DiscrepancyCard({ discrepancy, index }: DiscrepancyCardProps) {
     const [showExcerpt, setShowExcerpt] = useState(false);
     const hasNonEnglish = !!discrepancy.source_excerpt_original;
 
-    // Safe rendering - never show empty/quoted strings
-    // Support both old format (issue/description) and new format (claim/reality)
-    const issueText = discrepancy.issue || (discrepancy as any).claim;
-    const descText = discrepancy.description || (discrepancy as any).reality;
+    // Use specific fields or fallback to generic ones
+    const claimText = (discrepancy as any).claim || discrepancy.issue;
+    const actualText = (discrepancy as any).reality || discrepancy.description;
+    const impactText = (discrepancy as any).impact || discrepancy.issue;
+    const severity = (discrepancy as any).severity || 'moderate';
 
-    const safeIssue = formatLabel(renderSafeText(issueText));
-    const safeDescription = renderSafeText(descText);
+    const safeClaim = formatLabel(renderSafeText(claimText));
+    const safeActual = renderSafeText(actualText);
 
     return (
-        <div className="bg-red-50/30 border border-red-50 p-4 rounded-xl shadow-sm">
-            <div className="flex flex-col md:flex-row gap-4 items-start">
-                <div className="flex-1 min-w-0">
-                    {/* Severity Badge */}
-                    {(discrepancy as any).severity && (
-                        <div className="inline-flex items-center gap-1.5 mb-2">
-                            <span className={`
-                                text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded
-                                ${(discrepancy as any).severity === 'severe' ? 'bg-red-600 text-white' : ''}
-                                ${(discrepancy as any).severity === 'moderate' ? 'bg-amber-500 text-white' : ''}
-                                ${(discrepancy as any).severity === 'minor' ? 'bg-yellow-400 text-slate-900' : ''}
-                            `}>
-                                {(discrepancy as any).severity === 'severe' && '🔴 Severe'}
-                                {(discrepancy as any).severity === 'moderate' && '🟠 Moderate'}
-                                {(discrepancy as any).severity === 'minor' && '🟡 Minor'}
-                            </span>
-                        </div>
-                    )}
-                    <p className="text-xs font-black text-red-900 mb-1 leading-tight">
-                        {safeIssue}
-                    </p>
-                    <p className="text-[11px] font-medium text-red-800/70 leading-relaxed italic">
-                        "{safeDescription}"
+        <div className="bg-red-50/30 border border-red-50 p-5 rounded-2xl shadow-sm">
+            {/* Header: Claim vs Actual Columns */}
+            <div className="flex justify-between items-start gap-4 mb-4">
+                <div className="w-[45%]">
+                    <span className="text-[9px] font-black uppercase text-red-300 tracking-widest block mb-1.5">Claim</span>
+                    <p className="text-xs font-medium text-slate-500 leading-tight">
+                        {safeClaim}
                     </p>
                 </div>
+                <div className="w-[45%] text-right">
+                    <span className="text-[9px] font-black uppercase text-red-600 tracking-widest block mb-1.5">Actual</span>
+                    <p className="text-xs font-black text-slate-900 leading-tight">
+                        {safeActual}
+                    </p>
+                </div>
+            </div>
 
-                {(discrepancy as any).impact && (
-                    <div className="w-full md:w-1/3 flex-shrink-0">
-                        <div className="bg-red-100/50 px-3 py-2 rounded-lg h-full">
-                            <span className="text-[9px] font-black text-red-800 uppercase tracking-widest block mb-1">
-                                Impact
-                            </span>
-                            <p className="text-[10px] text-red-700 font-medium leading-relaxed">
-                                {((discrepancy as any).impact || '').trim().replace(/\.?$/, '.')}
-                            </p>
-                        </div>
-                    </div>
-                )}
+            {/* Divider */}
+            <hr className="border-red-100 mb-4 opacity-50" />
+
+            {/* Impact - Standardized Layout */}
+            <div className="mt-4 pt-4 border-t border-neutral-200">
+                <div className="flex items-start gap-2">
+                    <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${discrepancy.severity === 'critical' ? 'bg-red-100 text-red-700' :
+                        discrepancy.severity === 'moderate' ? 'bg-orange-100 text-orange-700' :
+                            'bg-slate-100 text-slate-600'
+                        }`}>
+                        {discrepancy.severity || 'Notice'}
+                    </span>
+                    <p className="text-xs text-slate-600 leading-normal">
+                        <span className="font-bold text-slate-900 mr-1">Impact:</span>
+                        {discrepancy.impact}
+                    </p>
+                </div>
             </div>
 
             {/* Non-English evidence badge and toggle */}

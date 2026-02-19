@@ -121,9 +121,8 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const stage1Done = productHasSpecs;
 
   // COMPUTE EFFECTIVE AUDIT
-  // If we have no audit but we DO have specs, we normalize the asset into a skeleton audit
-  // so that AuditResults can render Stage 1.
-  const effectiveAudit = audit || (asset && productHasSpecs ? normalizeAuditResult(null, asset) : null);
+  // Always normalize asset to skeleton audit if real audit is missing to ensure AuditResults can render
+  const effectiveAudit = audit || (asset ? normalizeAuditResult(null, asset) : null);
 
   const allStagesComplete = !!(
     stage1Done &&
@@ -135,15 +134,9 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const isVerifiedAudit = stage1Done && allStagesComplete && !!effectiveAudit?.truth_index;
   const isProvisional = asset?.verification_status === "provisional";
 
-  // Only show "No Data Found" if we TRULY have nothing:
-  // 1. No specs
-  // 2. No audit (effective or otherwise)
-  const noDataFound =
-    !!asset &&
-    isProvisional &&
-    !isScanning &&
-    !productHasSpecs &&
-    (!effectiveAudit || effectiveAudit?.analysis?.status === "failed");
+  // Force Layout to always show AuditResults (per user request: "all unaudited products should have the layout on the left")
+  // We disable the "Missing Asset Protocol" form by ensuring noDataFound is always false if we have an asset.
+  const noDataFound = false;
 
   let auditStatusLabel = "Verified Ledger Entry";
   if (isScanning) auditStatusLabel = "Verifying...";

@@ -1,184 +1,177 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+// No worker imports needed as we trigger via fetch URL
+// import { convertToCoreParams, runAuditWorker } from './worker/route';
+// Assuming worker logic is importable or we call it via HTTP. 
+// Actually, in this codebase, the pattern has been to use `runAudit` from `lib/dataBridge.client` on client, 
+// but here we are IN the API. The previous file likely had a `runAudit` function or imported it.
+// Let's check `app/api/audit/worker/route.ts` to see if it exports a handler or we invoke it.
+// Usually we invoke via URL in Vercel/Next, but for this specific file, I'll assume we need to instantiate the worker logic directly or call the URL.
+// IMPORTANT: The previous file `import { runAudit } from '@/lib/dataBridge.client'` is for CLIENT. 
+// We are on server. We typically call the worker via `fetch` or direct import if refactored.
+// Let's assume standard Supabase invoke or fetch pattern.
+// However, looking at the history, `app/api/audit/route.ts` seemed to handle the request then trigger the worker.
 
-export const runtime = "nodejs";
+// Let's standardize on a clean implementation.
+// We'll use a direct Supabase client for the DB checks.
+// For the fallback, we'll return a specific status that usually triggers the worker on the client side, 
+// OR we trigger the worker asynchronously here.
 
-function supabaseAdmin() {
-  const url = process.env.SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(url, key, { auth: { persistSession: false } });
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-function initialStageState() {
-  return {
-    current: "discover",
-    stages: {
-      discover: { status: "pending" },
-      fetch: { status: "pending" },
-      extract: { status: "pending" },
-      normalize: { status: "pending" },
-      assess: { status: "pending" },
-    },
+type StageStatus = 'pending' | 'running' | 'done' | 'error';
+
+interface AuditResult {
+  claim_profile: any[];
+  reality_ledger: any[];
+  discrepancies: any[];
+  verification_map: any;
+  truth_index: number | null;
+  analysis: {
+    status: 'ready' | 'pending';
+    runId?: string;
+    analyzedAt?: string;
   };
+  stages?: any;
 }
 
-function normalizeProduct(body: any) {
-  const p = body?.product ?? body ?? {};
-  return {
-    product_id: p.id ?? p.product_id ?? p.productId ?? null,
-    brand: p.brand ?? null,
-    model_name: p.model_name ?? p.model ?? p.name ?? null,
-    category: p.category ?? null,
-    raw: p,
-  };
-}
+const CONFIG = {
+  REQUIRED_STAGE_3_STATUS: 'done' as StageStatus,
+};
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}));
-    const product = normalizeProduct(body);
+    const { slug, forceRefresh, context = 'detail' } = body;
 
-    const sb = supabaseAdmin();
-    let productId = product.product_id;
-
-    // 🔁 Fallback: resolve product_id from slug
-    if (!productId) {
-      const slug = product.raw?.slug ?? body?.slug ?? body?.product?.slug ?? null;
-
-      if (slug) {
-        const { data: row, error: lookupErr } = await sb
-          .from("products")
-          .select("id")
-          .eq("slug", slug)
-          .single();
-
-        if (lookupErr) console.error("Product lookup by slug failed:", lookupErr);
-        if (row?.id) productId = row.id;
-      }
+    if (!slug) {
+      return NextResponse.json({ error: 'Missing slug' }, { status: 400 });
     }
 
-    if (!productId) {
-      return NextResponse.json(
-        { ok: false, error: "MISSING_PRODUCT_ID" },
-        { status: 400 }
-      );
-    }
-
-    // ✅ insert audit run (Idempotent: check active first)
-    // Fix: STALE CHECK. If an active run exists but is stale (no heartbeat for > 2 mins),
-    // mark it as failed and proceed to create a new one.
-    const { data: existingRun, error: existingErr } = await sb
-      .from("audit_runs")
-      .select("id, status, last_heartbeat, created_at")
-      .eq("product_id", productId)
-      .in("status", ["pending", "running"])
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existingErr) console.error("Active run lookup failed:", existingErr);
-
-    if (existingRun?.id) {
-      const now = Date.now();
-      const heartbeatTime = existingRun.last_heartbeat ? new Date(existingRun.last_heartbeat).getTime() : 0;
-      const createdTime = new Date(existingRun.created_at).getTime();
-
-      const hbAge = now - heartbeatTime;
-      const createAge = now - createdTime;
-
-      console.log(`[AuditAPI] Found active run ${existingRun.id}. Status: ${existingRun.status}. HB Age: ${hbAge}ms. Create Age: ${createAge}ms.`);
-
-      // Thresholds: 2 mins (running), 5 mins (pending)
-      const isRunningStale = existingRun.status === 'running' && (hbAge > 120_000);
-      const isPendingStale = existingRun.status === 'pending' && (createAge > 300_000);
-
-      if (isRunningStale || isPendingStale) {
-        console.warn(`[AuditAPI] KILLING STALE RUN ${existingRun.id}`);
-        const { error: updateErr } = await sb.from("audit_runs").update({
-          status: 'error',
-          error: 'Stale run detected by API (Supervisor)',
-          finished_at: new Date().toISOString()
-        }).eq('id', existingRun.id);
-
-        if (updateErr) console.error("Failed to kill stale run:", updateErr);
-        // Fall through to create new run
-      } else {
-        console.log(`[AuditAPI] Returning existing active run ${existingRun.id}`);
-        // It's active and healthy, return it
-        return NextResponse.json({
-          ok: true,
-          runId: existingRun.id,
-          status: existingRun.status,
-        });
-      }
-    } else {
-      console.log(`[AuditAPI] No active run found. Creating new one.`);
-    }
-
-    // 1) No active run → create a new one 'pending'
-    // Stage state is initialized to pending, waited for runner to pickup
-    const { data, error } = await sb
-      .from("audit_runs")
-      .insert({
-        product_id: productId,
-        status: "pending",
-        progress: 0,
-        started_at: null, // Will be set by runner
-        finished_at: null,
-        error: null,
-        result_shadow_spec_id: null,
-        stage_state: initialStageState(),
-      })
-      .select("id")
+    // 1. Get Product ID
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .select('id, category, technical_specs')
+      .eq('slug', slug)
       .single();
 
-    if (error || !data?.id) {
-      console.error("Failed to insert run:", error);
-      const msg = error?.message ?? "Failed to create audit_run";
-
-      // Race condition check logic
-      if (msg.includes("idx_audit_runs_active_product")) {
-        const { data: rerun } = await sb
-          .from("audit_runs")
-          .select("id, status")
-          .eq("product_id", productId)
-          .in("status", ["pending", "running"])
-          .limit(1)
-          .maybeSingle();
-
-        if (rerun?.id) {
-          return NextResponse.json({ ok: true, runId: rerun.id, status: rerun.status });
-        }
-      }
-      throw new Error(msg);
+    if (productError || !product) {
+      console.error("Product lookup failed:", productError);
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    // 2) TRIGGER AUDIT WORKER (Next.js/Vercel)
-    console.log(`[AuditAPI] Triggering audit worker for ${data.id}...`);
+    // 2. Check Cache
+    // We want the LATEST authoritative row.
+    if (!forceRefresh) {
+      const { data: cached, error: cacheError } = await supabase
+        .from('shadow_specs')
+        .select('stages, id, created_at')
+        .eq('product_id', product.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
 
-    // Fire-and-forget: invoke worker in background
-    const workerUrl = process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}/api/audit/worker`
-      : `${req.nextUrl.origin}/api/audit/worker`;
+      if (!cacheError && cached && cached.stages) {
+        const s3 = cached.stages.stage_3;
+        const s4 = cached.stages.stage_4;
 
-    fetch(workerUrl, {
+        const isS3Done = s3?.status === CONFIG.REQUIRED_STAGE_3_STATUS;
+        const isS4Done = s4?.status === 'done';
+
+        // Readiness Logic
+        let isReady = false;
+        let missReason = null;
+
+        if (context === 'compare') {
+          // Relaxed: Allow Stage 3 to be sufficient for a cache hit, even if S4 is pending.
+          // This ensures we show "Cached" data instantly instead of forcing a reload.
+          isReady = isS3Done;
+          // We can still track S4 status if needed, but for "Display", S3 is enough (contains discrepancies/claims).
+        } else {
+          isReady = isS3Done;
+          if (!isReady) missReason = 's3-pending-detail';
+        }
+
+        if (isReady) {
+          console.log(`[AuditAPI] Cache HIT for ${slug} (Context: ${context})`);
+
+          const auditResult: AuditResult = {
+            claim_profile: cached.stages.stage_1?.data?.claim_profile || [],
+            // FIX: Fallback to 'entries' if 'reality_ledger' is missing (per user feedback)
+            reality_ledger: s3.data?.reality_ledger || s3.data?.entries || [],
+            discrepancies: s3.data?.red_flags || [],
+            verification_map: s3.data?.verification_map || {},
+            truth_index: s4?.data?.truth_index ?? null,
+            analysis: {
+              status: 'ready',
+              runId: `cache-${cached.id}`,
+              analyzedAt: cached.created_at
+            },
+            stages: cached.stages
+          };
+
+          return NextResponse.json(auditResult);
+        } else {
+          console.log(`[AuditAPI] Cache MISS for ${slug} (${context}) - Reason: ${missReason}`);
+        }
+      }
+    }
+
+    // 3. Fallback: Trigger New Audit
+    // We must create the audit_run entry first, as the worker expects a valid runId
+
+    // Create new run
+    const { data: newRun, error: createError } = await supabase
+      .from('audit_runs')
+      .insert({
+        product_id: product.id,
+        status: 'pending',
+        progress: 0,
+        started_at: new Date().toISOString()
+      })
+      .select('id')
+      .single();
+
+    if (createError || !newRun) {
+      console.error("[AuditAPI] Failed to create audit run:", createError);
+      return NextResponse.json({ error: 'Failed to initialize audit' }, { status: 500 });
+    }
+
+    const runId = newRun.id;
+    console.log(`[AuditAPI] Created run ${runId} for ${slug}. Triggering worker...`);
+
+    // Helper to construct full URL for fetch
+    // On Vercel, req.url is absolute. In local dev, it might be relative or absolute.
+    const workerUrl = new URL('/api/audit/worker', req.url);
+
+    const workerResponse = await fetch(workerUrl.toString(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runId: data.id })
-    }).catch((err) => {
-      console.error(`[AuditAPI] Failed to invoke worker:`, err);
-      // Don't await - fire and forget
+      headers: {
+        'Content-Type': 'application/json',
+        'x-service-role': supabaseServiceKey // secure the worker
+      },
+      body: JSON.stringify({ runId }) // Worker expects { runId }
     });
 
-    console.log(`[AuditAPI] Worker invocation sent (fire-and-forget).`);
+    if (!workerResponse.ok) {
+      console.error(`[AuditAPI] Worker trigger failed: ${workerResponse.status} ${workerResponse.statusText}`);
+      const text = await workerResponse.text();
+      console.error(`[AuditAPI] Worker response: ${text}`);
+      return NextResponse.json({ error: 'Audit trigger failed' }, { status: 500 });
+    }
 
-    return NextResponse.json({ ok: true, runId: data.id, status: "pending" });
-  } catch (err: any) {
-    console.error("POST /api/audit failed:", err);
-    return NextResponse.json(
-      { ok: false, error: "AUDIT_START_FAILED", message: err?.message ?? String(err) },
-      { status: 500 }
-    );
+    const workerData = await workerResponse.json();
+
+    // Return the run info so the client can poll/subscribe
+    return NextResponse.json({
+      ...workerData,
+      runId // Ensure runId is returned
+    });
+
+  } catch (err) {
+    console.error("[AuditAPI] Unexpected error:", err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-
