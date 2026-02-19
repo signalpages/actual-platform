@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
     let capturedRunId: string | null = null; // Captured for error handler
     try {
         // AUTH CHECK
-        const secret = req.headers.get("x-internal-secret");
+        const secret = req.headers.get("x-internal-worker-secret");
         const expectedSecret = process.env.INTERNAL_WORKER_SECRET;
 
         if (expectedSecret && secret !== expectedSecret) {

@@ -157,74 +157,35 @@ export default function Comparison() {
                 <Link href="/" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 transition-colors">← Return Home</Link>
             </header>
 
-            {/* Layout Switcher: Row Grid if both exist, Column Grid otherwise */}
-            {showRowLayout ? (
-                <div className="flex flex-col gap-8 mb-12">
-                    {/* Row 1: Headers */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-                        <ComparisonHeader product={assets[0]!} audit={effectiveAudits[0]} className="h-full" />
-                        <ComparisonHeader product={assets[1]!} audit={effectiveAudits[1]} className="h-full" />
+            {/* 2-Column Full Audit Comparison Layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 relative mb-12 items-start">
+                <div className="hidden lg:flex absolute left-1/2 top-32 -translate-x-1/2 w-12 h-12 bg-slate-900 text-white rounded-full items-center justify-center font-black text-xs z-20 shadow-xl border-4 border-[#f8fafc]">VS</div>
+
+                {[0, 1].map(idx => (
+                    <div key={idx} className="flex flex-col h-full">
+                        {assets[idx] ? (
+                            <AssetColumn
+                                asset={assets[idx]!}
+                                audit={audits[idx]}
+                                status={auditStatuses[idx]}
+                                onRetry={() => handleDeepScan(idx as 0 | 1, assets[idx]!)}
+                            />
+                        ) : (
+                            <div className="h-full bg-white border border-slate-200 rounded-[2.5rem] p-12 flex flex-col items-center justify-center text-center shadow-sm min-h-[600px]">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Slot {idx + 1} Open for Comparison</p>
+                                {assets[1 - idx] && <AssetSelector category={assets[1 - idx]!.category} onSelect={(a) => handleReplacement(idx as 0 | 1, a)} placeholder="Select comparison asset..." className="max-w-xs" />}
+                            </div>
+                        )}
                     </div>
-
-                    {/* Row 2: Metrics */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-                        <ComparisonMetrics product={assets[0]!} audit={effectiveAudits[0]} className="h-full" />
-                        <ComparisonMetrics product={assets[1]!} audit={effectiveAudits[1]} className="h-full" />
-                    </div>
-
-                    {/* Row 3: Specs */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-                        <ComparisonSpecs product={assets[0]!} audit={effectiveAudits[0]} className="h-full" />
-                        <ComparisonSpecs product={assets[1]!} audit={effectiveAudits[1]} className="h-full" />
-                    </div>
-
-                    {/* Row 4: Insights (Strengths/Weaknesses) */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-                        <ComparisonInsights product={assets[0]!} audit={effectiveAudits[0]} className="h-full" />
-                        <ComparisonInsights product={assets[1]!} audit={effectiveAudits[1]} className="h-full" />
-                    </div>
-
-                    {/* Row 5: Evidence */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-                        <ComparisonEvidence product={assets[0]!} audit={effectiveAudits[0]} className="h-full" />
-                        <ComparisonEvidence product={assets[1]!} audit={effectiveAudits[1]} className="h-full" />
-                    </div>
-
-                    {/* Row 6: Discrepancies */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
-                        <ComparisonDiscrepancies product={assets[0]!} audit={effectiveAudits[0]} className="h-full" />
-                        <ComparisonDiscrepancies product={assets[1]!} audit={effectiveAudits[1]} className="h-full" />
-                    </div>
-
-                    {/* Verdict */}
-                    <DecisionSummary assets={assets} audits={effectiveAudits} />
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 relative mb-12 items-start">
-                    <div className="hidden lg:flex absolute left-1/2 top-32 -translate-x-1/2 w-12 h-12 bg-slate-900 text-white rounded-full items-center justify-center font-black text-xs z-20 shadow-xl border-4 border-[#f8fafc]">VS</div>
-
-                    {[0, 1].map(idx => (
-                        <div key={idx} className="flex flex-col h-full">
-                            {assets[idx] ? (
-                                <AssetColumn
-                                    asset={assets[idx]!}
-                                    audit={audits[idx]}
-                                    status={auditStatuses[idx]}
-                                    onRetry={() => handleDeepScan(idx as 0 | 1, assets[idx]!)}
-                                />
-                            ) : (
-                                <div className="h-full bg-white border border-slate-200 rounded-[2.5rem] p-12 flex flex-col items-center justify-center text-center shadow-sm min-h-[600px]">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Slot {idx + 1} Open for Comparison</p>
-                                    {assets[1 - idx] && <AssetSelector category={assets[1 - idx]!.category} onSelect={(a) => handleReplacement(idx as 0 | 1, a)} placeholder="Select comparison asset..." className="max-w-xs" />}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-            )}
+                ))}
+            </div>
         </div>
     );
 };
+
+
+import { FullAuditPanel } from '@/components/FullAuditPanel';
+import { DecisionSummary } from '@/components/DecisionSummary';
 
 interface AssetColumnProps {
     asset: Asset;
@@ -232,10 +193,6 @@ interface AssetColumnProps {
     status: AuditState;
     onRetry: () => void;
 }
-
-import { FullAuditPanel } from '@/components/FullAuditPanel';
-import { ComparisonHeader, ComparisonMetrics, ComparisonSpecs, ComparisonInsights, ComparisonEvidence, ComparisonDiscrepancies } from '@/components/ComparisonSections';
-import { DecisionSummary } from '@/components/DecisionSummary';
 
 const AssetColumn: React.FC<AssetColumnProps> = ({ asset, audit, status, onRetry }) => {
     // AG TICKET: Readiness check matches what we did in API
@@ -256,19 +213,9 @@ const AssetColumn: React.FC<AssetColumnProps> = ({ asset, audit, status, onRetry
     else if (isProvisional) auditStatusLabel = "Provisional Synthesis Required";
     else if (!isVerifiedAudit) auditStatusLabel = "Verified (Pending Full Audit)";
 
-    // If we are ready or have an effective audit (even skeleton), we render FullAuditPanel.
-    // However, if running, we might want to mask the content or show spinner.
-    // The ticket says "Replace 'discrepancies-only' card with FullAuditPanel".
-    // It also implies we want the "same full audit content".
-
-    // We render FullAuditPanel ALWAYS if we have data (effectiveAudit),
-    // unless we are solely in a loading state without data.
-    // But typically we show the spinner if running.
-
     if (isRunning) {
         return (
             <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden flex flex-col h-full transition-all">
-                {/* Keep Header for Running State */}
                 <div className="p-10 border-b border-slate-100">
                     <div className="space-y-1">
                         <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-blue-600">
@@ -303,10 +250,9 @@ const AssetColumn: React.FC<AssetColumnProps> = ({ asset, audit, status, onRetry
     }
 
     // Default: Render FullAuditPanel
-    // We wrap it in the container for consistent spacing
     return (
-        <div className="h-full">
-            <FullAuditPanel product={asset} audit={effectiveAudit} />
+        <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden h-full">
+            <FullAuditPanel product={asset} audit={effectiveAudit as any} />
         </div>
     );
 };

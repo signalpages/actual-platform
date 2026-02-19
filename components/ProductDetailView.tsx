@@ -332,92 +332,9 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
           </div>
         </div>
 
-        {noDataFound ? (
-          <div className="p-10 md:p-20 bg-slate-50/50">
-            {formSubmitted ? (
-              <SubmissionSuccess variant={3} onReset={() => setFormSubmitted(false)} />
-            ) : (
-              <div className="max-w-2xl mx-auto">
-                <div className="mb-10 text-center">
-                  <div className="w-16 h-16 bg-white border border-slate-200 rounded-3xl flex items-center justify-center text-slate-300 mx-auto mb-6 shadow-sm">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-8 w-8"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                  </div>
-                  <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-3">
-                    Missing Asset Protocol
-                  </h2>
-                  <p className="text-sm text-slate-500 font-medium">
-                    Our forensic engine was unable to synthesize a reliable Truth Index for this asset. Please submit
-                    official documentation or technical specs to initiate a manual audit.
-                  </p>
-                </div>
-
-                <div className="bg-white border border-slate-200 p-8 rounded-[2rem] shadow-sm">
-                  <h3 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-6">
-                    Technical Submission Form
-                  </h3>
-
-                  <div className="space-y-6">
-                    <div>
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
-                        Source URL (PDF Manual, Spec Sheet, or Official Listing)
-                      </label>
-                      <input
-                        type="url"
-                        placeholder="https://..."
-                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium outline-none focus:border-blue-600 transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
-                        Observed Capacity / Output (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. 2048Wh, 1800W"
-                        className="w-full p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium outline-none focus:border-blue-600 transition-all"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">
-                        Notes on Discrepancies
-                      </label>
-                      <textarea
-                        placeholder="Describe any technical inaccuracies you've observed..."
-                        className="w-full h-32 p-4 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium outline-none focus:border-blue-600 transition-all resize-none"
-                      />
-                    </div>
-
-                    <button
-                      onClick={() => setFormSubmitted(true)}
-                      className="w-full bg-slate-900 text-white py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg"
-                    >
-                      Submit for Forensic Review
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="p-10 md:p-14">
-            <AuditResults product={asset} audit={effectiveAudit} />
-          </div>
-        )}
+        <div className="p-10 md:p-14">
+          <AuditResults product={asset} audit={effectiveAudit} />
+        </div>
       </div>
 
       <div className="mt-12 p-8 bg-slate-900 rounded-[2.5rem] shadow-xl text-center">

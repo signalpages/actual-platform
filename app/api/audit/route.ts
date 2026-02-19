@@ -1,27 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-// No worker imports needed as we trigger via fetch URL
-// import { convertToCoreParams, runAuditWorker } from './worker/route';
-// Assuming worker logic is importable or we call it via HTTP. 
-// Actually, in this codebase, the pattern has been to use `runAudit` from `lib/dataBridge.client` on client, 
-// but here we are IN the API. The previous file likely had a `runAudit` function or imported it.
-// Let's check `app/api/audit/worker/route.ts` to see if it exports a handler or we invoke it.
-// Usually we invoke via URL in Vercel/Next, but for this specific file, I'll assume we need to instantiate the worker logic directly or call the URL.
-// IMPORTANT: The previous file `import { runAudit } from '@/lib/dataBridge.client'` is for CLIENT. 
-// We are on server. We typically call the worker via `fetch` or direct import if refactored.
-// Let's assume standard Supabase invoke or fetch pattern.
-// However, looking at the history, `app/api/audit/route.ts` seemed to handle the request then trigger the worker.
-
-// Let's standardize on a clean implementation.
-// We'll use a direct Supabase client for the DB checks.
-// For the fallback, we'll return a specific status that usually triggers the worker on the client side, 
-// OR we trigger the worker asynchronously here.
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-type StageStatus = 'pending' | 'running' | 'done' | 'error';
+type StageStatus = 'pending' | 'running' | 'done' | 'error' | 'blocked';
 
 interface AuditResult {
   claim_profile: any[];
@@ -62,7 +46,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    // 2. Check Cache
+    // 2. Check Cache (Canonical & Deterministic)
     // We want the LATEST authoritative row.
     if (!forceRefresh) {
       const { data: cached, error: cacheError } = await supabase
@@ -70,26 +54,29 @@ export async function POST(req: Request) {
         .select('stages, id, created_at')
         .eq('product_id', product.id)
         .order('created_at', { ascending: false })
-        .limit(1)
+        .limit(1) // Deterministic: Get the single best row
         .single();
 
       if (!cacheError && cached && cached.stages) {
         const s3 = cached.stages.stage_3;
         const s4 = cached.stages.stage_4;
 
-        const isS3Done = s3?.status === CONFIG.REQUIRED_STAGE_3_STATUS;
+        // Strict Readiness: Stage 3 MUST be done.
+        const isS3Done = s3?.status === 'done';
         const isS4Done = s4?.status === 'done';
 
-        // Readiness Logic
         let isReady = false;
         let missReason = null;
 
         if (context === 'compare') {
-          // Relaxed: Allow Stage 3 to be sufficient for a cache hit, even if S4 is pending.
-          // This ensures we show "Cached" data instantly instead of forcing a reload.
+          // Compare context requires Truth Index (Stage 4) usually, but we accept S3 for "partial" views if designed.
+          // User Requirement: "S3 done required, S4 done for truth index"
+          // Let's require S3. If S4 is missing, we can still show discrepancies.
+          // However, for a "Available for Comparison" check, usually we want S3.
           isReady = isS3Done;
-          // We can still track S4 status if needed, but for "Display", S3 is enough (contains discrepancies/claims).
+          if (!isReady) missReason = 's3-pending-compare';
         } else {
+          // Detail view: S3 is sufficient for specific-level forensic data.
           isReady = isS3Done;
           if (!isReady) missReason = 's3-pending-detail';
         }
@@ -97,6 +84,8 @@ export async function POST(req: Request) {
         if (isReady) {
           console.log(`[AuditAPI] Cache HIT for ${slug} (Context: ${context})`);
 
+          // STRICT MAPPING: No fallbacks to root columns. Only use stages data.
+          // This ensures we show exactly what was audited.
           const auditResult: AuditResult = {
             claim_profile: cached.stages.stage_1?.data?.claim_profile || [],
             // FIX: Fallback to 'entries' if 'reality_ledger' is missing (per user feedback)
@@ -106,7 +95,7 @@ export async function POST(req: Request) {
             truth_index: s4?.data?.truth_index ?? null,
             analysis: {
               status: 'ready',
-              runId: `cache-${cached.id}`,
+              runId: `cache-hit`, // Explicitly mark as cache hit
               analyzedAt: cached.created_at
             },
             stages: cached.stages
@@ -115,6 +104,25 @@ export async function POST(req: Request) {
           return NextResponse.json(auditResult);
         } else {
           console.log(`[AuditAPI] Cache MISS for ${slug} (${context}) - Reason: ${missReason}`);
+
+          // SKELETON SUPPORT:
+          // If we have PARTIAL data (e.g. Stage 1 done), we should return it 
+          // so the UI can render the skeleton instead of a spinner/error.
+          if (cached.stages?.stage_1?.status === 'done') {
+            console.log(`[AuditAPI] Returning pending payload with Stage 1 data for ${slug}`);
+            return NextResponse.json({
+              claim_profile: cached.stages.stage_1.data.claim_profile || [],
+              reality_ledger: [],
+              discrepancies: [],
+              verification_map: {},
+              truth_index: null,
+              analysis: {
+                status: 'pending',
+                runId: `pending-${cached.id}`
+              },
+              stages: cached.stages
+            });
+          }
         }
       }
     }
@@ -200,7 +208,7 @@ export async function POST(req: Request) {
       headers: {
         'Content-Type': 'application/json',
         'x-service-role': supabaseServiceKey, // secure the worker (legacy/supabase way)
-        'x-internal-secret': secret || ''     // secure the worker (custom way)
+        'x-internal-worker-secret': secret || ''     // secure the worker (standardized way)
       },
       body: JSON.stringify({ runId }) // Worker expects { runId }
     });
