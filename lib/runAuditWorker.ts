@@ -4,6 +4,44 @@ import { validateStage3, validateStage4 } from "./stageValidators";
 import { normalizeStage3, computeBaseScores, buildMetricBars } from "./normalizeStage3";
 import { computeTruthIndex } from "./computeTruthIndex";
 
+// Helper: Safe Monotonic Merge
+// 1. Never overwrite "done" with "not done"
+// 2. If both "done", prefer the one with newer updated_at (or incoming if equal)
+function mergeStages(existing: any = {}, incoming: any = {}) {
+    const out = { ...existing };
+
+    for (const key of Object.keys(incoming)) {
+        const e = existing?.[key];
+        const n = incoming?.[key];
+
+        // 1. Safety Guard: Do not regress from 'done' to anything else
+        if (e?.status === "done" && n?.status !== "done") {
+            console.warn(`[Worker] Ignoring regression for ${key}: done -> ${n?.status}`);
+            continue;
+        }
+
+        // 2. Timestamp Conflict Resolution
+        if (e?.status === "done" && n?.status === "done") {
+            const eTime = e.completed_at ? new Date(e.completed_at).getTime() : 0;
+            const nTime = n.completed_at ? new Date(n.completed_at).getTime() : 0;
+
+            // If existing is newer, keep it (unless we want to force overwrite? 
+            // The prompt implies we should be careful. 
+            // But usually current run is newer. Let's assume current run is authoritative if both done, 
+            // unless existing is surprisingly newer (e.g. parallel run finished later).
+            if (eTime > nTime) {
+                console.warn(`[Worker] Keeping newer existing stage for ${key}`);
+                continue;
+            }
+        }
+
+        // Merge: Incoming data overlays existing data
+        out[key] = { ...e, ...n };
+    }
+
+    return out;
+}
+
 // Helper to update stage state in DB and shadow_specs
 async function updateStageState(
     sb: SupabaseClient,
@@ -16,9 +54,10 @@ async function updateStageState(
     const now = new Date().toISOString();
 
     // 1. Update audit_runs.stage_state (lightweight tracking)
+    // We do a simple merge here for the run record itself
     const { data: current } = await sb.from("audit_runs").select("stage_state, product_id").eq("id", runId).single();
 
-    const merged = {
+    const mergedState = {
         current: stageName,
         stages: {
             ...(current?.stage_state?.stages ?? {}),
@@ -31,14 +70,13 @@ async function updateStageState(
     };
 
     await sb.from("audit_runs").update({
-        stage_state: merged,
+        stage_state: mergedState,
         last_heartbeat: now
     }).eq("id", runId);
 
-    // 2. Persist to shadow_specs.stages (full data)
+    // 2. Persist to shadow_specs.stages (Canonical Storage)
     if (current?.product_id) {
         // Safe Read-Merge-Upsert
-        // Use deterministic ordering to find the canonical row (or best candidate)
         const { data: shadowRows } = await sb
             .from("shadow_specs")
             .select("stages")
@@ -49,9 +87,7 @@ async function updateStageState(
         const shadowSpec = shadowRows?.[0];
         const existingStages = shadowSpec?.stages || {};
 
-        // EXPLICIT MERGE: Shallow merge existing stages with the new stage payload
-        const updatedStages = {
-            ...existingStages, // Preserve S1, S2, etc.
+        const incomingStage = {
             [stageName]: {
                 status,
                 completed_at: status === 'done' ? now : null,
@@ -60,9 +96,11 @@ async function updateStageState(
             }
         };
 
+        const finalStages = mergeStages(existingStages, incomingStage);
+
         await sb.from("shadow_specs").upsert({
             product_id: current.product_id,
-            stages: updatedStages,
+            stages: finalStages,
             updated_at: now
         }, {
             onConflict: 'product_id'
@@ -439,12 +477,24 @@ export async function runAuditWorker({
             red_flags: normalizedStage3.entries
         };
 
+        // FINAL PERSIST: Safe Read-Merge-Upsert
+        // 1. Get existing canonical spec to prevent regression
+        const { data: finalShadowRows } = await sb
+            .from("shadow_specs")
+            .select("stages")
+            .eq("product_id", product.id)
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+        const finalExistingStages = finalShadowRows?.[0]?.stages || {};
+        const finalMergedStages = mergeStages(finalExistingStages, completeStages);
+
         const { error: upsertError } = await sb.from("shadow_specs").upsert({
             product_id: product.id,
             claimed_specs: canonicalSpec.claim_profile,
             actual_specs: canonicalSpec.reality_ledger,
             red_flags: canonicalSpec.red_flags,
-            stages: completeStages,
+            stages: finalMergedStages,
             is_verified: true,
             truth_score: stage4Result.truth_index,
             source_urls: []

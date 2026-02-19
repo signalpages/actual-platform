@@ -194,9 +194,45 @@ export async function POST(req: Request) {
 
     // DIRECT WORKER CALL (No HTTP fetch)
     // This avoids Vercel Deployment Protection auth blocks.
+    // DIRECT WORKER CALL (No HTTP fetch)
+    // This avoids Vercel Deployment Protection auth blocks.
     try {
       const result = await runAuditWorker({ runId, sb: supabase });
-      return NextResponse.json(result);
+
+      // FETCH CANONICAL RESULT
+      // Now that worker is done, we fetch the fresh shadow_spec to return the full payload
+      // matching the structure of a Cache Hit.
+      const { data: fresh, error: freshError } = await supabase
+        .from('shadow_specs')
+        .select('stages, id, created_at')
+        .eq('product_id', product.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (fresh && fresh.stages) {
+        const s3 = fresh.stages.stage_3;
+        const s4 = fresh.stages.stage_4;
+
+        const auditResult: AuditResult = {
+          claim_profile: fresh.stages.stage_1?.data?.claim_profile || [],
+          reality_ledger: s3?.data?.reality_ledger || s3?.data?.entries || [],
+          discrepancies: s3?.data?.red_flags || [],
+          verification_map: s3?.data?.verification_map || {},
+          truth_index: s4?.data?.truth_index ?? null,
+          analysis: {
+            status: 'ready',
+            runId: result.runId, // Use the actual runId we just finished
+            analyzedAt: new Date().toISOString()
+          },
+          stages: fresh.stages
+        };
+        return NextResponse.json({ ok: true, ...auditResult });
+      }
+
+      // Fallback if shadow_spec fetch fails (shouldn't happen if worker succeeded)
+      return NextResponse.json({ ok: true, ...result });
+
     } catch (e: any) {
       console.error(`[AuditAPI] Worker execution failed:`, e);
       return NextResponse.json({
