@@ -104,7 +104,7 @@ export async function POST(req: Request) {
             stages: cached.stages
           };
 
-          return NextResponse.json(auditResult);
+          return NextResponse.json({ ok: true, ...auditResult });
         } else {
           console.log(`[AuditAPI] Cache MISS for ${slug} (${context}) - Reason: ${missReason}`);
 
@@ -114,6 +114,7 @@ export async function POST(req: Request) {
           if (cached.stages?.stage_1?.status === 'done') {
             console.log(`[AuditAPI] Returning pending payload with Stage 1 data for ${slug}`);
             return NextResponse.json({
+              ok: true,
               claim_profile: cached.stages.stage_1.data.claim_profile || [],
               reality_ledger: [],
               discrepancies: [],
