@@ -122,44 +122,119 @@ export async function POST(req: Request) {
     // 3. Fallback: Trigger New Audit
     // We must create the audit_run entry first, as the worker expects a valid runId
 
-    // Create new run
-    const { data: newRun, error: createError } = await supabase
+    // IDEMPOTENCY CHECK:
+    // Before inserting, check if there's already an active run for this product.
+    // This handles the unique constraint violation (23505) and prevents duplicate work.
+    const { data: existingRun } = await supabase
       .from('audit_runs')
-      .insert({
-        product_id: product.id,
-        status: 'pending',
-        progress: 0,
-        started_at: new Date().toISOString()
-      })
-      .select('id')
+      .select('id, status')
+      .eq('product_id', product.id)
+      .in('status', ['pending', 'running'])
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
-    if (createError || !newRun) {
-      console.error("[AuditAPI] Failed to create audit run:", createError);
-      return NextResponse.json({ error: 'Failed to initialize audit' }, { status: 500 });
+    let runId: string;
+
+    if (existingRun) {
+      console.log(`[AuditAPI] Found existing active run ${existingRun.id} for ${slug}`);
+      runId = existingRun.id;
+    } else {
+      // Create new run
+      // Wrap in try/catch to handle race condition 23505 if parallel requests hit exactly now
+      try {
+        const { data: newRun, error: createError } = await supabase
+          .from('audit_runs')
+          .insert({
+            product_id: product.id,
+            status: 'pending',
+            progress: 0,
+            started_at: new Date().toISOString()
+          })
+          .select('id')
+          .single();
+
+        if (createError) {
+          // If we hit a unique constraint here, it means a race condition occurred.
+          // We should ideally fetch the winner.
+          if (createError.code === '23505') {
+            console.warn(`[AuditAPI] Race condition detected for ${slug} (23505). Fetching active run.`);
+            const { data: winner } = await supabase.from('audit_runs').select('id').eq('product_id', product.id).in('status', ['pending', 'running']).limit(1).single();
+            if (winner) {
+              runId = winner.id;
+            } else {
+              throw createError; // Should not happen if constraint fired
+            }
+          } else {
+            console.error("[AuditAPI] Failed to create audit run:", createError);
+            return NextResponse.json({ error: 'Failed to initialize audit' }, { status: 500 });
+          }
+        } else if (newRun) {
+          runId = newRun.id;
+        } else {
+          throw new Error("No data returned from insert");
+        }
+      } catch (e: any) {
+        // Double check if we recovered `runId` from the race catch block
+        // logic above is a bit nested, let's simplify in next iteration if needed.
+        // For now, if runId is set, we are good.
+        console.error("[AuditAPI] Unexpected error during run creation:", e);
+        return NextResponse.json({ error: 'Failed to initialize audit' }, { status: 500 });
+      }
     }
 
-    const runId = newRun.id;
-    console.log(`[AuditAPI] Created run ${runId} for ${slug}. Triggering worker...`);
+    // Check if runId is definitely assigned (TS check)
+    if (!runId!) return NextResponse.json({ error: 'Failed to resolve audit run' }, { status: 500 });
+
+    console.log(`[AuditAPI] Run ${runId} ready for ${slug}. Triggering worker...`);
 
     // Helper to construct full URL for fetch
-    // On Vercel, req.url is absolute. In local dev, it might be relative or absolute.
     const workerUrl = new URL('/api/audit/worker', req.url);
+
+    // Secure Worker Call
+    const secret = process.env.INTERNAL_WORKER_SECRET;
+    if (!secret) console.warn("[AuditAPI] INTERNAL_WORKER_SECRET is not set! Worker auth may fail.");
 
     const workerResponse = await fetch(workerUrl.toString(), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-service-role': supabaseServiceKey // secure the worker
+        'x-service-role': supabaseServiceKey, // secure the worker (legacy/supabase way)
+        'x-internal-secret': secret || ''     // secure the worker (custom way)
       },
       body: JSON.stringify({ runId }) // Worker expects { runId }
     });
 
     if (!workerResponse.ok) {
       console.error(`[AuditAPI] Worker trigger failed: ${workerResponse.status} ${workerResponse.statusText}`);
-      const text = await workerResponse.text();
-      console.error(`[AuditAPI] Worker response: ${text}`);
-      return NextResponse.json({ error: 'Audit trigger failed' }, { status: 500 });
+
+      // Safely read response - might be HTML from Vercel 500/404 page
+      const contentType = workerResponse.headers.get('content-type');
+      let details = "Unknown worker error";
+
+      try {
+        const text = await workerResponse.text();
+        // If HTML, truncate. If JSON, parse? No, just return text safely.
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const json = JSON.parse(text);
+            details = json.error || json.message || text;
+          } catch {
+            details = text.substring(0, 500);
+          }
+        } else {
+          // Likely HTML
+          details = `Non-JSON response (Status ${workerResponse.status}): ${text.substring(0, 200)}...`;
+        }
+      } catch (e) {
+        details = "Could not read worker response body";
+      }
+
+      console.error(`[AuditAPI] Worker error details: ${details}`);
+      return NextResponse.json({
+        error: 'Audit trigger failed',
+        details
+      }, { status: 500 });
     }
 
     const workerData = await workerResponse.json();

@@ -9,8 +9,11 @@ export const runtime = "nodejs";
 export const maxDuration = 300; // 5 minutes max
 
 function supabaseAdmin() {
-    const url = process.env.SUPABASE_URL!;
+    const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    if (!url || !key) {
+        throw new Error("Missing Supabase credentials in environment variables");
+    }
     return createClient(url, key, { auth: { persistSession: false } });
 }
 
@@ -111,6 +114,14 @@ function flattenSpecs(obj: any, prefix = ''): Array<{ label: string; value: stri
 export async function POST(req: NextRequest) {
     let capturedRunId: string | null = null; // Captured for error handler
     try {
+        // AUTH CHECK
+        const secret = req.headers.get("x-internal-secret");
+        const expectedSecret = process.env.INTERNAL_WORKER_SECRET;
+
+        if (expectedSecret && secret !== expectedSecret) {
+            return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+        }
+
         const { runId } = await req.json();
         capturedRunId = runId;
 
