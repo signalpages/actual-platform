@@ -179,6 +179,9 @@ export default function Comparison() {
                     </div>
                 ))}
             </div>
+
+            {/* Verdict Summary */}
+            <DecisionSummary assets={assets} audits={effectiveAudits} />
         </div>
     );
 };
