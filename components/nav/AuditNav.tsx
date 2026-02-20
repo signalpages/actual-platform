@@ -48,7 +48,7 @@ export default function AuditNav() {
                             </button>
                             <div className="absolute left-0 mt-0 w-64 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0 duration-200 z-50 overflow-hidden">
                                 <div className="p-2">
-                                    <Link href="/specs?category=portable_power_station" className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
+                                    <Link href="/systems" className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
                                         <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">Ready-Made Systems</div>
                                         <div className="text-[10px] text-slate-500 mt-0.5">Portable Power Stations</div>
                                     </Link>
@@ -89,7 +89,7 @@ export default function AuditNav() {
                     <Link href="/compare" className="block text-[10px] font-black uppercase tracking-widest text-slate-600">Compare</Link>
                     <div className="space-y-2">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Systems</div>
-                        <Link href="/specs?category=portable_power_station" className="block text-sm font-bold text-slate-800 pl-4">Ready-Made Systems</Link>
+                        <Link href="/systems" className="block text-sm font-bold text-slate-800 pl-4">Ready-Made Systems</Link>
                         <Link href="/systems" className="block text-sm font-bold text-slate-800 pl-4">System Context</Link>
                     </div>
                 </div>

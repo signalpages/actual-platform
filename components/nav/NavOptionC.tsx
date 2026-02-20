@@ -35,10 +35,10 @@ export default function NavOptionC({ mode }: NavOptionCProps) {
                             </button>
                             <div className="absolute left-0 mt-0 w-64 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0 duration-200 z-50 overflow-hidden">
                                 <div className="p-2">
-                                    <Link href={withUi('/specs?category=portable_power_station', mode)} className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
+                                    <Link href={withUi('/systems', mode)} className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
                                         <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">Portable Power Stations</div>
                                     </Link>
-                                    <Link href={withUi('/specs?category=home_backup_system', mode)} className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
+                                    <Link href={withUi('/systems', mode)} className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
                                         <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">Home Backup Batteries</div>
                                     </Link>
                                 </div>
@@ -87,8 +87,8 @@ export default function NavOptionC({ mode }: NavOptionCProps) {
                     <Link href={withUi('/start', mode)} className="block text-center text-[10px] font-black uppercase tracking-widest text-white bg-emerald-600 px-4 py-3 rounded-lg">Start Planning</Link>
                     <div className="space-y-2">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Systems</div>
-                        <Link href={withUi('/specs?category=portable_power_station', mode)} className="block text-sm font-bold text-slate-800 pl-4">Portable Power Stations</Link>
-                        <Link href={withUi('/specs?category=home_backup_system', mode)} className="block text-sm font-bold text-slate-800 pl-4">Home Backup</Link>
+                        <Link href={withUi('/systems', mode)} className="block text-sm font-bold text-slate-800 pl-4">Portable Power Stations</Link>
+                        <Link href={withUi('/systems', mode)} className="block text-sm font-bold text-slate-800 pl-4">Home Backup</Link>
                     </div>
                     <div className="space-y-2">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Components</div>
