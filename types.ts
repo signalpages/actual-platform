@@ -128,6 +128,9 @@ export interface AuditResult {
   analysis: {
     status: 'identified' | 'analyzing' | 'ready' | 'provisional' | 'failed';
     last_run_at: string | null;
+    verdictReady?: boolean;
+    runId?: string;
+    error?: { code: string; message: string };
   };
   claim_profile: AuditItem[];
   reality_ledger: AuditItem[];

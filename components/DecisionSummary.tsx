@@ -1,133 +1,147 @@
 import React from 'react';
 import { Asset, AuditResult } from '@/types';
+import { VerdictOutput } from '@/lib/compare/deriveVerdict';
 
 interface DecisionSummaryProps {
     assets: [Asset | null, Asset | null];
     audits: [AuditResult | null, AuditResult | null];
+    verdict: VerdictOutput;
 }
 
-export function DecisionSummary({ assets, audits }: DecisionSummaryProps) {
+export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProps) {
     if (!assets[0] || !assets[1] || !audits[0] || !audits[1]) return null;
 
-    // Safety check: Don't render if either audit is not ready/analyzed
-    const s4_A = audits[0]?.stages?.stage_4?.data;
-    const s4_B = audits[1]?.stages?.stage_4?.data;
+    const [a1, a2] = assets as [Asset, Asset];
+    const [audit1, audit2] = audits as [AuditResult, AuditResult];
 
-    // Allow rendering if at least one side has data, or fail gracefully
-    if (!s4_A && !s4_B) return null;
-
-    // Helper to extract wins/strengths safely
-    const getStrengths = (s4: any) => s4?.strengths || [];
-    const getGoodFit = (s4: any) => s4?.good_fit?.[0] || "No specific fit identified";
-
-    const winsA = getStrengths(s4_A);
-    const winsB = getStrengths(s4_B);
+    // Helper to get fit
+    const getGoodFit = (audit: AuditResult) => {
+        // Prefer explicit 'good_fit' from Stage 4
+        if (audit.good_fit && audit.good_fit.length > 0) return audit.good_fit[0];
+        // Fallback to practical impact
+        if (audit.practical_impact && audit.practical_impact.length > 0) return audit.practical_impact[0];
+        return "Pending classification...";
+    };
 
     return (
-        <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 md:p-14 shadow-xl mt-12">
-            <div className="flex flex-col md:flex-row gap-12 items-start">
+        <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 md:p-14 shadow-xl mt-12 relative overflow-hidden">
+            {/* Background Texture/Gradient */}
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+
+            <div className="flex flex-col md:flex-row gap-12 items-start relative z-10">
+
+                {/* HEADLINE & PROTOCOL SECTION */}
                 <div className="md:w-1/3">
-                    <div className="inline-flex items-center gap-2 bg-blue-600 text-white px-3 py-1 rounded text-[9px] font-black uppercase tracking-widest mb-6">Decision Protocol</div>
-                    <h2 className="text-3xl font-black uppercase tracking-tighter mb-2">Verdict Summary</h2>
+                    <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded text-[9px] font-black uppercase tracking-widest mb-6">
+                        Verdict Protocol Active
+                    </div>
+                    <h2 className="text-3xl font-black uppercase tracking-tighter mb-4 leading-tight">
+                        {verdict.headline}
+                    </h2>
 
-                    {/* Decision Weighting Context */}
-                    <p className="text-[10px] font-bold text-blue-400 uppercase tracking-wide mb-4 opacity-80">
-                        Comparison prioritizes: Claims Accuracy (45%), Real-World Fit (35%), Operational Noise (20%).
-                    </p>
+                    {/* Decision Drivers */}
+                    <div className="mb-8">
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Primary Drivers</p>
+                        <ul className="space-y-1">
+                            {verdict.primaryDrivers.map((driver, i) => (
+                                <li key={i} className="text-sm font-bold text-blue-300 flex items-center gap-2">
+                                    <span className="w-1 h-1 bg-blue-500 rounded-full"></span> {driver}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
 
-                    <p className="text-slate-400 text-sm leading-relaxed">
-                        Forensic analysis suggests distinct profiles for each asset. Use this summary to align with your specific prioritization framework.
-                    </p>
+                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">
+                            Decision Weighting
+                        </p>
+                        <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
+                            Comparison prioritizes: Claims Accuracy (45%), Real-World Fit (35%), Operational Noise (20%).
+                        </p>
+                    </div>
                 </div>
 
+                {/* ASSET COLUMNS */}
                 <div className="md:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Asset A Summary */}
-                    <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700/50 flex flex-col h-full">
-                        <h3 className="text-xl font-black uppercase tracking-tight mb-6 flex items-center gap-3">
-                            <span className="text-blue-400">A /</span> {assets[0].model_name}
-                        </h3>
+                    {/* Asset A */}
+                    <VerdictColumn
+                        asset={a1}
+                        audit={audit1}
+                        isWinner={verdict.winnerId === a1.id}
+                        summary={verdict.summaryA}
+                        goodFit={getGoodFit(audit1)}
+                    />
 
-                        {/* Logic: Show Strengths/Tradeoffs if available, else distinctive fallback */}
-                        {((s4_A?.strengths?.length || 0) > 0 || (s4_A?.limitations?.length || 0) > 0) ? (
-                            <div className="space-y-6 mb-6">
-                                {s4_A?.strengths?.length > 0 && (
-                                    <div>
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-2">Forensic Strengths</h4>
-                                        <ul className="space-y-2">
-                                            {s4_A.strengths.slice(0, 3).map((w: string, i: number) => (
-                                                <li key={i} className="text-xs font-medium text-slate-300 flex items-start gap-2">
-                                                    <span className="text-emerald-500/50">•</span> {w}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                                {s4_A?.limitations?.length > 0 && (
-                                    <div>
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-2">Tradeoffs</h4>
-                                        <ul className="space-y-2">
-                                            {s4_A.limitations.slice(0, 3).map((w: string, i: number) => (
-                                                <li key={i} className="text-xs font-medium text-slate-300 flex items-start gap-2">
-                                                    <span className="text-amber-500/50">•</span> {w}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <p className="text-xs text-slate-500 italic mb-auto">No material forensic advantage over comparator in verified claims.</p>
-                        )}
-
-                        <div className="mt-auto pt-6 border-t border-slate-700/50">
-                            <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest block mb-1">Ideally Suited For</span>
-                            <p className="text-sm font-bold text-white">{s4_A ? getGoodFit(s4_A) : "Pending Analysis..."}</p>
-                        </div>
-                    </div>
-
-                    {/* Asset B Summary */}
-                    <div className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700/50 flex flex-col h-full">
-                        <h3 className="text-xl font-black uppercase tracking-tight mb-6 flex items-center gap-3">
-                            <span className="text-blue-400">B /</span> {assets[1].model_name}
-                        </h3>
-
-                        {((s4_B?.strengths?.length || 0) > 0 || (s4_B?.limitations?.length || 0) > 0) ? (
-                            <div className="space-y-6 mb-6">
-                                {s4_B?.strengths?.length > 0 && (
-                                    <div>
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-emerald-500 mb-2">Forensic Strengths</h4>
-                                        <ul className="space-y-2">
-                                            {s4_B.strengths.slice(0, 3).map((w: string, i: number) => (
-                                                <li key={i} className="text-xs font-medium text-slate-300 flex items-start gap-2">
-                                                    <span className="text-emerald-500/50">•</span> {w}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                                {s4_B?.limitations?.length > 0 && (
-                                    <div>
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-2">Tradeoffs</h4>
-                                        <ul className="space-y-2">
-                                            {s4_B.limitations.slice(0, 3).map((w: string, i: number) => (
-                                                <li key={i} className="text-xs font-medium text-slate-300 flex items-start gap-2">
-                                                    <span className="text-amber-500/50">•</span> {w}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <p className="text-xs text-slate-500 italic mb-auto">No material forensic advantage over comparator in verified claims.</p>
-                        )}
-
-                        <div className="mt-auto pt-6 border-t border-slate-700/50">
-                            <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest block mb-1">Ideally Suited For</span>
-                            <p className="text-sm font-bold text-white">{s4_B ? getGoodFit(s4_B) : "Pending Analysis..."}</p>
-                        </div>
-                    </div>
+                    {/* Asset B */}
+                    <VerdictColumn
+                        asset={a2}
+                        audit={audit2}
+                        isWinner={verdict.winnerId === a2.id}
+                        summary={verdict.summaryB}
+                        goodFit={getGoodFit(audit2)}
+                    />
                 </div>
+            </div>
+        </div>
+    );
+}
+
+function VerdictColumn({ asset, audit, isWinner, summary, goodFit }: { asset: Asset, audit: AuditResult, isWinner: boolean, summary: string, goodFit: string }) {
+    const strengths = audit.strengths || [];
+    const limitations = audit.limitations || [];
+
+    return (
+        <div className={`
+            relative p-6 rounded-2xl flex flex-col h-full transition-all
+            ${isWinner ? 'bg-blue-900/20 border-2 border-blue-500/50 shadow-lg shadow-blue-900/20' : 'bg-slate-800/50 border border-slate-700/50'}
+        `}>
+            {isWinner && (
+                <div className="absolute -top-3 left-6 bg-blue-500 text-white text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-lg">
+                    Top Choice
+                </div>
+            )}
+
+            <h3 className="text-lg font-black uppercase tracking-tight mb-4 flex items-center gap-2 mt-2">
+                {asset.model_name}
+            </h3>
+
+            {/* Generated Summary */}
+            <p className="text-xs text-slate-300 leading-relaxed font-medium mb-6">
+                {summary}
+            </p>
+
+            {/* Forensic Details */}
+            <div className="space-y-6 mb-6">
+                {strengths.length > 0 && (
+                    <div>
+                        <h4 className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-2">Forensic Strengths</h4>
+                        <ul className="space-y-2">
+                            {strengths.slice(0, 3).map((w, i) => (
+                                <li key={i} className="text-[11px] font-medium text-slate-300 flex items-start gap-2">
+                                    <span className="text-emerald-500/50 mt-0.5">•</span> {w}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {limitations.length > 0 && (
+                    <div>
+                        <h4 className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-2">Tradeoffs</h4>
+                        <ul className="space-y-2">
+                            {limitations.slice(0, 3).map((w, i) => (
+                                <li key={i} className="text-[11px] font-medium text-slate-300 flex items-start gap-2">
+                                    <span className="text-amber-500/50 mt-0.5">•</span> {w}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+
+            <div className="mt-auto pt-6 border-t border-slate-700/50">
+                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest block mb-1">Ideally Suited For</span>
+                <p className="text-xs font-bold text-white">{goodFit}</p>
             </div>
         </div>
     );

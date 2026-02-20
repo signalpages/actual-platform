@@ -142,7 +142,12 @@ export function normalizeAuditResult(raw: any, product?: any): CanonicalAuditRes
     // Normalized Base
     const canonical: CanonicalAuditResult = {
         assetId: canonicalBase.assetId || canonicalBase.slug || product?.slug || 'unknown',
-        analysis: canonicalBase.analysis || { status: 'provisional', last_run_at: null },
+        analysis: {
+            status: canonicalBase.analysis?.status || 'provisional',
+            last_run_at: canonicalBase.analysis?.analyzedAt || null,
+            verdictReady: canonicalBase.analysis?.verdictReady || false,
+            runId: canonicalBase.analysis?.runId
+        },
         claim_profile,
         reality_ledger,
         discrepancies,

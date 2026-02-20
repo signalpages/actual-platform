@@ -4,13 +4,13 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { Category, Asset, AuditResult } from "../types";
 import { PRODUCT_CATEGORIES } from "./productCategories";
+import { normalizeAuditResult, CanonicalAuditResult } from "./auditNormalizer";
 
 /**
  * Client-side DataBridge
  * - public, browser-safe Supabase reads (anon)
  * - audit queue + polling
- * - IMPORTANT: status endpoint may return { audit, stages, claim_profile, ... } as siblings
- *   so we merge sibling fields into audit before returning to UI.
+ * - IMPORTANT: Implements strict Deep Merge to prevent overwriting valid data with undefined.
  */
 
 let _publicClient: SupabaseClient | null = null;
@@ -135,18 +135,27 @@ export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
 
 type RunAuditPayload = string | { slug: string; forceRefresh?: boolean; asset?: Asset };
 
-type AuditWithCache = AuditResult & { cache?: any };
+// HELPER: Deep Merge Defined
+// Only merges values that are NOT undefined/null (unless explicit null is intended, but mostly we want to avoid clobbering)
+function deepMergeDefined(target: any, source: any) {
+  if (!source) return target;
+  if (!target) return source;
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  Object.keys(source).forEach(key => {
+    const sVal = source[key];
+
+    if (sVal === undefined) return; // SKIP undefined
+
+    if (sVal && typeof sVal === 'object' && !Array.isArray(sVal)) {
+      target[key] = deepMergeDefined(target[key] || {}, sVal);
+    } else {
+      target[key] = sVal;
+    }
+  });
+
+  return target;
 }
 
-// Ensure analysis.status is derived consistently (server may return provisional/verified etc)
-import { normalizeAuditResult, CanonicalAuditResult } from "./auditNormalizer";
-
-// ... existing imports ...
-
-// Update return types
 export const runAudit = async (payload: RunAuditPayload): Promise<CanonicalAuditResult & { cache?: any }> => {
   const slug = typeof payload === "string" ? payload : payload.slug;
   const forceRefresh = typeof payload === "object" ? !!payload.forceRefresh : false;
@@ -163,34 +172,35 @@ export const runAudit = async (payload: RunAuditPayload): Promise<CanonicalAudit
 
   const data = await resp.json();
 
-  if (!data?.ok) throw new Error(data?.error || "Failed to queue audit");
+  if (!data?.ok) {
+    // Explicit error handling from API contract
+    const errCode = data?.analysis?.error?.code || 'UNKNOWN_ERROR';
+    const errMsg = data?.analysis?.error?.message || data?.error || "Failed to queue audit";
+    throw new Error(`[${errCode}] ${errMsg}`);
+  }
 
-  // 2) Cached / immediate path (Normalized)
+  // 2) Cached / Immediate (Normalized)
+  // New Contract: data.audit contains the payload.
   if (data.audit || data.stages) {
-    // If we have direct data, normalize it immediately
-    // Use the raw data object as the source, merging top-level keys
-    const rawForNormalization = {
-      ...data.audit,
-      stages: data.stages ?? data.audit?.stages,
-      // Carry over top-level fields that might be siblings in the response
-      claim_profile: data.claim_profile,
-      reality_ledger: data.reality_ledger,
-      discrepancies: data.discrepancies,
-      truth_index: data.truth_index ?? data.truth_score,
-      analysis: data.analysis
-    };
+    const rawAudit = data.audit || {};
 
-    const normalized = normalizeAuditResult(rawForNormalization, asset);
+    // Normalize first
+    const normalized = normalizeAuditResult(rawAudit, asset);
+
+    // Merge analysis metadata strictly
+    normalized.analysis = deepMergeDefined(normalized.analysis, data.analysis);
+
+    // Ensure runId is propagated
+    if (data.runId) normalized.analysis.runId = data.runId;
+
     return { ...normalized, cache: data.cache };
   }
 
-  // 3) Async path
+  // 3) Async path (Polling)
   const runId = data.runId;
   if (!runId) throw new Error("No runId returned from queue");
 
-  const result = await pollAuditStatus(runId, asset);
-  if (data.cache) (result as any).cache = data.cache;
-  return result;
+  return await pollAuditStatus(runId, asset);
 };
 
 // Promise-based deduplication - return same promise for duplicate requests
@@ -201,80 +211,54 @@ async function pollAuditStatus(runId: string, asset?: Asset): Promise<CanonicalA
   if (existing) return existing;
 
   const pollPromise = (async (): Promise<CanonicalAuditResult & { cache?: any }> => {
-    const maxAttempts = 60; // Increased attempts to match new timeout
-    const maxElapsedMs = 180_000; // 3 minutes client-side timeout
+    const maxAttempts = 60;
+    const maxElapsedMs = 180_000;
     const startTime = Date.now();
 
-    console.log(`[Polling] Started for runId ${runId} with asset: ${asset ? 'YES' : 'NO'}`);
+    console.log(`[Polling] Started for runId ${runId}`);
 
     try {
       for (let i = 0; i < maxAttempts; i++) {
         const elapsed = Date.now() - startTime;
-        if (elapsed > maxElapsedMs) throw new Error("Audit timed out. Please try again.");
+        if (elapsed > maxElapsedMs) throw new Error("Audit timed out.");
 
-        if (i > 0) {
-          const delay = i < 10 ? 2000 : i < 20 ? 3000 : 5000;
-          await sleep(delay);
-        }
+        if (i > 0) await new Promise(r => setTimeout(r, i < 10 ? 2000 : 4000));
 
+        const resp = await fetch(`/api/audit?slug=${asset?.slug}&forceRefresh=false`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ slug: asset?.slug }) // Polling via idempotent POST to get fresh canonical state
+        });
 
-        const resp = await fetch(`/api/audit/status?runId=${encodeURIComponent(runId)}`, { cache: 'no-store' });
         const data = await resp.json();
 
         if (!data?.ok) {
-          console.error(`[Polling] API Error for ${runId}:`, data?.error);
-          throw new Error(data?.error || "Failed to get audit status");
+          // Allow transient errors, but fail on explicit fatal
+          if (data?.analysis?.error?.code === 'WORKER_FAILED') throw new Error(data.analysis.error.message);
+          console.warn(`[Polling] Transient error or pending:`, data?.error);
+          continue;
         }
 
-        // FIX: Check activeRun.status (source of truth), not top-level status field
-        const run = data.activeRun ?? data.displayRun;
-        console.log(`[Polling] Debug ${runId}: active=${data.activeRun?.status}, display=${data.displayRun?.status}, topStatus=${data.status}, progress=${run?.progress}`);
-        const runStatus = (run?.status ?? "").toLowerCase();
-        const progress = run?.progress ?? 0;
+        const status = data.analysis?.status;
 
-        // Terminal conditions: done, error, canceled, OR progress === 100
-        const isTerminal =
-          runStatus === "done" ||
-          runStatus === "error" ||
-          runStatus === "canceled" ||
-          progress === 100;
-
-        if (isTerminal) {
-          // Create a composite object for normalization
-          const rawForNormalization = {
-            ...data.audit,
-            stages: data.stages,
-            claim_profile: data.claim_profile,
-            reality_ledger: data.reality_ledger,
-            discrepancies: data.discrepancies,
-            truth_index: data.truth_index ?? data.truth_score,
-            analysis: data.analysis
-          };
-
-          const normalized = normalizeAuditResult(rawForNormalization, asset);
-
-          console.log(
-            `[Polling] Completed for ${runId} after ${i + 1} attempts (${Date.now() - startTime}ms). Status: ${runStatus}`
-          );
-
-          // If error status, throw to trigger error handling
-          if (runStatus === "error" || runStatus === "canceled") {
-            throw new Error(run?.error || "Audit failed");
-          }
-
-          return normalized as CanonicalAuditResult & { cache?: any };
+        if (status === 'ready') {
+          console.log(`[Polling] Completed for ${runId} (Status: ready)`);
+          const rawAudit = data.audit || {};
+          const normalized = normalizeAuditResult(rawAudit, asset);
+          normalized.analysis = deepMergeDefined(normalized.analysis, data.analysis);
+          return normalized;
         }
 
-        if (i % 5 === 0) {
-          console.log(`[Polling] runId ${runId}: ${runStatus} (${progress}%) - Waiting...`);
+        if (status === 'failed') {
+          throw new Error(data.analysis?.error?.message || "Audit failed during processing");
         }
+
+        if (i % 5 === 0) console.log(`[Polling] ${runId}: ${status} - Waiting...`);
       }
 
-
-      throw new Error("Audit timed out after too many attempts. Please try again.");
+      throw new Error("Audit timed out.");
     } finally {
       pollPromises.delete(runId);
-      console.log(`[Polling] Stopped for runId ${runId}`);
     }
   })();
 
