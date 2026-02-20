@@ -1,10 +1,14 @@
+import { getLedgerStats } from '@/lib/dataBridge.server';
+
 export const runtime = 'edge';
 
-export default function CoveragePage() {
+export default async function CoveragePage() {
+    const stats = await getLedgerStats();
+
     return (
         <div className="max-w-4xl mx-auto px-6 py-16">
-            <h1 className="text-5xl font-black tracking-tightest mb-4">
-                COVERAGE &<br />VERIFICATION STATUS
+            <h1 className="text-5xl font-black tracking-tightest mb-4 uppercase">
+                COVERAGE
             </h1>
 
             <p className="text-lg text-slate-600 mb-12 max-w-2xl">
@@ -12,35 +16,61 @@ export default function CoveragePage() {
                 a curated index where every data point is weighted by its source reliability.
             </p>
 
-            <div className="grid md:grid-cols-2 gap-6 mb-12">
-                {/* Index Composition */}
-                <div className="bg-white border-2 border-slate-100 rounded-2xl p-8">
-                    <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-6">
-                        Index Composition
+            <div className="mb-12">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-2">
+                    <h2 className="text-3xl font-black tracking-tightest uppercase">
+                        INDEX SNAPSHOT
+                    </h2>
+                    <div className="flex flex-col text-right">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            Last checked: {new Date(stats.lastChecked).toLocaleTimeString()}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            Latest ledger activity: {new Date(stats.ledgerUpdatedAt).toLocaleDateString()}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white border-2 border-slate-100 rounded-2xl p-6">
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">
+                            Total Assets
+                        </div>
+                        <div className="text-4xl font-black tracking-tightest">
+                            {stats.totalAssets}
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-8">
-                        <div>
-                            <div className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2">
-                                Verified Assets
-                            </div>
-                            <div className="text-6xl font-black tracking-tightest mb-2">11</div>
-                            <div className="text-xs text-slate-500 leading-relaxed">
-                                Technical claims forensically matched against real-world test datasets.
-                            </div>
+                    <div className="bg-white border-2 border-slate-100 rounded-2xl p-6">
+                        <div className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-2">
+                            Verified Assets
                         </div>
+                        <div className="text-4xl font-black tracking-tightest text-blue-600">
+                            {stats.verifiedAssets}
+                        </div>
+                    </div>
 
-                        <div>
-                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
-                                Provisional
-                            </div>
-                            <div className="text-6xl font-black tracking-tightest mb-2">1</div>
-                            <div className="text-xs text-slate-500 leading-relaxed">
-                                Emerging signatures currently undergoing signal cross-referencing.
-                            </div>
+                    <div className="bg-white border-2 border-slate-100 rounded-2xl p-6">
+                        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                            Provisional
+                        </div>
+                        <div className="text-4xl font-black tracking-tightest text-slate-500">
+                            {stats.provisionalAssets}
+                        </div>
+                    </div>
+
+                    <div className="bg-white border-2 border-slate-100 rounded-2xl p-6">
+                        <div className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-2">
+                            Pending Audit
+                        </div>
+                        <div className="text-4xl font-black tracking-tightest text-orange-600">
+                            {stats.pendingAudits}
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6 mb-12">
 
                 {/* Verification Logic */}
                 <div className="bg-slate-900 text-white rounded-2xl p-8">

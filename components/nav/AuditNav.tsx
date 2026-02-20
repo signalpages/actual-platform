@@ -61,7 +61,7 @@ export default function AuditNav() {
                         </div>
 
                         <Link href="/learn" className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
-                            Learn
+                            Methodology
                         </Link>
                     </div>
 

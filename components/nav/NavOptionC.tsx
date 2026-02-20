@@ -66,7 +66,7 @@ export default function NavOptionC({ mode }: NavOptionCProps) {
                         </Link>
 
                         <Link href={withUi('/learn', mode)} className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
-                            Learn
+                            Methodology
                         </Link>
                     </div>
 
