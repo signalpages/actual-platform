@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Product, Asset, ShadowSpecs, AuditResult } from "@/types";
 import { isValidCategory } from "@/lib/categorizeProduct";
 
@@ -8,12 +9,18 @@ import { isValidCategory } from "@/lib/categorizeProduct";
  * Lazy-initialize Supabase client from Server Env.
  * Throws if keys are missing.
  */
-function getSupabase(): SupabaseClient {
+/**
+ * Lazy-initialize Supabase client from Server Env.
+ * Throws if keys are missing.
+ */
+async function getSupabase(): Promise<SupabaseClient> {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!url) throw new Error("Missing SUPABASE_URL in env");
     if (!key) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in env");
+
+    const { createClient } = await import("@supabase/supabase-js");
 
     return createClient(url, key, {
         auth: { persistSession: false },
@@ -24,7 +31,7 @@ function getSupabase(): SupabaseClient {
  * Resolve product by slug (Server V1).
  */
 export const getProductBySlug = async (slug: string): Promise<Product | null> => {
-    const supabase = getSupabase();
+    const supabase = await getSupabase();
     const { data, error } = await supabase
         .from("products")
         .select("*")
@@ -39,7 +46,7 @@ export const getProductBySlug = async (slug: string): Promise<Product | null> =>
  * Get latest audit (Server V1).
  */
 export const getAudit = async (productId: string): Promise<ShadowSpecs | null> => {
-    const supabase = getSupabase();
+    const supabase = await getSupabase();
 
     // Try to find a verified one first
     const { data: verified } = await supabase
@@ -69,7 +76,7 @@ export const getAudit = async (productId: string): Promise<ShadowSpecs | null> =
  * Persist audit (Server V1).
  */
 export const saveAudit = async (productId: string, payload: Partial<ShadowSpecs>): Promise<ShadowSpecs | null> => {
-    const supabase = getSupabase();
+    const supabase = await getSupabase();
 
     // Map progressive audit format to database schema
     // Store new fields in actual_specs as a temporary solution until migration
@@ -207,7 +214,7 @@ import { AuditRun } from '@/types';
  * Create a new audit run job
  */
 export const createAuditRun = async (productId: string): Promise<AuditRun | null> => {
-    const supabase = getSupabase();
+    const supabase = await getSupabase();
 
     const { data, error } = await supabase
         .from("audit_runs")
@@ -231,7 +238,7 @@ export const createAuditRun = async (productId: string): Promise<AuditRun | null
  * Get audit run by ID
  */
 export const getAuditRun = async (runId: string): Promise<AuditRun | null> => {
-    const supabase = getSupabase();
+    const supabase = await getSupabase();
 
     const { data, error } = await supabase
         .from("audit_runs")
@@ -251,7 +258,7 @@ export const getAuditRun = async (runId: string): Promise<AuditRun | null> => {
  * Get active audit run for a product
  */
 export const getActiveAuditRun = async (productId: string): Promise<AuditRun | null> => {
-    const supabase = getSupabase();
+    const supabase = await getSupabase();
 
     const { data, error } = await supabase
         .from("audit_runs")
@@ -277,7 +284,7 @@ export const updateAuditRun = async (
     runId: string,
     updates: Partial<AuditRun>
 ): Promise<boolean> => {
-    const supabase = getSupabase();
+    const supabase = await getSupabase();
 
     const { error } = await supabase
         .from("audit_runs")
@@ -290,4 +297,79 @@ export const updateAuditRun = async (
     }
 
     return true;
+};
+
+/**
+ * Get aggregate statistics for the ledger (Server V1).
+ * Returns real-time counts for Coverage page.
+ * Assumes DB unique constraint on shadow_specs(product_id).
+ */
+export const getLedgerStats = async () => {
+    try {
+        const supabase = await getSupabase();
+        const now = new Date();
+
+        // 1. Total Assets
+        const { count: totalAssets, error: totalError } = await supabase
+            .from("products")
+            .select("*", { count: 'exact', head: true });
+
+        // 2. Verified Assets
+        // Fetch only what's needed to reduce payload size
+        const { data: allSpecs, error: specsError } = await supabase
+            .from("shadow_specs")
+            .select("truth_score, claimed_specs, stages, updated_at");
+
+        let verifiedCount = 0;
+        let maxUpdatedAt: string | null = null;
+
+        if (allSpecs) {
+            for (const spec of allSpecs) {
+                // Defensive checks for stages object
+                const stages = spec.stages && typeof spec.stages === 'object' ? spec.stages as any : {};
+                const s3 = stages.stage_3?.status === 'done';
+                const s4 = stages.stage_4?.status === 'done';
+                const score = (spec.truth_score ?? 0) >= 80;
+                const claimsCount = Array.isArray(spec.claimed_specs) ? spec.claimed_specs.length : 0;
+                const claimsGate = claimsCount >= 3;
+
+                if (s3 && s4 && score && claimsGate) {
+                    verifiedCount++;
+                }
+
+                if (spec.updated_at && (!maxUpdatedAt || spec.updated_at > maxUpdatedAt)) {
+                    maxUpdatedAt = spec.updated_at;
+                }
+            }
+        }
+
+        // 3. Pending Audits (Unfiltered per prod-safe policy)
+        const { count: pendingAudits, error: pendingError } = await supabase
+            .from("audit_runs")
+            .select("*", { count: 'exact', head: true })
+            .in("status", ["pending", "running"]);
+
+        if (totalError || specsError || pendingError) {
+            console.error("Supabase error in getLedgerStats:", { totalError, specsError, pendingError });
+        }
+
+        return {
+            totalAssets: totalAssets || 0,
+            verifiedAssets: verifiedCount,
+            provisionalAssets: Math.max(0, (totalAssets || 0) - verifiedCount),
+            pendingAudits: pendingAudits || 0,
+            lastChecked: now.toISOString(),
+            ledgerUpdatedAt: maxUpdatedAt || now.toISOString()
+        };
+    } catch (err) {
+        console.error("Critical error in getLedgerStats:", err);
+        return {
+            totalAssets: 0,
+            verifiedAssets: 0,
+            provisionalAssets: 0,
+            pendingAudits: 0,
+            lastChecked: new Date().toISOString(),
+            ledgerUpdatedAt: new Date().toISOString()
+        };
+    }
 };
