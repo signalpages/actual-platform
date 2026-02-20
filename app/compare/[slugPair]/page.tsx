@@ -13,7 +13,7 @@ import { formatCategoryLabel } from '@/lib/categoryFormatter';
 import { normalizeAuditResult } from '@/lib/auditNormalizer';
 import { FullAuditPanel } from '@/components/FullAuditPanel';
 import { DecisionSummary } from '@/components/DecisionSummary';
-import { deriveVerdict, VerdictOutput } from '@/lib/compare/deriveVerdict';
+import { deriveVerdict, VerdictOutput } from '../../../lib/compare/deriveVerdict';
 
 type AuditState = 'idle' | 'running' | 'ready' | 'error';
 
