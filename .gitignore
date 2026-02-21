@@ -75,3 +75,7 @@ DEV_*.md
 # Node
 node_modules/
 
+*.sql
+products_dump.sql
+product_audits.sql
+seed_*.sql
