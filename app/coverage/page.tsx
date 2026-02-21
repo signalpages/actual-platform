@@ -61,7 +61,7 @@ export default async function CoveragePage() {
 
                     <div className="bg-white border-2 border-slate-100 rounded-2xl p-6">
                         <div className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-2">
-                            Pending Audit
+                            Pending / Running
                         </div>
                         <div className="text-4xl font-black tracking-tightest text-orange-600">
                             {stats.pendingAudits}

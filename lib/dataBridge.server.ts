@@ -318,10 +318,10 @@ export const getLedgerStats = async () => {
         // Fetch only what's needed to reduce payload size
         const { data: allSpecs, error: specsError } = await supabase
             .from("shadow_specs")
-            .select("truth_score, claimed_specs, stages, updated_at");
+            .select("truth_score, claimed_specs, stages, created_at");
 
         let verifiedCount = 0;
-        let maxUpdatedAt: string | null = null;
+        let maxCreatedAt: string | null = null;
 
         if (allSpecs) {
             for (const spec of allSpecs) {
@@ -337,8 +337,8 @@ export const getLedgerStats = async () => {
                     verifiedCount++;
                 }
 
-                if (spec.updated_at && (!maxUpdatedAt || spec.updated_at > maxUpdatedAt)) {
-                    maxUpdatedAt = spec.updated_at;
+                if (spec.created_at && (!maxCreatedAt || spec.created_at > maxCreatedAt)) {
+                    maxCreatedAt = spec.created_at;
                 }
             }
         }
@@ -359,7 +359,7 @@ export const getLedgerStats = async () => {
             provisionalAssets: Math.max(0, (totalAssets || 0) - verifiedCount),
             pendingAudits: pendingAudits || 0,
             lastChecked: now.toISOString(),
-            ledgerUpdatedAt: maxUpdatedAt || now.toISOString()
+            ledgerUpdatedAt: maxCreatedAt || now.toISOString()
         };
     } catch (err) {
         console.error("Critical error in getLedgerStats:", err);
