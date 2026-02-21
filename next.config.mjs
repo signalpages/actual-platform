@@ -21,6 +21,20 @@ const nextConfig = {
     env: {
         NEXT_PUBLIC_BUILD_ID: buildId,
     },
+    async redirects() {
+        return [
+            {
+                source: "/product/:slug*",
+                destination: "/specs/:slug*",
+                permanent: true,
+            },
+            {
+                source: "/products/:slug*",
+                destination: "/specs/:slug*",
+                permanent: true,
+            },
+        ];
+    },
     // Ensure no static export is forced, adhering to Cloudflare Pages Functions requirements
 };
 

@@ -78,7 +78,7 @@ export function FullAuditPanel({ product, audit, isRightColumn }: FullAuditPanel
                     <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                         {formatCategoryLabel(product.category)}
                     </p>
-                    <Link href={`/product/${product.slug}`} className="group block">
+                    <Link href={`/specs/${product.slug}`} className="group block">
                         <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 leading-none group-hover:text-blue-600 transition-colors">
                             {product.model_name}
                         </h2>
