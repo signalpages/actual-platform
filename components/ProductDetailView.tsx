@@ -31,9 +31,14 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const [loading, setLoading] = useState(!initialAsset);
 
   const [isScanning, setIsScanning] = useState(false);
+  const isScanningRef = useRef(false);
+
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
-  const [hasRevealedLedger, setHasRevealedLedger] = useState(false);
+  const [hasRevealedLedger, setHasRevealedLedger] = useState(
+    // Auto-reveal if SSR already delivered a complete audit
+    () => typeof initialAudit?.truth_index === 'number' && initialAudit.truth_index > 0
+  );
 
   // UX-001: Verify Integrity state
   type IntegrityState = 'idle' | 'checking' | 'done' | 'error';
@@ -100,32 +105,44 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
   const handleDeepScan = useCallback(
     async (targetAsset: Asset, forceRefresh = false) => {
-      if (!targetAsset || isScanning) return;
+      console.log('[DEBUG] handleDeepScan called', { targetAsset, isScanning: isScanningRef.current, forceRefresh });
+
+      // We only return early if we are currently scanning.
+      // Use ref to avoid stale closure trap from handleVerifyIntegrity
+      if (!targetAsset || isScanningRef.current) {
+        console.log('[DEBUG] handleDeepScan exiting early!', { isScanning: isScanningRef.current, hasAsset: !!targetAsset });
+        return;
+      }
 
       setIsScanning(true);
+      isScanningRef.current = true;
+      console.log('[DEBUG] handleDeepScan proceeding to runAudit');
 
       try {
         const result = await runAudit({ slug: targetAsset.slug, forceRefresh, asset: targetAsset });
+        console.log('[DEBUG] runAudit returned', result);
 
         setAudit(result);
         // Session write handled by the dedicated useEffect above.
 
-        // Show submission flow only if product has no specs
-        const hasProductSpecs = hasMeaningfulSpecs(asset?.technical_specs);
-        if (result?.analysis?.status === "failed" || !hasProductSpecs) {
+        if (result?.analysis?.status === "failed") {
+          // Only show submission flow on a true audit failure
           setShowSubmissionFlow(true);
         } else {
           setShowSubmissionFlow(false);
-          setHasRevealedLedger(true); // UX-001: Auto-reveal if we just computed it
+          // Always reveal the ledger after a successful run —
+          // regardless of whether specs existed (audit may still produce a valid result)
+          setHasRevealedLedger(true);
         }
       } catch (e: any) {
         setErrorMessage(e?.message || "Audit failed. Please try again.");
         setShowErrorModal(true);
       } finally {
         setIsScanning(false);
+        isScanningRef.current = false;
       }
     },
-    [isScanning]
+    [] // Dependencies cleanly empty since we use refs and stable external functions
   );
 
   // CACHE-001: Auto-run guard — only trigger LLM if no canonical data exists.
@@ -140,7 +157,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     }
   }, [mounted, asset, shouldAutoRun, slug, audit, handleDeepScan]);
 
-  // UX-001: Integrity check — DB read + checksum, zero LLM calls
+  // UX-001: Ledger retrieval — honest integrity check, no LLM unless needed.
   const handleVerifyIntegrity = useCallback(async () => {
     if (!asset?.slug || integrityState === 'checking') return;
     setIntegrityState('checking');
@@ -152,15 +169,60 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         body: JSON.stringify({ slug: asset.slug }),
       });
       const data = await res.json();
+
       // Cinematic minimum: 600ms
       const elapsed = Date.now() - t0;
       if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
-      setIntegrityResult(data);
-      setIntegrityState('done');
-    } catch {
-      setIntegrityState('error');
+
+      if (data.status === 'verified') {
+        console.log('[DEBUG] handleVerifyIntegrity: Cache hit (verified)');
+        setIntegrityState('idle');
+        setHasRevealedLedger(true);
+      } else {
+        console.log('[DEBUG] handleVerifyIntegrity: No audit or partial. Calling handleDeepScan', data.status);
+        setIntegrityState('idle');
+        handleDeepScan(asset);
+      }
+    } catch (e) {
+      console.error('[DEBUG] handleVerifyIntegrity: Caught error', e);
+      setIntegrityState('idle');
+      handleDeepScan(asset);
     }
-  }, [asset?.slug, integrityState]);
+  }, [asset, integrityState, handleDeepScan]);
+
+  // Stage recovery: re-run a single atomic stage endpoint.
+  const handleRunStage = useCallback(async (stage: 'stage2' | 'stage3' | 'stage4') => {
+    if (!asset?.slug || isScanning) return;
+    setIsScanning(true);
+    try {
+      const res = await fetch(`/api/audit/${stage}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ slug: asset.slug }),
+      });
+      const data = await res.json();
+      if (data.ok && data.output) {
+        // Merge returned stage output into existing audit stages without overwriting others
+        setAudit(prev => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            stages: {
+              ...prev.stages,
+              [stage.replace('stage', 'stage_')]: { status: 'done', data: data.output }
+            }
+          } as CanonicalAuditResult;
+        });
+      }
+      // Always re-fetch canonical audit from session/server after stage run
+      await handleDeepScan(asset, true);
+    } catch (e: any) {
+      setErrorMessage(e?.message || `Stage ${stage} failed.`);
+      setShowErrorModal(true);
+    } finally {
+      setIsScanning(false);
+    }
+  }, [asset, isScanning, handleDeepScan]);
 
   // Stage 1 is done if product has technical_specs (independent of audit).
   // CRITICAL: technical_specs is Array<{label,value}>, NOT { items:[] }.
@@ -263,7 +325,19 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         </div>
       )}
 
-      {/* UX-001: Verify Integrity Cinematic Modal */}
+      {/* Scanning overlay — shown during full audit run (can take 30-60s) */}
+      {isScanning && (
+        <div className="fixed inset-0 z-[100] bg-white/85 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="flex flex-col items-center gap-4 text-center max-w-xs">
+            <div className="w-10 h-10 border-4 border-slate-900 border-t-transparent rounded-full animate-spin" />
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-slate-900">Running verification</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">Analyzing claims across 4 stages…</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* UX-001: Cinematic overlay while checking integrity (fast path) */}
       {integrityState === 'checking' && (
         <div className="fixed inset-0 z-[100] bg-white/85 backdrop-blur-sm flex items-center justify-center p-6">
           <div className="flex flex-col items-center gap-4 text-center max-w-xs">
@@ -275,100 +349,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
           </div>
         </div>
       )}
-      {integrityState === 'done' && integrityResult && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
-          onClick={() => setIntegrityState('idle')}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-in fade-in slide-in-from-bottom-4 duration-300"
-            onClick={e => e.stopPropagation()}
-          >
-            {integrityResult.status === 'verified' ? (
-              <>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
-                    {integrityResult.needsRefresh ? 'Refresh scheduled' : 'Integrity check passed'}
-                  </span>
-                </div>
-                <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 mb-4">Ledger Status</h3>
-                <dl className="space-y-2 text-xs">
-                  {integrityResult.checksum && (
-                    <div className="flex justify-between">
-                      <dt className="text-slate-400 font-bold uppercase tracking-wide">Checksum</dt>
-                      <dd className="font-mono text-slate-700">{integrityResult.checksum}</dd>
-                    </div>
-                  )}
-                  {integrityResult.freshnessDays !== null && integrityResult.freshnessDays !== undefined && (
-                    <div className="flex justify-between">
-                      <dt className="text-slate-400 font-bold uppercase tracking-wide">Last verified</dt>
-                      <dd className="text-slate-700">{integrityResult.freshnessDays === 0 ? 'Today' : `${integrityResult.freshnessDays}d ago`}</dd>
-                    </div>
-                  )}
-                </dl>
-                {integrityResult.needsRefresh && (
-                  <p className="text-[10px] text-amber-600 font-bold mt-4">
-                    This audit is more than 30 days old. A refresh has been scheduled.
-                  </p>
-                )}
-                <div className="flex gap-2 w-full mt-6">
-                  <button
-                    onClick={() => {
-                      setIntegrityState('idle');
-                      setHasRevealedLedger(true);
-                    }}
-                    className="flex-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-xl hover:bg-slate-800 transition-colors"
-                  >
-                    View Ledger
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIntegrityState('idle');
-                      handleDeepScan(asset, true);
-                    }}
-                    className="px-4 bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-colors"
-                    title="Force Run AI (Admin)"
-                  >
-                    Run
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">
-                    Audit not yet in ledger
-                  </span>
-                </div>
-                <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 mb-4">Pending Verification</h3>
-                <p className="text-xs text-slate-500 mb-6">
-                  This product has been queued for our next verification cycle.
-                </p>
-                <div className="flex gap-2 w-full">
-                  <button
-                    onClick={() => setIntegrityState('idle')}
-                    className="flex-1 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-xl hover:bg-slate-200 transition-colors"
-                  >
-                    Dismiss
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIntegrityState('idle');
-                      handleDeepScan(asset, true);
-                    }}
-                    className="px-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-colors"
-                    title="Force Run AI (Admin)"
-                  >
-                    Run AI
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+
 
       <div className="bg-white border border-slate-200 rounded-[2rem] shadow-2xl overflow-hidden">
         <div className="p-10 md:p-14 border-b border-slate-100">
@@ -480,7 +461,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                 );
               })()}
 
-              {!hasRevealedLedger && !isScanning && (
+              {(!hasRevealedLedger || !effectiveAudit?.truth_index) && !isScanning && (
                 <button
                   onClick={handleVerifyIntegrity}
                   className="w-full bg-blue-600 text-white font-black uppercase px-6 py-4 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-xs tracking-widest"
@@ -493,18 +474,27 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         </div>
 
         <div className="p-10 md:p-14">
-          <AuditResults product={asset} audit={visibleAudit} />
+          <AuditResults product={asset} audit={visibleAudit} onRetryStage={handleRunStage} isRunning={isScanning} />
         </div>
       </div>
 
       <div className="mt-12 p-8 bg-slate-900 rounded-[2.5rem] shadow-xl text-center">
         {!isComparisonOpen ? (
-          <button
-            onClick={() => setIsComparisonOpen(true)}
-            className="text-xs font-black uppercase tracking-[0.2em] text-blue-400 hover:text-white transition-colors"
-          >
-            + Add Side-by-Side Comparison Asset
-          </button>
+          <div className="flex flex-col items-center gap-4">
+            <button
+              onClick={() => setIsComparisonOpen(true)}
+              className="text-xs font-black uppercase tracking-[0.2em] text-blue-400 hover:text-white transition-colors"
+            >
+              + Add Side-by-Side Comparison Asset
+            </button>
+            <button
+              onClick={() => handleDeepScan(asset, true)}
+              className="text-[9px] font-black uppercase tracking-widest text-slate-700 hover:text-slate-500 transition-colors"
+              title="Force AI re-computation (Admin only)"
+            >
+              Admin: Force Re-audit
+            </button>
+          </div>
         ) : (
           <div className="max-w-xl mx-auto space-y-6 animate-in fade-in slide-in-from-top-4">
             <div className="flex items-center justify-between">

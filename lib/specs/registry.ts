@@ -423,6 +423,22 @@ const REGISTRY: Record<string, SpecSchema> = {
     [SOLAR_PANEL_SCHEMA_V1.id]: SOLAR_PANEL_SCHEMA_V1,
     [EV_CHARGER_SCHEMA_V1.id]: EV_CHARGER_SCHEMA_V1,
     [INVERTER_SCHEMA_V1.id]: INVERTER_SCHEMA_V1,
+    'solar_panel.v1': {
+        id: 'solar_panel.v1',
+        version: '1.0.0',
+        fields: [
+            { key: 'rated_power_w', label: 'Rated Power', unit: 'W', formatter: (v) => `${v}W`, altKeys: ['power', 'wattage'] },
+            { key: 'efficiency_pct', label: 'Efficiency', formatter: (v) => `${v}%`, altKeys: ['efficiency'] },
+            { key: 'vmpp_v', label: 'Max Power Voltage (Vmpp)', unit: 'V', formatter: (v) => `${v}V` },
+            { key: 'impp_a', label: 'Max Power Current (Impp)', unit: 'A', formatter: (v) => `${v}A` },
+            { key: 'voc_v', label: 'Open Circuit Voltage (Voc)', unit: 'V', formatter: (v) => `${v}V` },
+            { key: 'isc_a', label: 'Short Circuit Current (Isc)', unit: 'A', formatter: (v) => `${v}A` },
+            { key: 'cell_type', label: 'Cell Type', altKeys: ['chemistry'] },
+            { key: 'bifacial', label: 'Bifacial', formatter: (v) => String(v).toLowerCase() === 'true' ? 'Yes' : 'No' },
+            { key: 'weight_kg', label: 'Weight', formatter: (v) => `${v} kg` },
+            { key: 'dimensions', label: 'Dimensions' }
+        ]
+    },
     'battery.v1': {
         id: 'battery.v1',
         version: '1.0.0',

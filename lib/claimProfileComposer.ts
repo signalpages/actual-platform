@@ -24,15 +24,34 @@ export function composeClaimProfile(specs: any, category: ProductCategory): Clai
         return [];
     }
 
-    // 2. Unwrap specs if needed (handle .kv, .items, or flat)
-    let s: Record<string, any> = specs;
-    if (specs.kv && typeof specs.kv === 'object' && !Array.isArray(specs.kv)) {
-        s = specs.kv;
-    } else if (specs.items && Array.isArray(specs.items)) {
-        s = {};
-        specs.items.forEach((item: any) => {
-            if (item?.key && item.value) s[item.key] = item.value;
-        });
+    // 2. Unwrap specs into a flat key→value map.
+    // Handles formats:
+    //   A. { kv: { key: value } }          — explicit kv wrapper
+    //   B. { items: [{ key, value }] }      — items array
+    //   C. { numeric: {...}, display: {...}, info: {...} } — solar panel nested format
+    //   D. Array<{ label, value }>           — standard seeder format (fallback composer handles)
+    //   E. Flat object                       — general case
+    let s: Record<string, any> = {};
+
+    if (!Array.isArray(specs) && specs && typeof specs === 'object') {
+        if (specs.kv && typeof specs.kv === 'object' && !Array.isArray(specs.kv)) {
+            // Format A
+            s = { ...specs.kv };
+        } else if (specs.items && Array.isArray(specs.items)) {
+            // Format B
+            specs.items.forEach((item: any) => {
+                if (item?.key && item.value !== undefined) s[item.key] = item.value;
+            });
+        } else {
+            // Format C or E: start with top-level keys, then merge known sub-objects
+            s = { ...specs };
+            // Flatten known sub-object groups (solar panel format)
+            for (const group of ['numeric', 'display', 'info', 'specs']) {
+                if (specs[group] && typeof specs[group] === 'object' && !Array.isArray(specs[group])) {
+                    Object.assign(s, specs[group]);
+                }
+            }
+        }
     }
 
     // 3. Iterate Schema Fields

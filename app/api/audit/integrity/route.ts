@@ -71,9 +71,15 @@ export async function POST(req: NextRequest) {
                 .eq('id', product.id);
         }
 
-        // 6. Count verified stages
+        // 6. Determine real status based on stage completeness
         const stages = shadow.stages || {};
         const doneStages = Object.values(stages).filter((s: any) => s?.status === 'done').length;
+        const hasStage4 = (stages as any)?.stage_4?.status === 'done';
+
+        // 'verified' = full pipeline completed (Stage 4 done = truth_index exists).
+        // 'partial'  = has some stages done but not Stage 4 — still has data to show.
+        // 'no_audit' = nothing useful in shadow_specs.
+        const status = hasStage4 ? 'verified' : doneStages > 0 ? 'partial' : 'no_audit';
 
         return NextResponse.json({
             ok: true,
@@ -82,7 +88,7 @@ export async function POST(req: NextRequest) {
             lastVerifiedAt: shadow.updated_at ?? null,
             freshnessDays,
             needsRefresh,
-            status: shadow.is_verified ? 'verified' : 'partial',
+            status,
             truthScore: shadow.truth_score ?? null,
         });
     } catch (err: any) {

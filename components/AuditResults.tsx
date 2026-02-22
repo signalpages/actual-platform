@@ -13,9 +13,44 @@ import { hasMeaningfulSpecs } from '@/lib/hasMeaningfulSpecs';
 interface AuditResultsProps {
     product: Asset;
     audit: CanonicalAuditResult | null;
+    onRetryStage?: (stage: 'stage2' | 'stage3' | 'stage4') => void;
+    isRunning?: boolean;
 }
 
-export function AuditResults({ product, audit }: AuditResultsProps) {
+// Module-level helper: flatten nested JSONB spec objects into label/value pairs
+// Handles { display: {...}, numeric: {...}, info: {...} } and plain flat objects.
+function flattenSpecsRaw(specs: Record<string, any>): Array<{ label: string; value: string }> {
+    const groups = ['numeric', 'display', 'info', 'specs'];
+    const hasGroupKeys = groups.some(g => g in specs && specs[g] && typeof specs[g] === 'object');
+
+    function flatten(obj: Record<string, any>): Array<{ label: string; value: string }> {
+        const out: Array<{ label: string; value: string }> = [];
+        for (const [k, v] of Object.entries(obj)) {
+            if (v === null || v === undefined) continue;
+            const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+                out.push(...flatten(v as Record<string, any>));
+            } else {
+                const val = String(v).trim();
+                if (val && val !== 'null' && val !== 'undefined' && val !== 'false') {
+                    out.push({ label, value: val });
+                }
+            }
+        }
+        return out;
+    }
+
+    if (hasGroupKeys) {
+        const out: Array<{ label: string; value: string }> = [];
+        for (const g of groups) {
+            if (specs[g] && typeof specs[g] === 'object') out.push(...flatten(specs[g] as Record<string, any>));
+        }
+        return out;
+    }
+    return flatten(specs);
+}
+
+export function AuditResults({ product, audit, onRetryStage, isRunning }: AuditResultsProps) {
     if (!audit) return null;
 
     const stages = audit.stages;
@@ -24,25 +59,40 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
     const stageStatus = (key: string) => (stages as any)?.[key]?.status || 'pending';
     const stageData = (key: string) => (stages as any)?.[key]?.data || {};
 
+    // Small retry button, shown only when a stage has failed/blocked/stale
+    const RetryButton = ({ stage }: { stage: 'stage2' | 'stage3' | 'stage4' }) => {
+        if (!onRetryStage) return null;
+        return (
+            <button
+                onClick={() => onRetryStage(stage)}
+                disabled={isRunning}
+                className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 transition-colors disabled:opacity-40"
+                title={`Re-run ${stage}`}
+            >
+                ↺ Retry
+            </button>
+        );
+    };
+
     // -------------------------
     // STAGE 1: Manufacturer Profile (composed from specs)
     // -------------------------
     const stage1 = stages.stage_1;
 
-    // Primary: Compose from Technical Specs (Human Readable)
-    // Fallback: Use audit claim_profile (Raw/Legacy)
-    // Fallback C: Empty array
+    // Primary: schema composer (reads category-specific schema)
     let claimItems = composeClaimProfile(product.technical_specs, product.category);
 
-    if (claimItems.length === 0) {
-        // Fallback to raw if composer returned nothing (e.g. specs missing standard keys)
-        claimItems = audit?.claim_profile ??
-            (Array.isArray((product as any)?.claim_profile) ? (product as any).claim_profile : []);
+    // Fallback A: use audit claim_profile
+    if (claimItems.length === 0 && Array.isArray(audit?.claim_profile) && audit.claim_profile.length > 0) {
+        claimItems = audit.claim_profile;
     }
 
-    // Guardrail: render Stage 1 if we have at least one meaningful spec.
-    // Use hasMeaningfulSpecs as the canonical guard (SPEC-001).
-    const hasSpecs = hasMeaningfulSpecs(product.technical_specs) || claimItems.length >= 1;
+    // Fallback B: raw-flatten the nested JSONB spec object
+    if (claimItems.length === 0 && product.technical_specs && typeof product.technical_specs === 'object' && !Array.isArray(product.technical_specs)) {
+        claimItems = flattenSpecsRaw(product.technical_specs as Record<string, any>);
+    }
+
+    const hasSpecs = claimItems.length >= 1;
 
     // -------------------------
     // STAGE 2: Analysis/Signal
@@ -95,6 +145,8 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
 
     const isStage4Done = stageStatus('stage_4') === 'done';
     const isStage4Blocked = stageStatus('stage_4') === 'blocked';
+    const isStage2Done = stageStatus('stage_2') === 'done';
+    const isStage3Done = stageStatus('stage_3') === 'done';
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
@@ -186,6 +238,8 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                         </div>
                     </div>
                 )}
+                {/* Stage 2 retry if pending */}
+                {!isStage2Done && <RetryButton stage="stage2" />}
             </StageCard>
 
             {/* STAGE 3 */}
@@ -214,6 +268,8 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                             </div>
                         )
                     )}
+                    {/* Retry Stage 3 when still pending after Stage 2 ran */}
+                    {!isStage3Done && isStage2Done && <RetryButton stage="stage3" />}
                 </div>
             </StageCard>
 
@@ -225,14 +281,18 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                 status={stageStatus('stage_4')}
                 data={stage4}
             >
-                {/* AUDIT-002: Blocked state — valid, not an error */}
+                {/* AUDIT-002: Blocked state — actionable, not a dead-end */}
                 {isStage4Blocked && (
-                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6 text-center">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-2">BLOCKED</div>
-                        <div className="text-sm font-bold text-slate-700 mb-1">Insufficient verification signal</div>
+                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-1">INCOMPLETE</div>
+                                <div className="text-sm font-bold text-slate-700">Stage 4 did not produce a verdict</div>
+                            </div>
+                            <RetryButton stage="stage4" />
+                        </div>
                         <div className="text-xs text-slate-500">
-                            Stage 3 did not produce enough validated discrepancies to compute a verdict.
-                            Stages 1–3 data is preserved above.
+                            Stages 1–3 are preserved. Re-running Stage 4 may resolve this.
                         </div>
                     </div>
                 )}
