@@ -321,16 +321,68 @@ export async function POST(req: Request) {
       });
 
     } catch (e: any) {
+      const message = String(e?.message || e);
+
+      // ✅ AUDIT-002: STAGE4_BLOCKED is a valid state, not a server error.
+      // Stages 1–3 completed; Stage 4 had insufficient signal.
+      // Return 200 with partial audit so UI can render what we have.
+      if (message.includes('STAGE4_BLOCKED')) {
+        console.warn(`[AuditAPI] Stage 4 blocked for ${slug} — returning partial audit (200)`);
+
+        // Fetch whatever canonical data we have from shadow_specs (stage 1-3 should be persisted)
+        const { data: partial } = await supabase
+          .from('shadow_specs')
+          .select('stages, created_at')
+          .eq('product_id', product.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const partialStages = partial?.stages || {};
+        const partialAudit = {
+          claim_profile: partialStages.stage_1?.data?.claim_profile || [],
+          reality_ledger: partialStages.stage_3?.data?.reality_ledger || partialStages.stage_3?.data?.entries || [],
+          discrepancies: partialStages.stage_3?.data?.red_flags || [],
+          verification_map: partialStages.stage_3?.data?.verification_map || {},
+          truth_index: null,
+          strengths: [],
+          limitations: [],
+          practical_impact: [],
+          stages: {
+            ...partialStages,
+            stage_4: {
+              status: 'blocked',
+              data: null,
+              meta: { reason: 'STAGE4_BLOCKED', message: 'Insufficient verification signal to compute verdict.' }
+            }
+          }
+        };
+
+        return NextResponse.json({
+          ok: true,
+          analysis: {
+            status: 'blocked',
+            verdictReady: false,
+            blockedStage: 'stage_4',
+            reason: 'STAGE4_BLOCKED',
+            runId: runId,
+          },
+          audit: partialAudit,
+          runId
+        }); // status 200 (default)
+      }
+
+      // ❌ True server failure
       console.error(`[AuditAPI] Worker execution failed:`, e);
       return NextResponse.json({
-        ok: true, // Client handles status: failed better than ok: false often
+        ok: true, // Client handles status: failed better than ok: false
         analysis: {
           status: 'failed',
           verdictReady: false,
           runId: runId,
-          error: { code: 'WORKER_FAILED', message: e.message }
+          error: { code: 'WORKER_FAILED', message: message }
         },
-        audit: { claim_profile: [], reality_ledger: [], discrepancies: [], verification_map: {}, truth_index: null },
+        audit: { claim_profile: [], reality_ledger: [], discrepancies: [], verification_map: {}, truth_index: null, stages: {} },
         runId
       }, { status: 500 });
     }

@@ -94,6 +94,7 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
     };
 
     const isStage4Done = stageStatus('stage_4') === 'done';
+    const isStage4Blocked = stageStatus('stage_4') === 'blocked';
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
@@ -224,6 +225,17 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
                 status={stageStatus('stage_4')}
                 data={stage4}
             >
+                {/* AUDIT-002: Blocked state — valid, not an error */}
+                {isStage4Blocked && (
+                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-6 text-center">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-amber-500 mb-2">BLOCKED</div>
+                        <div className="text-sm font-bold text-slate-700 mb-1">Insufficient verification signal</div>
+                        <div className="text-xs text-slate-500">
+                            Stage 3 did not produce enough validated discrepancies to compute a verdict.
+                            Stages 1–3 data is preserved above.
+                        </div>
+                    </div>
+                )}
                 {isStage4Done && (
                     <div className="space-y-8">
                         {/* Metric Bars */}
