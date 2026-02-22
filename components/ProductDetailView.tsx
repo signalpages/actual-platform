@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { runAudit, getAssetBySlug } from "@/lib/dataBridge.client";
+import { hasMeaningfulSpecs } from "@/lib/hasMeaningfulSpecs";
 import { AssetSelector } from "@/components/ComparisonPicker";
 import type { Asset, AuditResult } from "@/types";
 import { CanonicalAuditResult, normalizeAuditResult } from "@/lib/auditNormalizer";
@@ -33,6 +34,18 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
 
+  // UX-001: Verify Integrity state
+  type IntegrityState = 'idle' | 'checking' | 'done' | 'error';
+  const [integrityState, setIntegrityState] = useState<IntegrityState>('idle');
+  const [integrityResult, setIntegrityResult] = useState<{
+    checksum?: string | null;
+    lastVerifiedAt?: string | null;
+    freshnessDays?: number | null;
+    needsRefresh?: boolean;
+    status?: string;
+    truthScore?: number | null;
+  } | null>(null);
+
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [showSubmissionFlow, setShowSubmissionFlow] = useState(false);
 
@@ -56,7 +69,21 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     }
   }, [asset, slug]);
 
-  // Load audit from session storage only after mount (client-only)
+  // CACHE-001: Persist audit to session storage as a performance suggestion only.
+  // DB is canonical source of truth. Session is read-only warm cache.
+  useEffect(() => {
+    if (!audit || !slug || !mounted) return;
+    try {
+      const current = JSON.parse(sessionStorage.getItem("actual_fyi_audits") || "{}");
+      current[slug.toLowerCase()] = audit;
+      sessionStorage.setItem("actual_fyi_audits", JSON.stringify(current));
+    } catch {
+      // ignore
+    }
+  }, [audit, slug, mounted]);
+
+  // Load audit from session storage only after mount (client-only fallback).
+  // Only hydrates if no SSR audit was provided.
   useEffect(() => {
     if (!mounted) return;
     if (!audit && slug) {
@@ -80,18 +107,10 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         const result = await runAudit({ slug: targetAsset.slug, forceRefresh, asset: targetAsset });
 
         setAudit(result);
-
-        // Cache result in session
-        try {
-          const current = JSON.parse(sessionStorage.getItem("actual_fyi_audits") || "{}");
-          current[targetAsset.slug.toLowerCase()] = result;
-          sessionStorage.setItem("actual_fyi_audits", JSON.stringify(current));
-        } catch {
-          // ignore cache failure
-        }
+        // Session write handled by the dedicated useEffect above.
 
         // Show submission flow only if product has no specs
-        const hasProductSpecs = (asset?.technical_specs?.items?.length ?? 0) >= 3;
+        const hasProductSpecs = hasMeaningfulSpecs(asset?.technical_specs);
         if (result?.analysis?.status === "failed" || !hasProductSpecs) {
           setShowSubmissionFlow(true);
         } else {
@@ -107,17 +126,44 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     [isScanning]
   );
 
-  // Auto-run audit when ?autoRun=true
+  // CACHE-001: Auto-run guard — only trigger LLM if no canonical data exists.
+  // Priority: initialAudit (SSR) > session cache > auto-run.
+  // This prevents refresh from re-triggering compute.
   useEffect(() => {
     if (!mounted) return;
+    // audit here includes initialAudit (from SSR) and session cache (from earlier useEffect)
     if (asset && shouldAutoRun && auditProcessed.current !== slug && !audit) {
       auditProcessed.current = slug;
       handleDeepScan(asset);
     }
   }, [mounted, asset, shouldAutoRun, slug, audit, handleDeepScan]);
 
-  // Stage 1 is done if product has technical_specs (independent of audit)
-  const productHasSpecs = (asset?.technical_specs?.items?.length ?? 0) >= 3 || (asset?.technical_specs && Object.keys(asset.technical_specs).length >= 3);
+  // UX-001: Integrity check — DB read + checksum, zero LLM calls
+  const handleVerifyIntegrity = useCallback(async () => {
+    if (!asset?.slug || integrityState === 'checking') return;
+    setIntegrityState('checking');
+    const t0 = Date.now();
+    try {
+      const res = await fetch('/api/audit/integrity', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ slug: asset.slug }),
+      });
+      const data = await res.json();
+      // Cinematic minimum: 400ms
+      const elapsed = Date.now() - t0;
+      if (elapsed < 400) await new Promise(r => setTimeout(r, 400 - elapsed));
+      setIntegrityResult(data);
+      setIntegrityState('done');
+    } catch {
+      setIntegrityState('error');
+    }
+  }, [asset?.slug, integrityState]);
+
+  // Stage 1 is done if product has technical_specs (independent of audit).
+  // CRITICAL: technical_specs is Array<{label,value}>, NOT { items:[] }.
+  // Use hasMeaningfulSpecs — the single source of truth.
+  const productHasSpecs = hasMeaningfulSpecs(asset?.technical_specs);
   const stage1Done = productHasSpecs;
 
   // COMPUTE EFFECTIVE AUDIT
@@ -194,18 +240,71 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         <div className="fixed bottom-4 right-4 z-[9999] bg-black/80 text-white p-3 rounded-lg text-[10px] font-mono shadow-xl border border-slate-700">
           <div className="font-bold text-emerald-400 mb-1">DEBUG: Audit Schema</div>
           <div>Source: <span className="text-yellow-300">{effectiveAudit._schema_source || 'unknown'}</span></div>
-          <div>Claims: {asset?.technical_specs?.items?.length || 0}</div>
+          <div>HasSpecs: {productHasSpecs ? 'yes' : 'no'}</div>
           <div>Ledger: {effectiveAudit.reality_ledger?.length || 0}</div>
           <div>Truth: {effectiveAudit.truth_index ?? 'null'}</div>
         </div>
       )}
 
-      {/* Loading Overlay during Scan */}
-      {isScanning && (
-        <div className="fixed inset-0 z-[100] bg-white/80 backdrop-blur-sm flex items-center justify-center p-6">
-          <div className="flex flex-col items-center">
-            <div className="w-12 h-12 border-4 border-slate-900 border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-xs font-black uppercase tracking-widest text-slate-900">Running Verification...</p>
+      {/* UX-001: Verify Integrity Cinematic Modal */}
+      {integrityState === 'checking' && (
+        <div className="fixed inset-0 z-[100] bg-white/85 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="flex flex-col items-center gap-4 text-center max-w-xs">
+            <div className="w-10 h-10 border-4 border-slate-900 border-t-transparent rounded-full animate-spin" />
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-slate-900">Retrieving ledger entry</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">Verifying integrity…</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {integrityState === 'done' && integrityResult && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-6"
+          onClick={() => setIntegrityState('idle')}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-in fade-in slide-in-from-bottom-4 duration-300"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                {integrityResult.needsRefresh ? 'Refresh scheduled' : 'Integrity check passed'}
+              </span>
+            </div>
+            <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 mb-4">Ledger Status</h3>
+            <dl className="space-y-2 text-xs">
+              {integrityResult.checksum && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-400 font-bold uppercase tracking-wide">Checksum</dt>
+                  <dd className="font-mono text-slate-700">{integrityResult.checksum}</dd>
+                </div>
+              )}
+              {integrityResult.freshnessDays !== null && integrityResult.freshnessDays !== undefined && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-400 font-bold uppercase tracking-wide">Last verified</dt>
+                  <dd className="text-slate-700">{integrityResult.freshnessDays === 0 ? 'Today' : `${integrityResult.freshnessDays}d ago`}</dd>
+                </div>
+              )}
+              {integrityResult.status && (
+                <div className="flex justify-between">
+                  <dt className="text-slate-400 font-bold uppercase tracking-wide">Status</dt>
+                  <dd className="text-slate-700 capitalize">{integrityResult.status}</dd>
+                </div>
+              )}
+            </dl>
+            {integrityResult.needsRefresh && (
+              <p className="text-[10px] text-amber-600 font-bold mt-4">
+                This audit is more than 30 days old. A refresh has been scheduled.
+              </p>
+            )}
+            <button
+              onClick={() => setIntegrityState('idle')}
+              className="mt-6 w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-700 transition-colors"
+            >
+              Dismiss
+            </button>
           </div>
         </div>
       )}

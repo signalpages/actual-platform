@@ -8,6 +8,7 @@ import { DiscrepancyCard } from './DiscrepancyCard';
 import { MetricBars } from './MetricBars';
 import { formatCategoryLabel } from '../lib/categoryFormatter';
 import { composeClaimProfile } from '@/lib/claimProfileComposer';
+import { hasMeaningfulSpecs } from '@/lib/hasMeaningfulSpecs';
 
 interface AuditResultsProps {
     product: Asset;
@@ -39,8 +40,9 @@ export function AuditResults({ product, audit }: AuditResultsProps) {
             (Array.isArray((product as any)?.claim_profile) ? (product as any).claim_profile : []);
     }
 
-    // Guardrail B: Match seeder 3-spec threshold
-    const hasSpecs = claimItems.length >= 3;
+    // Guardrail: render Stage 1 if we have at least one meaningful spec.
+    // Use hasMeaningfulSpecs as the canonical guard (SPEC-001).
+    const hasSpecs = hasMeaningfulSpecs(product.technical_specs) || claimItems.length >= 1;
 
     // -------------------------
     // STAGE 2: Analysis/Signal

@@ -5,6 +5,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { Category, Asset, AuditResult } from "../types";
 import { PRODUCT_CATEGORIES } from "./productCategories";
 import { normalizeAuditResult, CanonicalAuditResult } from "./auditNormalizer";
+import { sanitizeAuditPayload } from "./schemas/auditResponse";
 
 /**
  * Client-side DataBridge
@@ -182,9 +183,10 @@ export const runAudit = async (payload: RunAuditPayload): Promise<CanonicalAudit
   // 2) Cached / Immediate (Normalized)
   // New Contract: data.audit contains the payload.
   if (data.audit || data.stages) {
-    const rawAudit = data.audit || {};
+    // CACHE-001: sanitize before normalizing — no undefined fields allowed
+    const rawAudit = sanitizeAuditPayload(data.audit || {});
 
-    // Normalize first
+    // Normalize
     const normalized = normalizeAuditResult(rawAudit, asset);
 
     // Merge analysis metadata strictly
