@@ -70,5 +70,28 @@ export function composeClaimProfile(specs: any, category: ProductCategory): Clai
         }
     }
 
+    // If schema-driven approach yielded claims, return them
+    if (claims.length > 0) return claims;
+
+    // Generic fallback: flatten any non-empty specs object/array to display pairs.
+    // Used when: (a) schema fields don't match stored keys, or (b) all schema fields are empty.
+    // Ensures Stage 1 always renders for products that have SOME technical_specs data.
+    if (Array.isArray(s)) {
+        // Flat {label, value} array (standard seeder format)
+        for (const item of s) {
+            if (item?.label && String(item?.value ?? '').trim()) {
+                claims.push({ label: String(item.label), value: String(item.value) });
+            }
+        }
+    } else if (s && typeof s === 'object') {
+        // Plain object: humanize keys and render values
+        for (const [key, val] of Object.entries(s)) {
+            if (val === null || val === undefined || String(val).trim() === '') continue;
+            if (['evidence', 'spec_sources', 'content_hash', '_meta'].includes(key)) continue;
+            const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+            claims.push({ label, value: String(val) });
+        }
+    }
+
     return claims;
 }

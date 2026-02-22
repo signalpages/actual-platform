@@ -334,11 +334,95 @@ export const EV_CHARGER_SCHEMA_V1: SpecSchema = {
     ]
 };
 
+// --------------------------------------------------------
+// SCHEMA: INVERTER (V1)
+// --------------------------------------------------------
+export const INVERTER_SCHEMA_V1: SpecSchema = {
+    id: 'inverter.v1',
+    version: '1.0.0',
+    fields: [
+        {
+            key: 'continuous_ac_output_w',
+            label: 'Continuous AC Output',
+            formatter: (v) => `${v}W`,
+            altKeys: ['continuous_output_w', 'rated_power_w', 'output_power_w']
+        },
+        {
+            key: 'surge_output_w',
+            label: 'Surge Output',
+            formatter: (v) => `${v}W`,
+            altKeys: ['peak_output_w', 'peak_surge_output_w', 'surge_power_w']
+        },
+        {
+            key: 'output_voltage_v',
+            label: 'AC Output Voltage',
+            formatter: (v) => `${v}VAC`,
+            altKeys: ['ac_output_voltage', 'output_voltage']
+        },
+        {
+            key: 'output_frequency_hz',
+            label: 'Output Frequency',
+            formatter: (v) => `${v}Hz`,
+            altKeys: ['frequency_hz', 'frequency']
+        },
+        {
+            key: 'dc_input_voltage_v',
+            label: 'DC Input Voltage',
+            formatter: (v) => `${v}VDC`,
+            altKeys: ['input_voltage_v', 'battery_voltage_v', 'dc_voltage']
+        },
+        {
+            key: 'max_dc_input_current_a',
+            label: 'Max DC Input Current',
+            formatter: (v) => `${v}A`,
+            altKeys: ['max_input_current_a', 'dc_input_current']
+        },
+        {
+            key: 'idle_consumption_w',
+            label: 'Idle Draw',
+            formatter: (v) => `${v}W`,
+            altKeys: ['no_load_power_w', 'standby_power_w', 'idle_power']
+        },
+        {
+            key: 'parallel_capable',
+            label: 'Parallel Capable',
+            formatter: (v) => (v === true || v === 'true' || v === 'yes' || v === 'Yes') ? 'Yes' : 'No',
+        },
+        {
+            key: 'remote_monitoring',
+            label: 'Remote Monitoring',
+            formatter: (v) => (v === true || v === 'true' || v === 'yes' || v === 'Yes') ? 'Yes' : 'No',
+        },
+        {
+            key: 'weight_kg',
+            label: 'Weight',
+            formatter: (v) => `${v}kg`,
+            altKeys: ['weight_lbs', 'weight']
+        },
+        {
+            key: 'dimensions_mm',
+            label: 'Dimensions',
+            altKeys: ['dimensions', 'dimensions_display']
+        },
+        {
+            key: 'operating_temp_c',
+            label: 'Operating Temp',
+            altKeys: ['operating_temp_range', 'operating_temperature']
+        },
+        {
+            key: 'warranty_years',
+            label: 'Warranty',
+            formatter: (v) => `${v} years`,
+        },
+    ]
+};
+
 const REGISTRY: Record<string, SpecSchema> = {
     [PPS_SCHEMA_V1.id]: PPS_SCHEMA_V1,
     [CHARGE_CONTROLLER_SCHEMA_V1.id]: CHARGE_CONTROLLER_SCHEMA_V1,
     [SOLAR_PANEL_SCHEMA_V1.id]: SOLAR_PANEL_SCHEMA_V1,
     [EV_CHARGER_SCHEMA_V1.id]: EV_CHARGER_SCHEMA_V1,
+    [INVERTER_SCHEMA_V1.id]: INVERTER_SCHEMA_V1,
     'battery.v1': {
         id: 'battery.v1',
         version: '1.0.0',

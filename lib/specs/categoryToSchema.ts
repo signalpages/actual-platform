@@ -6,7 +6,7 @@ export const CATEGORY_TO_SCHEMA: Record<ProductCategory, string> = {
 
     // TODO: Define schemas for these
     'solar_panel': 'solar_panel.v1',
-    'inverter': 'portable_power_station.v1', // Temp fallback
+    'inverter': 'inverter.v1',
     'home_backup_system': 'battery.v1',
     'ev_charger': 'ev_charger.v1'
 };

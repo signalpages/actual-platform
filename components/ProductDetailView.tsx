@@ -33,6 +33,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const [isScanning, setIsScanning] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+  const [hasRevealedLedger, setHasRevealedLedger] = useState(false);
 
   // UX-001: Verify Integrity state
   type IntegrityState = 'idle' | 'checking' | 'done' | 'error';
@@ -115,6 +116,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
           setShowSubmissionFlow(true);
         } else {
           setShowSubmissionFlow(false);
+          setHasRevealedLedger(true); // UX-001: Auto-reveal if we just computed it
         }
       } catch (e: any) {
         setErrorMessage(e?.message || "Audit failed. Please try again.");
@@ -150,9 +152,9 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         body: JSON.stringify({ slug: asset.slug }),
       });
       const data = await res.json();
-      // Cinematic minimum: 400ms
+      // Cinematic minimum: 600ms
       const elapsed = Date.now() - t0;
-      if (elapsed < 400) await new Promise(r => setTimeout(r, 400 - elapsed));
+      if (elapsed < 600) await new Promise(r => setTimeout(r, 600 - elapsed));
       setIntegrityResult(data);
       setIntegrityState('done');
     } catch {
@@ -177,8 +179,23 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     effectiveAudit?.stages?.stage_4?.status === "done"
   );
 
-  const isVerifiedAudit = stage1Done && allStagesComplete && !!effectiveAudit?.truth_index;
+  const cacheHasVerifiedAudit = stage1Done && allStagesComplete && !!effectiveAudit?.truth_index;
+  const isVerifiedAudit = cacheHasVerifiedAudit && hasRevealedLedger;
   const isProvisional = asset?.verification_status === "provisional";
+
+  const visibleAudit = useMemo(() => {
+    if (!effectiveAudit) return null;
+    if (hasRevealedLedger) return effectiveAudit;
+
+    // Mask downstream stages until revealed
+    return {
+      ...effectiveAudit,
+      truth_index: null,
+      stages: {
+        stage_1: effectiveAudit.stages?.stage_1
+      }
+    } as CanonicalAuditResult;
+  }, [effectiveAudit, hasRevealedLedger]);
 
   // Force Layout to always show AuditResults (per user request: "all unaudited products should have the layout on the left")
   // We disable the "Missing Asset Protocol" form by ensuring noDataFound is always false if we have an asset.
@@ -267,44 +284,88 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full animate-in fade-in slide-in-from-bottom-4 duration-300"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
-                {integrityResult.needsRefresh ? 'Refresh scheduled' : 'Integrity check passed'}
-              </span>
-            </div>
-            <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 mb-4">Ledger Status</h3>
-            <dl className="space-y-2 text-xs">
-              {integrityResult.checksum && (
-                <div className="flex justify-between">
-                  <dt className="text-slate-400 font-bold uppercase tracking-wide">Checksum</dt>
-                  <dd className="font-mono text-slate-700">{integrityResult.checksum}</dd>
+            {integrityResult.status === 'verified' ? (
+              <>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                    {integrityResult.needsRefresh ? 'Refresh scheduled' : 'Integrity check passed'}
+                  </span>
                 </div>
-              )}
-              {integrityResult.freshnessDays !== null && integrityResult.freshnessDays !== undefined && (
-                <div className="flex justify-between">
-                  <dt className="text-slate-400 font-bold uppercase tracking-wide">Last verified</dt>
-                  <dd className="text-slate-700">{integrityResult.freshnessDays === 0 ? 'Today' : `${integrityResult.freshnessDays}d ago`}</dd>
+                <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 mb-4">Ledger Status</h3>
+                <dl className="space-y-2 text-xs">
+                  {integrityResult.checksum && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-400 font-bold uppercase tracking-wide">Checksum</dt>
+                      <dd className="font-mono text-slate-700">{integrityResult.checksum}</dd>
+                    </div>
+                  )}
+                  {integrityResult.freshnessDays !== null && integrityResult.freshnessDays !== undefined && (
+                    <div className="flex justify-between">
+                      <dt className="text-slate-400 font-bold uppercase tracking-wide">Last verified</dt>
+                      <dd className="text-slate-700">{integrityResult.freshnessDays === 0 ? 'Today' : `${integrityResult.freshnessDays}d ago`}</dd>
+                    </div>
+                  )}
+                </dl>
+                {integrityResult.needsRefresh && (
+                  <p className="text-[10px] text-amber-600 font-bold mt-4">
+                    This audit is more than 30 days old. A refresh has been scheduled.
+                  </p>
+                )}
+                <div className="flex gap-2 w-full mt-6">
+                  <button
+                    onClick={() => {
+                      setIntegrityState('idle');
+                      setHasRevealedLedger(true);
+                    }}
+                    className="flex-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-xl hover:bg-slate-800 transition-colors"
+                  >
+                    View Ledger
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIntegrityState('idle');
+                      handleDeepScan(asset, true);
+                    }}
+                    className="px-4 bg-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-200 transition-colors"
+                    title="Force Run AI (Admin)"
+                  >
+                    Run
+                  </button>
                 </div>
-              )}
-              {integrityResult.status && (
-                <div className="flex justify-between">
-                  <dt className="text-slate-400 font-bold uppercase tracking-wide">Status</dt>
-                  <dd className="text-slate-700 capitalize">{integrityResult.status}</dd>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">
+                    Audit not yet in ledger
+                  </span>
                 </div>
-              )}
-            </dl>
-            {integrityResult.needsRefresh && (
-              <p className="text-[10px] text-amber-600 font-bold mt-4">
-                This audit is more than 30 days old. A refresh has been scheduled.
-              </p>
+                <h3 className="text-lg font-black uppercase tracking-tighter text-slate-900 mb-4">Pending Verification</h3>
+                <p className="text-xs text-slate-500 mb-6">
+                  This product has been queued for our next verification cycle.
+                </p>
+                <div className="flex gap-2 w-full">
+                  <button
+                    onClick={() => setIntegrityState('idle')}
+                    className="flex-1 bg-slate-100 text-slate-700 text-[10px] font-black uppercase tracking-widest px-4 py-3 rounded-xl hover:bg-slate-200 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIntegrityState('idle');
+                      handleDeepScan(asset, true);
+                    }}
+                    className="px-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-colors"
+                    title="Force Run AI (Admin)"
+                  >
+                    Run AI
+                  </button>
+                </div>
+              </>
             )}
-            <button
-              onClick={() => setIntegrityState('idle')}
-              className="mt-6 w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-700 transition-colors"
-            >
-              Dismiss
-            </button>
           </div>
         </div>
       )}
@@ -419,12 +480,12 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                 );
               })()}
 
-              {!isVerifiedAudit && !isScanning && (
+              {!hasRevealedLedger && !isScanning && (
                 <button
-                  onClick={() => handleDeepScan(asset, true)}
+                  onClick={handleVerifyIntegrity}
                   className="w-full bg-blue-600 text-white font-black uppercase px-6 py-4 rounded-xl shadow-lg hover:bg-blue-700 active:scale-95 transition-all text-xs tracking-widest"
                 >
-                  ▶ Complete Verification
+                  ▶ Retrieve Ledger Entry
                 </button>
               )}
             </div>
@@ -432,7 +493,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         </div>
 
         <div className="p-10 md:p-14">
-          <AuditResults product={asset} audit={effectiveAudit} />
+          <AuditResults product={asset} audit={visibleAudit} />
         </div>
       </div>
 
