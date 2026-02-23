@@ -88,8 +88,13 @@ export function AuditResults({ product, audit, onRetryStage, isRunning }: AuditR
     }
 
     // Fallback B: raw-flatten the nested JSONB spec object
-    if (claimItems.length === 0 && product.technical_specs && typeof product.technical_specs === 'object' && !Array.isArray(product.technical_specs)) {
-        claimItems = flattenSpecsRaw(product.technical_specs as Record<string, any>);
+    let techSpecsObj = product.technical_specs;
+    if (typeof techSpecsObj === 'string') {
+        try { techSpecsObj = JSON.parse(techSpecsObj); } catch (e) { }
+    }
+
+    if (claimItems.length === 0 && techSpecsObj && typeof techSpecsObj === 'object' && !Array.isArray(techSpecsObj)) {
+        claimItems = flattenSpecsRaw(techSpecsObj as Record<string, any>);
     }
 
     const hasSpecs = claimItems.length >= 1;
@@ -339,36 +344,44 @@ export function AuditResults({ product, audit, onRetryStage, isRunning }: AuditR
                         </div>
 
                         {/* Practical Impact */}
-                        <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Practical Impact</h4>
-                            <p className="text-sm text-slate-700 leading-relaxed font-medium">
-                                {verdict.practicalImpact.map((s: string) => s.trim().replace(/\.?$/, '.')).join(' ')}
-                            </p>
-                        </div>
+                        {verdict.practicalImpact.length > 0 && (
+                            <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
+                                <h4 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Practical Impact</h4>
+                                <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                                    {verdict.practicalImpact.map((s: string) => s.trim().replace(/\.?$/, '.')).join(' ')}
+                                </p>
+                            </div>
+                        )}
 
                         {/* Recommendation */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100">
-                                <h4 className="text-[9px] font-black uppercase tracking-widest text-emerald-700 mb-2">Best For</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {verdict.goodFit.map((fit: string, i: number) => (
-                                        <span key={i} className="px-2 py-1 bg-white border border-emerald-100 rounded text-[10px] font-bold text-emerald-700 shadow-sm">
-                                            {fit}
-                                        </span>
-                                    ))}
-                                </div>
+                        {(verdict.goodFit.length > 0 || verdict.considerAlternatives.length > 0) && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {verdict.goodFit.length > 0 && (
+                                    <div className="bg-emerald-50/50 p-5 rounded-xl border border-emerald-100">
+                                        <h4 className="text-[9px] font-black uppercase tracking-widest text-emerald-700 mb-2">Best For</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {verdict.goodFit.map((fit: string, i: number) => (
+                                                <span key={i} className="px-2 py-1 bg-white border border-emerald-100 rounded text-[10px] font-bold text-emerald-700 shadow-sm">
+                                                    {fit}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {verdict.considerAlternatives.length > 0 && (
+                                    <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
+                                        <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Consider Alternatives If</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {verdict.considerAlternatives.map((alt: string, i: number) => (
+                                                <span key={i} className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold text-slate-600 shadow-sm">
+                                                    {alt}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
-                                <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Consider Alternatives If</h4>
-                                <div className="flex flex-wrap gap-2">
-                                    {verdict.considerAlternatives.map((alt: string, i: number) => (
-                                        <span key={i} className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold text-slate-600 shadow-sm">
-                                            {alt}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
+                        )}
                     </div>
                 )}
             </StageCard>

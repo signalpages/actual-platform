@@ -184,6 +184,20 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
         pickNonEmpty(specs.stages?.stage_3?.data?.reality_ledger) ??
         pickNonEmpty(specs.stages?.stage_1?.data?.reality_ledger) ??
         [];
+
+    // Extract any existing stages from the DB blob, or mock "done" states if this is a verified legacy record
+    const baseStages: any = specs.stages && typeof specs.stages === 'object' ? specs.stages : {};
+    const mockDone = { status: "done" as const, completed_at: specs.created_at, ttl_days: 0, data: {} };
+
+    // For V1 records from shadow_specs, if it has a truth score, it means it completed the full pipeline.
+    const isActuallyComplete = specs.truth_score !== null && specs.truth_score !== undefined;
+
+    const stages = {
+        stage_1: baseStages.stage_1 || (isActuallyComplete ? mockDone : undefined),
+        stage_2: baseStages.stage_2 || (isActuallyComplete ? mockDone : undefined),
+        stage_3: baseStages.stage_3 || (isActuallyComplete ? mockDone : undefined),
+        stage_4: baseStages.stage_4 || (isActuallyComplete ? mockDone : undefined),
+    };
     return {
         assetId: specs.product_id,
         analysis: {
@@ -194,6 +208,7 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
         reality_ledger,
         discrepancies: Array.isArray(specs.red_flags) ? specs.red_flags : [],
         truth_index: specs.truth_score,
+        stages: stages as any,
         // Include Stage 4 fields
         strengths: stage4Data.strengths || [],
         limitations: stage4Data.limitations || [],

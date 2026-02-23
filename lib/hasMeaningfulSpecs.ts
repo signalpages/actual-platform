@@ -11,9 +11,14 @@
 export function hasMeaningfulSpecs(specs: unknown): boolean {
     if (!specs) return false;
 
+    let parsed = specs;
+    if (typeof parsed === 'string') {
+        try { parsed = JSON.parse(parsed); } catch (e) { }
+    }
+
     // Shape 1 & 3: array
-    if (Array.isArray(specs)) {
-        return specs.some((s) => {
+    if (Array.isArray(parsed)) {
+        return parsed.some((s) => {
             if (s === null || s === undefined) return false;
             // {label, value} format
             if (typeof s === 'object' && typeof (s as any).label === 'string' && (s as any).label.trim()) {
@@ -27,10 +32,13 @@ export function hasMeaningfulSpecs(specs: unknown): boolean {
     }
 
     // Shape 2: plain object (nested specs like { continuous_ac_output_w: "3000W", ... })
-    if (typeof specs === 'object') {
-        return Object.values(specs as Record<string, unknown>).some(
-            (v) => v !== null && v !== undefined && String(v).trim().length > 0
-        );
+    if (typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return Object.values(parsed as Record<string, unknown>).some((v) => {
+            if (v === null || v === undefined) return false;
+            if (typeof v === 'object') return hasMeaningfulSpecs(v);
+            const strVal = String(v).trim();
+            return strVal.length > 0 && strVal !== 'null' && strVal !== 'undefined' && strVal !== 'false';
+        });
     }
 
     return false;

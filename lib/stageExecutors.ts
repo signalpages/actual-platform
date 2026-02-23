@@ -254,7 +254,7 @@ Most Praised: ${stage2.independent_signal.most_praised.map(p => p.text).join('; 
 Issues: ${stage2.independent_signal.most_reported_issues.map(i => i.text).join('; ')}
 
 TASK 1: DISCREPANCIES
-Identify ONLY meaningful discrepancies (>3% variance or functional impact).
+Identify ALL discrepancies between claims and reality (including minor variances, user complaints, or functional impacts). Do not filter out minor issues.
 
 TASK 2: REALITY LEDGER
 For EACH manufacturer claim above, determine the "Real World" value based on feedback.
