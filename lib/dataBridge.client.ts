@@ -68,7 +68,7 @@ export const searchAssets = async (
     if (brand !== "all") builder = builder.eq("brand", brand);
     if (query && query.trim().length > 0) builder = builder.ilike("model_name", `%${query}%`);
 
-    const { data: products, error: pErr } = await builder.limit(200);
+    const { data: products, error: pErr } = await builder.limit(1000);
     if (pErr) throw pErr;
     if (!products || products.length === 0) return [];
 
