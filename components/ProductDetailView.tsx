@@ -247,6 +247,19 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
   const visibleAudit = useMemo(() => {
     if (!effectiveAudit) return null;
+
+    // If the product has no real specs, hide everything downstream (stages 2–4)
+    // so the user sees a clean pending state with the "Retrieve Ledger Entry" button.
+    if (!productHasSpecs) {
+      return {
+        ...effectiveAudit,
+        truth_index: null,
+        stages: {
+          stage_1: effectiveAudit.stages?.stage_1
+        }
+      } as CanonicalAuditResult;
+    }
+
     if (hasRevealedLedger) return effectiveAudit;
 
     // Mask downstream stages until revealed
@@ -257,7 +270,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         stage_1: effectiveAudit.stages?.stage_1
       }
     } as CanonicalAuditResult;
-  }, [effectiveAudit, hasRevealedLedger]);
+  }, [effectiveAudit, hasRevealedLedger, productHasSpecs]);
 
   // Force Layout to always show AuditResults (per user request: "all unaudited products should have the layout on the left")
   // We disable the "Missing Asset Protocol" form by ensuring noDataFound is always false if we have an asset.

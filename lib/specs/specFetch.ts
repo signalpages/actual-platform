@@ -84,27 +84,6 @@ export async function fetchSpecSource(
     const domain = extractDomain(url);
 
     try {
-        // Check if already fetched
-        const { data: existing } = await supabase
-            .from('product_sources')
-            .select('content_hash, status')
-            .eq('product_id', product_id)
-            .eq('url', url)
-            .single();
-
-        if (existing && existing.status === 'ok') {
-            console.log(`  ↻ Skipping ${domain} (already fetched)`);
-            return {
-                url,
-                domain,
-                http_status: 200,
-                content_hash: existing.content_hash,
-                html_excerpt: '', // Not returned for existing
-                storage_ref: null,
-                status: 'ok',
-            };
-        }
-
         // Fetch HTML
         console.log(`  ↓ Fetching ${domain}...`);
         const { html, status: http_status } = await fetchWithPlaywright(url);
@@ -116,29 +95,6 @@ export async function fetchSpecSource(
         // Strip and hash
         const html_excerpt = stripHtml(html);
         const content_hash = computeHash(html_excerpt);
-
-        // Store in database
-        const { error: upsertError } = await supabase
-            .from('product_sources')
-            .upsert({
-                product_id,
-                url,
-                domain,
-                source_type,
-                http_status,
-                content_hash,
-                html_excerpt,
-                storage_ref: null, // V1: Use excerpt, V2: Upload to storage
-                status: 'ok',
-                error: null,
-                fetched_at: new Date().toISOString(),
-            }, {
-                onConflict: 'product_id,url',
-            });
-
-        if (upsertError) {
-            throw new Error(`Database error: ${upsertError.message}`);
-        }
 
         console.log(`  ✓ Fetched ${domain}`);
 
@@ -153,25 +109,6 @@ export async function fetchSpecSource(
         };
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-        // Store error in database
-        await supabase
-            .from('product_sources')
-            .upsert({
-                product_id,
-                url,
-                domain,
-                source_type,
-                http_status: 0,
-                content_hash: null,
-                html_excerpt: null,
-                storage_ref: null,
-                status: 'error',
-                error: errorMessage,
-                fetched_at: new Date().toISOString(),
-            }, {
-                onConflict: 'product_id,url',
-            });
 
         console.error(`  ✗ Failed to fetch ${domain}: ${errorMessage}`);
 

@@ -3,48 +3,73 @@
  * Evidence-backed spec extraction with anti-hallucination validation
  */
 
-// Canonical spec fields (9 total)
+// Canonical spec fields (superset of all categories)
 export interface CanonicalSpecs {
-    storage_capacity_wh: number | null;
-    continuous_ac_output_w: number | null;
-    peak_surge_output_w: number | null;
-    cell_chemistry: 'LiFePO4' | 'NMC' | 'Li-ion' | 'Unknown' | null;
-    cycle_life_cycles: number | null;
+    ac_charging_speed: string | null;
     ac_charging_speed_w: number | null;
-    solar_input_max_w: number | null;
-    weight_kg: number | null;
-    is_expandable: boolean | null;
-    max_expansion_wh: number | null;
+    ah: number | null;
+    battery_nominal_voltage: string | null;
+    bifacial: boolean | null;
+    cable_length_ft: number | null;
+    capacity_kwh: number | null;
+    capacity_wh: number | null;
+    cell_chemistry: 'LiFePO4' | 'NMC' | 'Li-ion' | 'Semi-Solid State' | 'Unknown' | null;
+    cell_type: string | null;
+    chemistry: string | null;
+    connector_type: string | null;
+    continuous_a: number | null;
+    continuous_ac_output_w: number | null;
+    continuous_kw: number | null;
+    controller_type: string | null;
+    cycle_life_cycles: number | null;
+    cycles: number | null;
+    dc_input_voltage_v: number | null;
+    dimensions: string | null;
+    dimensions_mm: string | null;
+    efficiency: number | null;
+    efficiency_pct: number | null;
     expansion_notes: string | null;
+    hardwired: boolean | null;
+    idle_consumption_w: number | null;
+    impp_a: number | null;
+    input_voltage_v: number | null;
+    ip_rating: string | null;
+    isc_a: number | null;
+    is_expandable: boolean | null;
+    max_charge_current_a: number | null;
+    max_current_a: number | null;
+    max_dc_input_current_a: number | null;
+    max_expansion_wh: number | null;
+    max_power_kw: number | null;
+    max_pv_voltage_v: number | null;
+    output_frequency_hz: number | null;
+    output_voltage_v: string | null;
+    parallel_capable: boolean | null;
+    peak_a: number | null;
+    peak_surge_output_w: number | null;
+    rated_power_w: number | null;
+    rating: string | null;
+    remote_monitoring: boolean | null;
+    solar_input_max_w: number | null;
+    storage_capacity_wh: number | null;
+    surge_output_w: number | null;
+    ups_eps_switchover_ms: number | null;
+    vmpp_v: number | null;
+    voc_v: number | null;
+    voltage_v: number | null;
+    warranty_years: number | null;
+    waveform: string | null;
+    weight_kg: number | null;
+    weight_lbs: number | null;
+    wifi_enabled: boolean | null;
 }
 
 // Raw extraction output from LLM (before normalization)
-export interface RawSpecs {
-    storage_capacity_wh: string | null;
-    continuous_ac_output_w: string | null;
-    peak_surge_output_w: string | null;
-    cell_chemistry: string | null;
-    cycle_life_cycles: string | null;
-    ac_charging_speed_w: string | null;
-    solar_input_max_w: string | null;
-    weight_kg: string | null;
-    is_expandable: boolean | null;
-    max_expansion_wh: string | null;
-    expansion_notes: string | null;
-    evidence: {
-        storage_capacity_wh: string;
-        continuous_ac_output_w: string;
-        peak_surge_output_w: string;
-        cell_chemistry: string;
-        cycle_life_cycles: string;
-        ac_charging_speed_w: string;
-        solar_input_max_w: string;
-        weight_kg: string;
-        is_expandable: string;
-        max_expansion_wh: string;
-        expansion_notes: string;
-    };
-}
+export type RawSpecs = {
+    [K in keyof CanonicalSpecs]?: string | null;
+} & {
+    evidence?: Partial<Record<keyof CanonicalSpecs, string>>;
+};
 
 // Source metadata
 export interface SpecSource {
@@ -165,4 +190,4 @@ export const DOMAIN_ALLOWLIST = {
 } as const;
 
 // Total number of spec fields for coverage calculation
-export const TOTAL_SPEC_FIELDS = 9;
+export const TOTAL_SPEC_FIELDS = 53;

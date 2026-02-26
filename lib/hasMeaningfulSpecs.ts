@@ -22,7 +22,8 @@ export function hasMeaningfulSpecs(specs: unknown): boolean {
             if (s === null || s === undefined) return false;
             // {label, value} format
             if (typeof s === 'object' && typeof (s as any).label === 'string' && (s as any).label.trim()) {
-                return String((s as any).value ?? '').trim().length > 0;
+                const val = String((s as any).value ?? '').trim().toUpperCase();
+                return val.length > 0 && val !== 'TBD' && val !== 'N/A';
             }
             // primitive in array
             if (typeof s === 'string') return s.trim().length > 0;

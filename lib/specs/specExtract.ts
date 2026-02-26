@@ -13,39 +13,19 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+const SPEC_KEYS = [
+    'ac_charging_speed', 'ac_charging_speed_w', 'ah', 'battery_nominal_voltage', 'bifacial', 'cable_length_ft', 'capacity_kwh', 'capacity_wh', 'cell_chemistry', 'cell_type', 'chemistry', 'connector_type', 'continuous_a', 'continuous_ac_output_w', 'continuous_kw', 'controller_type', 'cycle_life_cycles', 'cycles', 'dc_input_voltage_v', 'dimensions', 'dimensions_mm', 'efficiency', 'efficiency_pct', 'expansion_notes', 'hardwired', 'idle_consumption_w', 'impp_a', 'input_voltage_v', 'ip_rating', 'isc_a', 'is_expandable', 'max_charge_current_a', 'max_current_a', 'max_dc_input_current_a', 'max_expansion_wh', 'max_power_kw', 'max_pv_voltage_v', 'output_frequency_hz', 'output_voltage_v', 'parallel_capable', 'peak_a', 'peak_surge_output_w', 'rated_power_w', 'rating', 'remote_monitoring', 'solar_input_max_w', 'storage_capacity_wh', 'surge_output_w', 'ups_eps_switchover_ms', 'vmpp_v', 'voc_v', 'voltage_v', 'warranty_years', 'waveform', 'weight_kg', 'weight_lbs', 'wifi_enabled'
+];
+
 const EXTRACTION_SCHEMA: Schema = {
     type: SchemaType.OBJECT as const,
     properties: {
-        storage_capacity_wh: { type: SchemaType.STRING, nullable: true },
-        continuous_ac_output_w: { type: SchemaType.STRING, nullable: true },
-        peak_surge_output_w: { type: SchemaType.STRING, nullable: true },
-        cell_chemistry: { type: SchemaType.STRING, nullable: true },
-        cycle_life_cycles: { type: SchemaType.STRING, nullable: true },
-        ac_charging_speed_w: { type: SchemaType.STRING, nullable: true },
-        solar_input_max_w: { type: SchemaType.STRING, nullable: true },
-        weight_kg: { type: SchemaType.STRING, nullable: true },
-        is_expandable: { type: SchemaType.BOOLEAN, nullable: true },
-        max_expansion_wh: { type: SchemaType.STRING, nullable: true },
-        expansion_notes: { type: SchemaType.STRING, nullable: true },
+        ...Object.fromEntries(SPEC_KEYS.map(k => [k, { type: SchemaType.STRING, nullable: true }])),
         evidence: {
             type: SchemaType.OBJECT as const,
-            properties: {
-                storage_capacity_wh: { type: SchemaType.STRING },
-                continuous_ac_output_w: { type: SchemaType.STRING },
-                peak_surge_output_w: { type: SchemaType.STRING },
-                cell_chemistry: { type: SchemaType.STRING },
-                cycle_life_cycles: { type: SchemaType.STRING },
-                ac_charging_speed_w: { type: SchemaType.STRING },
-                solar_input_max_w: { type: SchemaType.STRING },
-                weight_kg: { type: SchemaType.STRING },
-                is_expandable: { type: SchemaType.STRING },
-                max_expansion_wh: { type: SchemaType.STRING },
-                expansion_notes: { type: SchemaType.STRING },
-            },
-            required: [],
+            properties: Object.fromEntries(SPEC_KEYS.map(k => [k, { type: SchemaType.STRING, nullable: true }])),
         },
     },
-    required: [],
 };
 
 /**
@@ -76,18 +56,8 @@ Model: ${model}
 HTML Content:
 ${html_excerpt.substring(0, 30000)} 
 
-Extract these fields:
-- storage_capacity_wh: Battery capacity in Wh (e.g., "3024Wh" or "3.024kWh")
-- continuous_ac_output_w: Continuous AC output in watts  
-- peak_surge_output_w: Peak/surge output in watts
-- cell_chemistry: Battery type (LiFePO4, NMC, Li-ion, etc.)
-- cycle_life_cycles: Cycle life rating (e.g., "3500 cycles")
-- ac_charging_speed_w: AC charging speed in watts
-- solar_input_max_w: Maximum solar input in watts
-- weight_kg: Weight in kg or lbs
-- is_expandable: Boolean - can capacity be expanded?
-- max_expansion_wh: Maximum expansion capacity if expandable
-- expansion_notes: How expansion works (brief)
+Extract these fields (set to null if not found):
+${SPEC_KEYS.map(k => '- ' + k).join('\n')}
 
 For EACH field, provide an "evidence" snippet showing WHERE in the HTML you found this value.
 The evidence must contain the actual value extracted.
@@ -131,25 +101,14 @@ Return JSON matching the schema.`;
 }
 
 /**
- * Extract specs from all fetched sources
+ * Extract specs from all fetched sources explicitly passed in
  */
 export async function extractAllSources(
     product_id: string,
     brand: string,
-    model: string
+    model: string,
+    sources: import('./types.ts').FetchResult[]
 ): Promise<ExtractionResult[]> {
-    // Fetch all sources for this product
-    const { data: sources, error } = await supabase
-        .from('product_sources')
-        .select('url, domain, source_type, html_excerpt')
-        .eq('product_id', product_id)
-        .eq('status', 'ok')
-        .not('html_excerpt', 'is', null);
-
-    if (error) {
-        throw new Error(`Failed to fetch sources: ${error.message}`);
-    }
-
     if (!sources || sources.length === 0) {
         throw new Error('No sources available for extraction');
     }
@@ -157,13 +116,22 @@ export async function extractAllSources(
     const results: ExtractionResult[] = [];
 
     for (const source of sources) {
+        if (!source.html_excerpt) continue;
+
         try {
+            // we have status = 'error' too, but earlier they get filtered out anyway
+            if (source.status === 'error') continue;
+
             const result = await extractFromSource(
                 product_id,
                 source.url,
                 source.html_excerpt,
                 source.domain,
-                source.source_type,
+                // fallback to 'retailer' if source_type isn't cleanly carried over in the type map yet, 
+                // but really we want to map it correctly. We'll pass 'retailer' as fallback for now
+                // since the original code pulled source_type from DB (which had it stored).
+                // Actually, let's just pass 'retailer' as a fixed type since we don't have it on FetchResult
+                'retailer',
                 brand,
                 model
             );

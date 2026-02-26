@@ -23,7 +23,8 @@ export const CATEGORY_DESCRIPTIONS: Record<string, string> = {
     'Solar Panels': 'Photovoltaic panels for solar energy generation',
     'Inverters': 'Convert DC to AC power (grid-tie, off-grid, hybrid)',
     'Charge Controllers': 'MPPT and PWM solar charge controllers',
-    'Home Backup Systems': 'Solar Backup Batteries (Powerwall-style)',
+    'Home Backup Systems': 'Whole-home battery storage systems (Powerwall-style)',
+    'Solar Backup Batteries': 'Whole-home battery storage systems (Powerwall-style)',
     'EV Chargers': 'Electric vehicle charging stations (Level 2, etc.)'
 };
 

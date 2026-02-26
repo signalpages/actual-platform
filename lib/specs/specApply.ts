@@ -11,89 +11,6 @@ const supabase = createClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-interface ChunkRow {
-    id: string;
-    url: string;
-    domain: string;
-    source_type: 'manufacturer' | 'retailer' | 'review';
-    normalized_json: Partial<CanonicalSpecs>;
-    coverage_fields: number;
-    coverage_pct: number;
-    validation_error_count: number;
-    extracted_at: string;
-}
-
-/**
- * Select the best chunk using deterministic ranking
- */
-async function selectBestChunk(product_id: string): Promise<ChunkRow | null> {
-    const { data, error } = await supabase
-        .from('product_spec_chunks')
-        .select('id, url, domain, source_type, normalized_json, coverage_fields, coverage_pct, validation_error_count, extracted_at')
-        .eq('product_id', product_id)
-        .order('source_type', { ascending: true }) // manufacturer first (alphabetically)
-        .order('coverage_fields', { ascending: false })
-        .order('validation_error_count', { ascending: true })
-        .order('extracted_at', { ascending: false })
-        .limit(1);
-
-    if (error) {
-        throw new Error(`Failed to select chunk: ${error.message}`);
-    }
-
-    if (!data || data.length === 0) {
-        return null;
-    }
-
-    // Re-rank with explicit manufacturer priority
-    const ranked = data.sort((a, b) => {
-        if (a.source_type === 'manufacturer' && b.source_type !== 'manufacturer') return -1;
-        if (a.source_type !== 'manufacturer' && b.source_type === 'manufacturer') return 1;
-        if (a.coverage_fields !== b.coverage_fields) return b.coverage_fields - a.coverage_fields;
-        if (a.validation_error_count !== b.validation_error_count) return a.validation_error_count - b.validation_error_count;
-        return new Date(b.extracted_at).getTime() - new Date(a.extracted_at).getTime();
-    });
-
-    return ranked[0];
-}
-
-/**
- * Get all source metadata for spec_sources array
- */
-async function getSourceMetadata(product_id: string): Promise<SpecSource[]> {
-    const { data, error } = await supabase
-        .from('product_sources')
-        .select('url, domain, source_type, fetched_at, content_hash')
-        .eq('product_id', product_id)
-        .eq('status', 'ok');
-
-    if (error) {
-        throw new Error(`Failed to get sources: ${error.message}`);
-    }
-
-    // Get chunks to know which fields came from which source
-    const { data: chunks } = await supabase
-        .from('product_spec_chunks')
-        .select('url, normalized_json')
-        .eq('product_id', product_id);
-
-    const chunksByUrl = new Map(chunks?.map(c => [c.url, c.normalized_json]) || []);
-
-    return (data || []).map(source => {
-        const normalized = chunksByUrl.get(source.url) || {};
-        const fields_present = Object.keys(normalized).filter(k => normalized[k as keyof typeof normalized] !== null);
-
-        return {
-            url: source.url,
-            domain: source.domain,
-            source_type: source.source_type,
-            fetched_at: source.fetched_at,
-            content_hash: source.content_hash,
-            fields_present,
-        };
-    });
-}
-
 /**
  * Determine spec_status based on coverage
  */
@@ -105,18 +22,54 @@ function determineStatus(coverage_fields: number): 'empty' | 'partial' | 'comple
 }
 
 /**
- * Apply best spec chunk to products.technical_specs
+ * Apply best spec chunk to products.technical_specs in-memory instead of DB
  */
-export async function applyBestChunk(product_id: string, slug: string): Promise<ApplyResult> {
-    // Select best chunk
-    const best = await selectBestChunk(product_id);
+export async function applyBestChunk(
+    product_id: string,
+    slug: string,
+    normalizedChunks: (import('./types.ts').NormalizationResult & { source?: import('./types.ts').ExtractionResult })[]
+): Promise<ApplyResult> {
 
-    if (!best) {
+    if (!normalizedChunks || normalizedChunks.length === 0) {
         throw new Error('No chunks available to apply');
     }
 
-    // Get all source metadata
-    const spec_sources = await getSourceMetadata(product_id);
+    // Sort to find the best chunk:
+    // 1. manufacturer source (if available)
+    // 2. max coverage fields
+    // 3. lowest validation error count
+    const ranked = [...normalizedChunks].sort((a, b) => {
+        const sourceA = a.source?.source_type || 'retailer';
+        const sourceB = b.source?.source_type || 'retailer';
+
+        if (sourceA === 'manufacturer' && sourceB !== 'manufacturer') return -1;
+        if (sourceA !== 'manufacturer' && sourceB === 'manufacturer') return 1;
+        if (a.coverage_fields !== b.coverage_fields) return b.coverage_fields - a.coverage_fields;
+
+        return a.validation_error_count - b.validation_error_count;
+    });
+
+    const best = ranked[0];
+
+    // Build the spec_sources array from all available chunks
+    const spec_sources: SpecSource[] = normalizedChunks.map(chunk => {
+        const sourceUrl = chunk.source?.url || '';
+        const sourceDomain = chunk.source?.domain || '';
+        const sourceType = chunk.source?.source_type || 'retailer';
+
+        // fields present
+        const normalized = chunk.normalized_json || {};
+        const fields_present = Object.keys(normalized).filter(k => normalized[k as keyof typeof normalized] !== null);
+
+        return {
+            url: sourceUrl,
+            domain: sourceDomain,
+            source_type: sourceType,
+            fetched_at: new Date().toISOString(),
+            content_hash: 'in_memory_hash',
+            fields_present,
+        };
+    }).filter(s => s.url); // filter out empty ones just in case
 
     // Build technical_specs
     const technical_specs: TechnicalSpecs = {
@@ -140,13 +93,9 @@ export async function applyBestChunk(product_id: string, slug: string): Promise<
         throw new Error(`Failed to update product: ${updateError.message}`);
     }
 
-    // Mark chunk as accepted
-    await supabase
-        .from('product_spec_chunks')
-        .update({ accepted: true })
-        .eq('id', best.id);
-
-    console.log(`    ✓ Applied best chunk from ${best.domain} (${best.source_type})`);
+    const domain = best.source?.domain || 'unknown';
+    const sourceType = best.source?.source_type || 'retailer';
+    console.log(`    ✓ Applied best chunk from ${domain} (${sourceType})`);
 
     return {
         product_id,

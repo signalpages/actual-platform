@@ -32,7 +32,7 @@ function flattenSpecsRaw(specs: Record<string, any>): Array<{ label: string; val
                 out.push(...flatten(v as Record<string, any>));
             } else {
                 const val = String(v).trim();
-                if (val && val !== 'null' && val !== 'undefined' && val !== 'false') {
+                if (val && val.toUpperCase() !== 'TBD' && val.toUpperCase() !== 'N/A' && val !== 'null' && val !== 'undefined' && val !== 'false') {
                     out.push({ label, value: val });
                 }
             }
@@ -79,23 +79,9 @@ export function AuditResults({ product, audit, onRetryStage, isRunning }: AuditR
     // -------------------------
     const stage1 = stages.stage_1;
 
-    // Primary: schema composer (reads category-specific schema)
-    let claimItems = composeClaimProfile(product.technical_specs, product.category);
-
-    // Fallback A: use audit claim_profile
-    if (claimItems.length === 0 && Array.isArray(audit?.claim_profile) && audit.claim_profile.length > 0) {
-        claimItems = audit.claim_profile;
-    }
-
-    // Fallback B: raw-flatten the nested JSONB spec object
-    let techSpecsObj = product.technical_specs;
-    if (typeof techSpecsObj === 'string') {
-        try { techSpecsObj = JSON.parse(techSpecsObj); } catch (e) { }
-    }
-
-    if (claimItems.length === 0 && techSpecsObj && typeof techSpecsObj === 'object' && !Array.isArray(techSpecsObj)) {
-        claimItems = flattenSpecsRaw(techSpecsObj as Record<string, any>);
-    }
+    // Single source of truth: composeClaimProfile handles schema + generic fallback,
+    // always filters out TBD/N/A/internal keys.
+    const claimItems = composeClaimProfile(product.technical_specs, product.category);
 
     const hasSpecs = claimItems.length >= 1;
 
@@ -183,8 +169,8 @@ export function AuditResults({ product, audit, onRetryStage, isRunning }: AuditR
                     {/* Pending State */}
                     {!hasSpecs && (
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 text-center">
-                            <div className="text-sm font-bold text-slate-700 mb-1">Specs not loaded yet</div>
-                            <div className="text-xs text-slate-500">This product is in the catalog, but manufacturer specs haven't been entered.</div>
+                            <div className="text-sm font-bold text-slate-700 mb-1">Specifications Provisional</div>
+                            <div className="text-xs text-slate-500">Verified specs for this product are being sourced. Check back soon.</div>
                         </div>
                     )}
 

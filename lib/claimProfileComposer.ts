@@ -1,115 +1,98 @@
 import { ProductCategory } from "@/types";
 import { getSchemaIdForCategory } from "./specs/categoryToSchema";
-import { getSchema, SpecSchema } from "./specs/registry";
+import { getSchema } from "./specs/registry";
 
 export interface ClaimItem {
     label: string;
     value: string;
 }
 
+// Keys that are internal metadata and should never be displayed as spec rows
+const INTERNAL_KEYS = new Set([
+    'spec_sources', 'evidence', 'content_hash', '_meta', 'spec_status',
+    'is_expandable', 'expansion_notes', 'max_expansion_wh',
+]);
+
+// Values that are meaningless placeholders
+const SKIP_VALUES = new Set(['tbd', 'n/a', 'null', 'undefined', 'false', '']);
+
+function isValidValue(val: unknown): boolean {
+    if (val === null || val === undefined) return false;
+    const str = String(val).trim().toLowerCase();
+    return !SKIP_VALUES.has(str);
+}
+
+/**
+ * Compose a flat, display-ready array of {label, value} from technical_specs.
+ *
+ * Strategy:
+ * 1. If a category schema exists, use it to produce ordered, well-labelled rows
+ *    for any fields that have real values.
+ * 2. Then append any remaining non-null, non-internal fields NOT covered by the schema.
+ * 3. Never show TBD / N/A / placeholder values.
+ */
 export function composeClaimProfile(specs: any, category: ProductCategory): ClaimItem[] {
-    // Guard: if specs is null/undefined
     if (!specs) return [];
 
-    const claims: ClaimItem[] = [];
+    // Unwrap JSON string
+    let raw = specs;
+    if (typeof raw === 'string') {
+        try { raw = JSON.parse(raw); } catch { return []; }
+    }
 
-    // 1. Determine Schema
+    // Legacy: array of {label, value} — filter out placeholders and return
+    if (Array.isArray(raw)) {
+        return raw
+            .filter((s: any) => s?.label && isValidValue(s?.value))
+            .map((s: any) => ({ label: String(s.label), value: String(s.value) }));
+    }
+
+    if (!raw || typeof raw !== 'object') return [];
+
+    const claims: ClaimItem[] = [];
+    const usedKeys = new Set<string>();
+
+    // --- Pass 1: Schema-driven (ordered, properly labelled) ---
     const schemaId = getSchemaIdForCategory(category);
     const schema = getSchema(schemaId);
 
-    if (!schema) {
-        // Fallback or log error? For now, empty or legacy behavior could go here.
-        // But since we want to be data-driven, let's return what we can find if we had a legacy fallback, 
-        // or just return empty to fail safe.
-        return [];
-    }
+    if (schema) {
+        for (const field of schema.fields) {
+            // Try primary key then altKeys
+            const keysToTry = [field.key, ...(field.altKeys || [])];
+            for (const k of keysToTry) {
+                const val = raw[k];
+                if (!isValidValue(val)) continue;
+                usedKeys.add(k);
+                // Mark ALL altKeys as used so they don't repeat in pass 2
+                (field.altKeys || []).forEach(ak => usedKeys.add(ak));
+                usedKeys.add(field.key);
 
-    // 2. Unwrap specs into a flat key→value map.
-    // Handles formats:
-    //   A. { kv: { key: value } }          — explicit kv wrapper
-    //   B. { items: [{ key, value }] }      — items array
-    //   C. { numeric: {...}, display: {...}, info: {...} } — solar panel nested format
-    //   D. Array<{ label, value }>           — standard seeder format (fallback composer handles)
-    //   E. Flat object                       — general case
-    let s: Record<string, any> = {};
-
-    if (!Array.isArray(specs) && specs && typeof specs === 'object') {
-        if (specs.kv && typeof specs.kv === 'object' && !Array.isArray(specs.kv)) {
-            // Format A
-            s = { ...specs.kv };
-        } else if (specs.items && Array.isArray(specs.items)) {
-            // Format B
-            specs.items.forEach((item: any) => {
-                if (item?.key && item.value !== undefined) s[item.key] = item.value;
-            });
-        } else {
-            // Format C or E: start with top-level keys, then merge known sub-objects
-            s = { ...specs };
-            // Flatten known sub-object groups (solar panel format)
-            for (const group of ['numeric', 'display', 'info', 'specs']) {
-                if (specs[group] && typeof specs[group] === 'object' && !Array.isArray(specs[group])) {
-                    Object.assign(s, specs[group]);
+                let displayValue: string;
+                if (field.formatter) {
+                    try { displayValue = field.formatter(val); } catch { displayValue = String(val); }
+                } else if (field.unit) {
+                    displayValue = `${val}${field.unit}`;
+                } else {
+                    displayValue = String(val);
                 }
+                claims.push({ label: field.label, value: displayValue });
+                break; // found this field, move to next schema field
             }
         }
     }
 
-    // 3. Iterate Schema Fields
-    for (const field of schema.fields) {
-        // Validation/Lookup
-        let rawValue = s[field.key];
+    // --- Pass 2: Any remaining non-internal keys with real values ---
+    for (const [key, val] of Object.entries(raw)) {
+        if (usedKeys.has(key)) continue;
+        if (INTERNAL_KEYS.has(key)) continue;
+        if (!isValidValue(val)) continue;
+        if (typeof val === 'object') continue; // skip nested objects (e.g. spec_sources array)
 
-        // Try altKeys if main key missing
-        if ((rawValue === undefined || rawValue === null || rawValue === '') && field.altKeys) {
-            for (const altKey of field.altKeys) {
-                const val = s[altKey];
-                if (val !== undefined && val !== null && val !== '') {
-                    rawValue = val;
-                    break;
-                }
-            }
-        }
-
-        // If we found a value, format and add it
-        if (rawValue !== undefined && rawValue !== null && rawValue !== '') {
-            // Special handling for booleans if needed, or let formatter handle it
-            let displayValue = String(rawValue);
-
-            if (field.formatter) {
-                displayValue = field.formatter(rawValue);
-            } else if (field.unit) {
-                // Default formatter if unit exists but no custom formatter
-                displayValue = `${rawValue}${field.unit}`;
-            }
-
-            claims.push({
-                label: field.label,
-                value: displayValue
-            });
-        }
-    }
-
-    // If schema-driven approach yielded claims, return them
-    if (claims.length > 0) return claims;
-
-    // Generic fallback: flatten any non-empty specs object/array to display pairs.
-    // Used when: (a) schema fields don't match stored keys, or (b) all schema fields are empty.
-    // Ensures Stage 1 always renders for products that have SOME technical_specs data.
-    if (Array.isArray(s)) {
-        // Flat {label, value} array (standard seeder format)
-        for (const item of s) {
-            if (item?.label && String(item?.value ?? '').trim()) {
-                claims.push({ label: String(item.label), value: String(item.value) });
-            }
-        }
-    } else if (s && typeof s === 'object') {
-        // Plain object: humanize keys and render values
-        for (const [key, val] of Object.entries(s)) {
-            if (val === null || val === undefined || String(val).trim() === '') continue;
-            if (['evidence', 'spec_sources', 'content_hash', '_meta'].includes(key)) continue;
-            const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-            claims.push({ label, value: String(val) });
-        }
+        const label = key
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase());
+        claims.push({ label, value: String(val) });
     }
 
     return claims;
