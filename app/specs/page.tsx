@@ -39,15 +39,20 @@ function SpecLedgerContent() {
         load();
     }, []);
 
-    const brands = Array.from(new Set(assets.map(a => a.brand))).sort();
-
-    // -- Filter Logic --
-    const filteredAssets = assets.filter(a => {
-        const matchesBrand = brandFilter === 'all' || a.brand === brandFilter;
-        // Strict category matching unless 'all'
+    // 1. Filter by Category and Status first
+    const categoryAndStatusAssets = assets.filter(a => {
         const matchesCategory = categoryFilter === 'all' || a.category === categoryFilter;
         const matchesStatus = a.verification_status === statusTab;
-        return matchesBrand && matchesCategory && matchesStatus;
+        return matchesCategory && matchesStatus;
+    });
+
+    // 2. Derive available brands ONLY from the assets visible in this category/status view
+    const brands = Array.from(new Set(categoryAndStatusAssets.map(a => a.brand).filter(Boolean))).sort();
+
+    // 3. Apply the brand filter for the final display list
+    const filteredAssets = categoryAndStatusAssets.filter(a => {
+        const matchesBrand = brandFilter === 'all' || a.brand === brandFilter;
+        return matchesBrand;
     });
 
     // -- Sort Logic --
