@@ -393,20 +393,27 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">
                   {isVerifiedAudit ? "Truth Index" : "Pending Verification"}
                 </p>
+
+                {/* Desktop "Compare" under the Truth Index */}
                 <button
-                  onClick={() => setIsComparisonOpen(true)}
-                  className="mt-2 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-600 transition-colors flex items-center justify-end gap-1 ml-auto"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setIsComparisonOpen(true);
+                    setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 50);
+                  }}
+                  className="mt-2 text-[10px] font-black uppercase tracking-widest text-blue-500 hover:text-blue-700 hover:bg-blue-50 px-2 py-1 rounded transition-colors flex items-center justify-end gap-1 ml-auto border border-transparent hover:border-blue-100"
                 >
-                  <span>+</span> Compare
+                  <span className="text-lg leading-none mt-[-2px]">+</span> COMPARE
                 </button>
 
-                {/* Why this score? - Show if we have a breakdown (even if provisional) */}
+                {/* Score Breakdown Expandable */}
                 {effectiveAudit?.truth_index_breakdown && (
                   <button
                     onClick={() => setShowScoreBreakdown(!showScoreBreakdown)}
                     className="mt-1 text-[9px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors ml-auto flex items-center gap-1"
                   >
-                    {showScoreBreakdown ? '▾' : '▸'} {isVerifiedAudit ? 'Why this score?' : 'Scoring Methodology'}
+                    {showScoreBreakdown ? '▾' : '▸'} {isVerifiedAudit ? 'WHY THIS SCORE?' : 'SCORING METHODOLOGY'}
                   </button>
                 )}
               </div>
@@ -565,6 +572,22 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
           </div>
         </div>
       )}
+
+      {/* Floating Compare Button (Scrolling) */}
+      {!isComparisonOpen && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 transition-all duration-300">
+          <button
+            onClick={() => {
+              setIsComparisonOpen(true);
+              window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            }}
+            className="bg-slate-900 border border-slate-700 shadow-2xl text-white px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] hover:bg-blue-600 transition-colors flex items-center gap-2"
+          >
+            <span className="text-blue-400 text-lg leading-none mt-[-2px]">+</span> Compare with competitors
+          </button>
+        </div>
+      )}
+
     </div>
   );
 }
