@@ -224,7 +224,7 @@ function SpecLedgerContent() {
 
                             {/* Forensic Mini-Table */}
                             <div className="px-8 py-6 bg-white flex-grow">
-                                {asset.latest_actual_specs && asset.latest_actual_specs.length > 0 ? (
+                                {asset.truth_score ? (
                                     <div className="space-y-3">
                                         <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr] gap-2 text-slate-400 text-[9px] font-bold uppercase tracking-widest mb-2 border-b border-slate-100 pb-2">
                                             <span>Spec</span>

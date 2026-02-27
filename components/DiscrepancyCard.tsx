@@ -41,18 +41,18 @@ export function DiscrepancyCard({ discrepancy, index }: DiscrepancyCardProps) {
     const safeActual = renderSafeText(actualText);
 
     return (
-        <div className="bg-red-50/30 border border-red-50 p-5 rounded-2xl shadow-sm">
+        <div className="bg-white border border-slate-200 border-l-4 border-l-red-400 p-5 rounded-2xl shadow-sm">
             {/* Header: Claim vs Actual Columns */}
             <div className="flex justify-between items-start gap-4 mb-4">
                 <div className="w-[45%]">
-                    <span className="text-[9px] font-black uppercase text-red-300 tracking-widest block mb-1.5">Claim</span>
-                    <p className="text-xs font-medium text-slate-500 leading-tight">
+                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-1.5">Claim</span>
+                    <p className="text-sm font-semibold text-slate-700 leading-tight">
                         {safeClaim}
                     </p>
                 </div>
-                <div className="w-[45%] text-right">
-                    <span className="text-[9px] font-black uppercase text-red-600 tracking-widest block mb-1.5">Actual</span>
-                    <p className="text-xs font-black text-slate-900 leading-tight">
+                <div className="w-[50%] text-right">
+                    <span className="text-[9px] font-black uppercase text-red-500 tracking-widest block mb-1.5">Actual</span>
+                    <p className="text-sm font-black text-slate-900 leading-tight">
                         {safeActual}
                     </p>
                 </div>

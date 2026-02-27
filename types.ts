@@ -106,6 +106,7 @@ export interface Asset extends Product {
   latest_discrepancies?: Discrepancy[];
   latest_actual_specs?: any[];
   latest_claimed_specs?: any[];
+  technical_specs?: Record<string, any> | null;
 }
 
 export interface AuditItem {
