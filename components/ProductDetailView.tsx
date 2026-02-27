@@ -575,16 +575,16 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
       {/* Floating Compare Button (Scrolling) */}
       {!isComparisonOpen && (
-        <div className="fixed bottom-12 right-4 md:right-8 z-40 transition-all duration-300 opacity-50 hover:opacity-100">
+        <div className="fixed bottom-6 right-4 md:right-8 z-40 transition-all duration-300 opacity-60 hover:opacity-100">
           <button
             onClick={() => {
               setIsComparisonOpen(true);
               window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
             }}
-            className="group bg-slate-900 border border-slate-700 shadow-2xl text-white py-6 px-3 rounded-full text-[10px] font-black uppercase tracking-[0.3em] hover:bg-blue-600 hover:border-blue-500 transition-colors flex flex-col items-center gap-4"
+            className="group bg-slate-900 border border-slate-700 shadow-2xl shadow-black/50 text-white px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-blue-600 hover:border-blue-500 hover:shadow-blue-900/50 transition-all flex items-center gap-3"
           >
-            <span className="text-blue-400 text-xl leading-none group-hover:text-white transition-colors mb-1">+</span>
-            <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>COMPARE</span>
+            <span className="text-blue-400 text-xl leading-none group-hover:text-white transition-colors mt-[-2px]">+</span>
+            <span>COMPARE</span>
           </button>
         </div>
       )}
