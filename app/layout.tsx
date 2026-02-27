@@ -11,13 +11,15 @@ const inter = Inter({
 });
 
 export const metadata = {
-    metadataBase: new URL(
-        process.env.VERCEL_URL
-            ? `https://${process.env.VERCEL_URL}`
-            : 'https://actual-fyi.vercel.app'
-    ),
-    title: 'Actual.fyi | Forensic Power Station Audits',
-    description: 'Technical integrity verified against real-world discharge tests.',
+    metadataBase: new URL('https://actual.fyi'),
+    title: {
+        template: '%s | Actual',
+        default: 'Solar Generator Reviews & Comparisons | Actual',
+    },
+    description: 'Independent solar generator reviews, real-world performance audits, and side-by-side comparisons for portable power stations and home backup batteries.',
+    alternates: {
+        canonical: '/',
+    },
 };
 
 export default function RootLayout({

@@ -20,18 +20,23 @@ export default async function Home() {
                         </div>
                         <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-white leading-[0.9] mb-6">
                             Independent <br />
-                            <span className="text-blue-500">Hardware Audits</span> <br />
-                            for DIY Solar
+                            <span className="text-blue-500">Solar Generator Reviews</span> <br />
+                            & Comparisons
                         </h1>
                         <p className="text-slate-400 text-lg md:text-xl leading-relaxed mb-8 max-w-lg">
-                            Structured, normalized, marketing-free product intelligence. We verify technical reality so you can build with confidence.
+                            Data-driven performance audits, verified specifications, and side-by-side comparisons for portable power stations and home backup batteries.
                         </p>
-                        <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="flex flex-col sm:flex-row gap-4 mb-4">
                             <Link href="/specs?category=portable_power_station" className="inline-flex justify-center items-center bg-blue-600 text-white px-8 py-4 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-blue-500 transition-all shadow-lg hover:shadow-blue-900/50">
-                                Browse Audits
+                                Browse Reviews
                             </Link>
                             <Link href="/compare" className="inline-flex justify-center items-center bg-slate-800 text-slate-300 border border-slate-700 px-8 py-4 rounded-xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-slate-700 hover:text-white transition-all">
                                 Compare Products
+                            </Link>
+                        </div>
+                        <div className="flex gap-4">
+                            <Link href="/specs?sort=truth_index" className="text-slate-500 hover:text-blue-400 text-xs font-bold uppercase tracking-widest transition-colors">
+                                View Top Rated Units →
                             </Link>
                         </div>
                     </div>

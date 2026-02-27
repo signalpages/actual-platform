@@ -113,9 +113,20 @@ function SpecLedgerContent() {
                         <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-900 leading-none mb-2">
                             Forensic Ledger
                         </h1>
-                        <p className="text-slate-500 font-medium text-xs uppercase tracking-wide">
+                        <p className="text-slate-500 font-medium text-xs uppercase tracking-wide mb-4">
                             {categoryFilter === 'all' ? 'BoM Level Inventory' : `Category: ${categories.find(c => c.id === categoryFilter)?.label}`}
                         </p>
+                        {categoryFilter !== 'all' && (
+                            <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest">
+                                <Link href="/specs" className="text-blue-500 hover:text-blue-700 transition-colors">
+                                    ← All Products
+                                </Link>
+                                <span className="text-slate-300">|</span>
+                                <Link href="/compare" className="text-blue-500 hover:text-blue-700 transition-colors">
+                                    Compare Products →
+                                </Link>
+                            </div>
+                        )}
                     </div>
                 </div>
             </header>

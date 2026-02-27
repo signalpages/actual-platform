@@ -53,9 +53,9 @@ export function StageCard({
         </div>
 
         <div className="flex-1">
-          <div className="text-xl font-black tracking-tight">
+          <h2 className="text-xl font-black tracking-tight">
             STAGE {stageNumber}: {title.toUpperCase()}
-          </div>
+          </h2>
 
           <div
             className={[

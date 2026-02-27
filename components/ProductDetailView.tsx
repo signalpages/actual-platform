@@ -370,7 +370,9 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             <div className="space-y-1 flex-grow">
               <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-blue-600">
                 {asset.brand} <span className="text-slate-300">—</span>{" "}
-                {formatCategoryLabel(asset.category)}
+                <Link href={`/specs?category=${asset.category}`} className="hover:underline">
+                  {formatCategoryLabel(asset.category)}
+                </Link>
               </div>
               <h1 className="text-5xl font-black uppercase tracking-tighter text-slate-900 leading-none py-2">
                 {asset.model_name}
