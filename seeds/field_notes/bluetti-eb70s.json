@@ -1,0 +1,76 @@
+{
+    "product_slug": "bluetti-eb70s",
+    "sources": [
+        {
+            "title": "BLUETTI EB70S Portable Power Station | 800W 716Wh",
+            "url": "https://ussolarsupplier.com/products/bluetti-eb70s-portable-power-station-800w-716wh"
+        },
+        {
+            "title": "BLUETTI 800W Continuous/1400W Peak Output Power Station EB70S",
+            "url": "https://www.homedepot.com/p/BLUETTI-800W-Continuous-1400W-Peak-Output-Power-Station-EB70S-Gray-Push-Button-Start-LiFePO4-Battery-Solar-Generator-for-Outdoor-EB70GR/323268512"
+        },
+        {
+            "title": "Review: Bluetti EB70S Portable Power Station - Jeff Wilson",
+            "url": "https://www.jeffwilsonexplore.com/post/review-bluetti-eb70s-portable-power-station"
+        },
+        {
+            "title": "Bluetti EB70S Portable Power Station - Bug Out Bag Builder",
+            "url": "https://bugoutbagbuilder.com/product-reviews/bluetti-eb70s-portable-power-station"
+        },
+        {
+            "title": "Bluetti EB70S Portable Power Station Review - Mountain IQ",
+            "url": "https://www.mountainiq.com/gear/technology/bluetti-eb70s-review/"
+        },
+        {
+            "title": "BLUETTI EB70S Portable Power Station | 716Wh | 1400W",
+            "url": "https://outboundpower.com/products/bluetti-eb70s-portable-power-station-716wh-1400w-200w-solar-input"
+        },
+        {
+            "title": "BLUETTI User Guide",
+            "url": "https://www.bluettipower.com/pages/user-guides"
+        },
+        {
+            "title": "Hell with BLUETTI app - Reddit",
+            "url": "https://www.reddit.com/r/bluetti/comments/13k21e0/hell_with_bluetti_app/"
+        },
+        {
+            "title": "Bluetti EB70S - Reddit",
+            "url": "https://www.reddit.com/r/bluetti/comments/pq7z4j/bluetti_eb70s/"
+        }
+    ],
+    "source_count": 9,
+    "praise": [
+        "Compact form factor comparable to a double-layered lunchbox",
+        "Utilizes lithium iron phosphate battery chemistry for increased safety",
+        "Includes four AC outlets and multiple DC ports",
+        "Integrated 15W wireless charging pad on the top surface",
+        "Folding handle design allows for flat-top storage and stacking",
+        "Built-in LED flashlight with multiple brightness modes",
+        "Pure sine wave inverter supports sensitive electronics like CPAP machines",
+        "Rated for 2500+ charge cycles before capacity drops to 80 percent",
+        "Includes all necessary charging cables for AC, car, and solar input",
+        "Silent operation reported when powering smaller DC loads"
+    ],
+    "friction": [
+        "Reports of the AC charging brick fan running constantly when plugged in",
+        "Lack of Bluetooth or WiFi connectivity for mobile app support",
+        "Reports of inaccurate state of charge display on the battery meter",
+        "Integrated fan can be audible when charging above 95 watts",
+        "Physical weight of 21.4 pounds may limit portability for some users",
+        "Reports of units entering a protection mode with a short error message",
+        "Display screen automatically shuts off after a short period",
+        "Limited 200W solar input can make reaching full charge difficult",
+        "Reports of significant capacity loss after several years of light use",
+        "Low-wattage DC loads may trigger eco mode to shut down the unit"
+    ],
+    "themes": [
+        "Emergency backup and grid outage preparedness",
+        "Portable power for camping and nomadic lifestyles",
+        "Battery management and state of charge calibration",
+        "Thermal management and fan noise characteristics",
+        "Device compatibility and sensitive electronics support",
+        "Charging efficiency across AC, solar, and vehicle inputs",
+        "Long-term durability of LiFePO4 battery chemistry",
+        "Physical ergonomics and spatial storage efficiency"
+    ]
+}

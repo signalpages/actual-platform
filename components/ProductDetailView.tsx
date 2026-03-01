@@ -10,7 +10,11 @@ import type { Asset, AuditResult } from "@/types";
 import { CanonicalAuditResult, normalizeAuditResult } from "@/lib/auditNormalizer";
 import SubmissionSuccess from "@/components/SubmissionSuccess";
 import { AuditResults } from "@/components/AuditResults";
+import { FieldNotesView } from "@/components/FieldNotesView";
 import { formatCategoryLabel } from "@/lib/categoryFormatter";
+import { FIELD_NOTES_ALLOWLIST } from "@/lib/fieldNotesAllowlist";
+import { getFieldNotes } from "@/lib/dataBridge.client";
+import { FieldNotesSnapshot } from "@/types";
 
 interface ProductDetailViewProps {
   initialAsset: Asset | null;
@@ -57,6 +61,9 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [activeTab, setActiveTab] = useState<'audit' | 'field-notes'>('audit');
+  const [fieldNotesSnapshot, setFieldNotesSnapshot] = useState<FieldNotesSnapshot | null>(null);
 
   const shouldAutoRun = useMemo(() => searchParams.get("autoRun") === "true", [searchParams]);
 
@@ -156,6 +163,13 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
       handleDeepScan(asset);
     }
   }, [mounted, asset, shouldAutoRun, slug, audit, handleDeepScan]);
+
+  // Field Notes Effect
+  useEffect(() => {
+    if (mounted && asset?.id && FIELD_NOTES_ALLOWLIST.has(slug)) {
+      getFieldNotes(asset.id).then(setFieldNotesSnapshot);
+    }
+  }, [mounted, asset, slug]);
 
   // UX-001: Ledger retrieval — honest integrity check, no LLM unless needed.
   const handleVerifyIntegrity = useCallback(async () => {
@@ -277,8 +291,11 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const noDataFound = false;
 
   let auditStatusLabel = "Verified Ledger Entry";
+  const hasTruthIndex = !!audit?.truth_index || (typeof asset?.truth_score === 'number' && asset.truth_score > 0);
+
   if (isScanning) auditStatusLabel = "Verifying...";
-  else if (isProvisional) auditStatusLabel = "Preliminary synthesis required";
+  else if (isProvisional && !hasTruthIndex) auditStatusLabel = "Preliminary synthesis required";
+  else if (isProvisional && hasTruthIndex) auditStatusLabel = "Verified Auditor Verdict";
   else if (!isVerifiedAudit) auditStatusLabel = "Verified Asset (Pending Full Audit)";
 
   const truthColor = isVerifiedAudit
@@ -496,7 +513,41 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         </div>
 
         <div className="p-10 md:p-14">
-          <AuditResults product={asset} audit={visibleAudit} onRetryStage={handleRunStage} isRunning={isScanning} />
+          <div className="flex gap-8 border-b border-slate-100 mb-10">
+            <button
+              onClick={() => setActiveTab('audit')}
+              className={`pb-4 text-xs font-black uppercase tracking-widest transition-all relative ${activeTab === 'audit'
+                ? 'text-blue-600'
+                : 'text-slate-400 hover:text-slate-600'
+                }`}
+            >
+              Audit Flow
+              {activeTab === 'audit' && (
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-full" />
+              )}
+            </button>
+
+            {fieldNotesSnapshot && (
+              <button
+                onClick={() => setActiveTab('field-notes')}
+                className={`pb-4 text-xs font-black uppercase tracking-widest transition-all relative ${activeTab === 'field-notes'
+                  ? 'text-blue-600'
+                  : 'text-slate-400 hover:text-slate-600'
+                  }`}
+              >
+                Field Notes
+                {activeTab === 'field-notes' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600 rounded-t-full" />
+                )}
+              </button>
+            )}
+          </div>
+
+          {activeTab === 'audit' ? (
+            <AuditResults product={asset} audit={visibleAudit} onRetryStage={handleRunStage} isRunning={isScanning} />
+          ) : (
+            fieldNotesSnapshot && <FieldNotesView snapshot={fieldNotesSnapshot} />
+          )}
         </div>
       </div>
 

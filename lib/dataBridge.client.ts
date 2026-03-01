@@ -123,11 +123,30 @@ export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
 
     return {
       ...data,
-      verified: !!data.is_audited || !!data.is_verified,
-      verification_status: (data.is_audited || data.is_verified) ? "verified" : "provisional",
+      verified: !!data.is_audited,
+      verification_status: data.is_audited ? "verified" : "provisional",
     } as Asset;
   } catch (e) {
     console.warn("[DataBridge] getAssetBySlug failed:", e);
+    return null;
+  }
+};
+
+export const getFieldNotes = async (productId: string): Promise<any | null> => {
+  try {
+    const client = getPublicClient();
+    const { data, error } = await client
+      .from("field_notes_snapshots")
+      .select("*")
+      .eq("product_id", productId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  } catch (e) {
+    console.warn("[DataBridge] getFieldNotes failed:", e);
     return null;
   }
 };

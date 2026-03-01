@@ -153,3 +153,18 @@ export interface ComparisonResult {
   a: AuditResult;
   b: AuditResult;
 }
+
+export interface FieldNotesSnapshot {
+  id: string;
+  product_id: string;
+  created_at: string;
+  source_count: number;
+  source_urls: string[];
+  sources?: { title: string; url: string }[];
+  praise: string[];
+  friction: string[];
+  themes: string[];
+  delta_summary?: string[];
+  raw_blob?: any;
+  snapshot_hash: string;
+}

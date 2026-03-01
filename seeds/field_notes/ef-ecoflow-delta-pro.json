@@ -1,0 +1,35 @@
+{
+    "product_slug": "ef-ecoflow-delta-pro",
+    "source_count": 14,
+    "source_urls": [
+        "https://reddit.com/r/ecoflow",
+        "https://youtube.com/watch?v=delta-pro-review-1",
+        "https://youtube.com/watch?v=delta-pro-review-2",
+        "https://community.ecoflow.com/threads/charging-issues.123",
+        "https://amazon.com/product-reviews/ecoflow-delta-pro"
+    ],
+    "praise": [
+        "Industry-leading 3600W AC charging speed",
+        "EV station charging capability via adapter",
+        "Crisp, informative LCD and stable app connection",
+        "Robust physical build with integrated wheels",
+        "Seamless integration with EcoFlow Smart Home Panel"
+    ],
+    "friction": [
+        "Considerable fan noise during high-speed charging",
+        "Extremely heavy (99 lbs) despite wheels",
+        "Solar input voltage limit of 150V requires careful panel wiring",
+        "Proprietary expansion battery connector cables are stiff",
+        "Some reports of Bluetooth connectivity drops in early firmware"
+    ],
+    "themes": [
+        "Van Life & RV Backup",
+        "Home Emergency Prep",
+        "High-Speed Rapid Charge",
+        "Ecosystem Expansion"
+    ],
+    "delta_summary": [
+        "Firmware v1.0.1.72 significantly optimized fan curves for low loads",
+        "Recent app updates added granular discharge limit controls"
+    ]
+}

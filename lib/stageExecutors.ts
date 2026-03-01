@@ -126,28 +126,30 @@ export async function executeStage2(
     // Build search query focusing on product experience
     const searchQuery = `${product.brand} ${product.model_name} review real world experience`;
 
-    let prompt = `You are analyzing community feedback for: ${product.brand} ${product.model_name}
+    let prompt = `You are a fair and objective product analyst investigating: ${product.brand} ${product.model_name}
 
 CONTEXT (Manufacturer Claims):
 ${stage1.claim_profile.slice(0, 10).map(c => `- ${c.label}: ${c.value}`).join('\n')}
 
-Based on real-world user discussions and your knowledge of this product category, identify:
+Based on real-world user discussions, professional reviews, and your specialized knowledge, identify the product's actual performance profile.
+
+TRUTH-SEEKING RULES (Fair but Firm):
+- Differentiate between "Technical Discrepancies" (claims that are factually wrong/misleading) and "Design Trade-offs" (choices like heavy weight or fan noise that are inherent to the product's class).
+- Focus on: significant battery capacity misses, safety issues, recurring hardware failures, or misleading software promises.
+- Be fair: If a product is heavy but matches its spec sheet, that is NOT a discrepancy. It is a feature of its design.
 
 1. MOST CONSISTENT PRAISE (5-7 items):
-   - What users consistently appreciate
-   - Features that meet or exceed expectations
-   - Include estimated number of sources mentioning each
+   - What do users love? What features actually deliver on their promises?
+   - Include estimated number of sources mentioning each.
 
-2. MOST REPORTED ISSUES (3-5 items):
-   - Common complaints or limitations
-   - Features that underperform claims
-   - Include estimated number of sources mentioning each
+2. REAL-WORLD LIMITATIONS & ISSUES (3-5 items):
+   - Identify actual failures or significant "grey areas" where the product underperforms its advertised potential.
+   - Include estimated number of sources mentioning each.
 
 Focus on objective, verifiable observations. Avoid marketing language.
 
 CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
 Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
-If there is insufficient data, return empty arrays, but do not invent data.
 
 Return JSON in this EXACT format:
 {
@@ -177,7 +179,7 @@ Return JSON in this EXACT format:
                     body: JSON.stringify({
                         contents: [{ role: 'user', parts: [{ text: prompt }] }],
                         generationConfig: {
-                            temperature: 0.3,
+                            temperature: 0.3, // Reduced back for stability
                             maxOutputTokens: 2048,
                             responseMimeType: 'application/json'
                         }
@@ -244,22 +246,27 @@ export async function executeStage3(
         throw new Error('GOOGLE_AI_STUDIO_KEY not configured');
     }
 
-    const prompt = `Cross-reference manufacturer claims with real-world feedback.
+    const prompt = `You are a fair and impartial forensic auditor evaluating ${product.brand} ${product.model_name}. Your mission is to find the "Truth Index" by verifying manufacturer claims against real-world evidence.
 
 MANUFACTURER CLAIMS:
 ${stage1.claim_profile.map(c => `- ${c.label}: ${c.value}`).join('\n')}
 
-COMMUNITY FEEDBACK:
+COMMUNITY FEEDBACK & SIGNALS:
 Most Praised: ${stage2.independent_signal.most_praised.map(p => p.text).join('; ')}
-Issues: ${stage2.independent_signal.most_reported_issues.map(i => i.text).join('; ')}
+Issues & Trade-offs: ${stage2.independent_signal.most_reported_issues.map(i => i.text).join('; ')}
 
-TASK 1: DISCREPANCIES
-Identify ALL discrepancies between claims and reality (including minor variances, user complaints, or functional impacts). Do not filter out minor issues.
+TASK 1: VERIFY DISCREPANCIES (FAIRNESS FIRST)
+Identify ONLY clear technical discrepancies or performance failures.
+- A "Loud Fan" is only a red flag if it's excessive or indicates a hardware flaw. If it's a standard trade-off for high power, do not penalize it.
+- "Heavy Weight" is NOT a discrepancy if it matches the spec sheet.
+- "App requires account" is a limitation, but not necessarily a "Fact Failure."
+- Focus on: "Claimed 2000Wh but only delivers 1600Wh", "Advertising fast charging but limited by firmware", or "Recurring inverter failures."
+- If the product meets its claims, it is OK to have zero discrepancies. Excellence is allowed.
 
 TASK 2: REALITY LEDGER
-For EACH manufacturer claim above, determine the "Real World" value based on feedback.
+For EACH manufacturer claim above, determine the "Real World" value based on the evidence.
 - If confirmed: Use the claimed value (e.g. "Confirmed 2000W").
-- If different: Use the real observed value (e.g. "Actually ~1800W").
+- If there is a significant (>5%) variance: Use the real observed value (e.g. "Actually ~1850W").
 - If unknown: write "Not verified".
 
 CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
@@ -270,7 +277,7 @@ Return JSON:
   "red_flags": [
     {
       "claim": "exact claim text",
-      "reality": "what testing/users found",
+      "reality": "specific verification finding",
       "severity": "minor|moderate|severe",
       "impact": "practical effect on users"
     }

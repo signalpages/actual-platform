@@ -68,6 +68,21 @@ export default function LearnLanding() {
                         </ul>
                     </div>
                 </section>
+
+                <section>
+                    <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-4 flex items-center gap-3">
+                        <span className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm">4</span>
+                        Field Notes (Qualitative Context)
+                    </h2>
+                    <div className="pl-11 border-l-2 border-slate-100 ml-4">
+                        <p className="text-slate-600 leading-relaxed mb-6">
+                            Field Notes summarize recurring themes observed in publicly available owner discussions and long-term usage reports at the time of generation.
+                        </p>
+                        <p className="text-slate-600 leading-relaxed mb-6">
+                            This section provides contextual insight and does not influence the Truth Index. Field Notes may change over time as products receive updates or as new usage reports emerge.
+                        </p>
+                    </div>
+                </section>
             </div>
 
             <div className="mt-20 pt-10 border-t border-slate-200">

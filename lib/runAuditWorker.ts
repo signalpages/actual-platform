@@ -347,7 +347,7 @@ export async function runAuditWorker({
         // STAGE 4 Check
         const stage3Validation = validateStage3(stage3Result);
 
-        if (!stage3Validation.valid || normalizedStage3.uniqueCount < 1) {
+        if (!stage3Validation.valid) {
             console.warn(`[Worker] Stage 4 BLOCKED - Stage 3 has no valid data`);
 
             await updateStageState(sb, runId, "stage_4", "blocked", {

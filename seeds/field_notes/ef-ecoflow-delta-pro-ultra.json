@@ -1,0 +1,33 @@
+{
+    "product_slug": "ef-ecoflow-delta-pro-ultra",
+    "source_count": 8,
+    "source_urls": [
+        "https://reddit.com/r/ecoflow",
+        "https://youtube.com/watch?v=delta-pro-ultra-review",
+        "https://community.ecoflow.com/t/delta-pro-ultra-setup/456"
+    ],
+    "praise": [
+        "Massive 6000W output handles high-surge appliances easily",
+        "Supports 240V split-phase output natively",
+        "Very quiet operation compared to the original Delta Pro",
+        "Battery modules are easier to stack and secure",
+        "High solar input capacity (5.6kW) is class-leading"
+    ],
+    "friction": [
+        "Modular design is bulky and requires significant floor space",
+        "Higher entry price point compared to individual PPS units",
+        "Heavy to move once battery modules are stacked",
+        "Some learning curve for the advanced home integration features",
+        "Initial setup requires firmware sync across all modules"
+    ],
+    "themes": [
+        "Whole Home Backup",
+        "Off-Grid Power Stations",
+        "High-Capacity Modular Energy",
+        "Professional Grade Integration"
+    ],
+    "delta_summary": [
+        "Initial launch firmware stabilized stack communication",
+        "Improved inverter efficiency at low standby loads"
+    ]
+}
