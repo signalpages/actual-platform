@@ -57,7 +57,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             verification_status: ((product as any).is_audited || (product as any).is_verified) ? 'verified' : 'provisional'
         };
 
-        const jsonLd = {
+        const jsonLd: any = {
             '@context': 'https://schema.org',
             '@type': 'Product',
             name: `${product.brand || ''} ${product.model_name || ''}`.trim(),
@@ -66,8 +66,43 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                 name: product.brand || 'Unknown',
             },
             description: `Independent analysis and verified performance audit of the ${product.brand || ''} ${product.model_name || ''}.`,
+            sku: product.sku || slug,
+            mpn: product.sku || product.model_name || slug,
             category: product.category || 'energy',
         };
+
+        // Add Rating and Review data if truth index is available
+        if (initialAudit && initialAudit.truth_index !== null) {
+            const ratingValue = initialAudit.truth_index;
+
+            jsonLd.aggregateRating = {
+                '@type': 'AggregateRating',
+                ratingValue: ratingValue,
+                bestRating: '100',
+                worstRating: '0',
+                ratingCount: '1', // The Actual.fyi expert audit
+            };
+
+            jsonLd.review = {
+                '@type': 'Review',
+                author: {
+                    '@type': 'Organization',
+                    name: 'Actual.fyi',
+                },
+                publisher: {
+                    '@type': 'Organization',
+                    name: 'Actual.fyi',
+                },
+                reviewRating: {
+                    '@type': 'Rating',
+                    ratingValue: ratingValue,
+                    bestRating: '100',
+                    worstRating: '0',
+                },
+                datePublished: product.created_at || new Date().toISOString(),
+                reviewBody: `Technical audit results for ${jsonLd.name}. Truth Index: ${ratingValue}%. ${initialAudit.score_interpretation || ''}`,
+            };
+        }
 
         return (
             <React.Suspense fallback={<ProductDetailView initialAsset={null} slug={slug} />}>
