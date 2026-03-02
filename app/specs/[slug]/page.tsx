@@ -73,7 +73,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
         // Add Review data if truth index is available (Editorial Review approach)
         if (initialAudit && initialAudit.truth_index !== null) {
-            const ratingValue = initialAudit.truth_index;
+            const rawTruthIndex = initialAudit.truth_index;
+            // Map 0-100 Truth Index to 1-5 scale for search result stars optimization
+            // 0 -> 1, 100 -> 5
+            const displayRating = (rawTruthIndex / 25) + 1;
+            const normalizedRating = Math.max(1, Math.min(5, Number(displayRating.toFixed(1))));
 
             jsonLd.review = {
                 '@type': 'Review',
@@ -87,12 +91,16 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                 },
                 reviewRating: {
                     '@type': 'Rating',
-                    ratingValue: ratingValue,
-                    bestRating: '100',
-                    worstRating: '0',
+                    ratingValue: normalizedRating,
+                    bestRating: '5',
+                    worstRating: '1',
+                },
+                itemReviewed: {
+                    '@type': 'Product',
+                    name: jsonLd.name,
                 },
                 datePublished: product.created_at || new Date().toISOString(),
-                reviewBody: `Technical audit results for ${jsonLd.name}. Independent analysis yielded a Truth Index of ${ratingValue}%. ${initialAudit.score_interpretation || ''}`,
+                reviewBody: `Technical audit results for ${jsonLd.name}. Independent analysis yielded a Truth Index of ${rawTruthIndex}%. ${initialAudit.score_interpretation || ''}`,
             };
         }
 
