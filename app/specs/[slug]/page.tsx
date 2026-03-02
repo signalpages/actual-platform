@@ -71,17 +71,9 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             category: product.category || 'energy',
         };
 
-        // Add Rating and Review data if truth index is available
+        // Add Review data if truth index is available (Editorial Review approach)
         if (initialAudit && initialAudit.truth_index !== null) {
             const ratingValue = initialAudit.truth_index;
-
-            jsonLd.aggregateRating = {
-                '@type': 'AggregateRating',
-                ratingValue: ratingValue,
-                bestRating: '100',
-                worstRating: '0',
-                ratingCount: '1', // The Actual.fyi expert audit
-            };
 
             jsonLd.review = {
                 '@type': 'Review',
@@ -100,7 +92,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     worstRating: '0',
                 },
                 datePublished: product.created_at || new Date().toISOString(),
-                reviewBody: `Technical audit results for ${jsonLd.name}. Truth Index: ${ratingValue}%. ${initialAudit.score_interpretation || ''}`,
+                reviewBody: `Technical audit results for ${jsonLd.name}. Independent analysis yielded a Truth Index of ${ratingValue}%. ${initialAudit.score_interpretation || ''}`,
             };
         }
 
