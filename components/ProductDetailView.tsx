@@ -22,6 +22,8 @@ interface ProductDetailViewProps {
   slug: string;
 }
 
+import { PurchaseOptions } from "@/components/PurchaseOptions";
+
 export default function ProductDetailView({ initialAsset, initialAudit, slug }: ProductDetailViewProps) {
   // ---------- Hooks (MUST be unconditional, top-level) ----------
   const router = useRouter();
@@ -400,6 +402,15 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
               >
                 AUDIT STATUS: {auditStatusLabel}
               </p>
+
+              {/* Purchase Options (R3) */}
+              {asset.affiliate_link && (
+                <PurchaseOptions
+                  links={[
+                    { label: `Purchase ${asset.model_name}`, url: asset.affiliate_link }
+                  ]}
+                />
+              )}
             </div>
 
             <div className="flex flex-col items-end gap-6 min-w-[220px]">
