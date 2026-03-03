@@ -57,30 +57,38 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             verification_status: ((product as any).is_audited || (product as any).is_verified) ? 'verified' : 'provisional'
         };
 
+        const productName = `${product.brand || ''} ${product.model_name || ''}`.trim();
+        const baseUrl = 'https://actual.fyi';
+        const pageUrl = `${baseUrl}/specs/${slug}`;
+
+        // Map category slug to human-readable label
+        const categoryLabel = product.category ? (product.category.split('_').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')) : 'Energy Product';
+
         const jsonLd: any = {
             '@context': 'https://schema.org',
             '@type': 'Product',
-            name: `${product.brand || ''} ${product.model_name || ''}`.trim(),
+            '@id': `${pageUrl}#product`,
+            name: productName,
             brand: {
                 '@type': 'Brand',
                 name: product.brand || 'Unknown',
             },
-            description: `Independent analysis and verified performance audit of the ${product.brand || ''} ${product.model_name || ''}.`,
-            sku: product.sku || slug,
-            mpn: product.sku || product.model_name || slug,
-            category: product.category || 'energy',
+            description: `Independent analysis and verified performance audit of the ${productName}.`,
+            sku: slug, // Internal identifier
+            category: categoryLabel,
+            image: product.image_url ? [product.image_url] : [],
         };
 
         // Add Review data if truth index is available (Editorial Review approach)
         if (initialAudit && initialAudit.truth_index !== null) {
             const rawTruthIndex = initialAudit.truth_index;
             // Map 0-100 Truth Index to 1-5 scale for search result stars optimization
-            // 0 -> 1, 100 -> 5
             const displayRating = (rawTruthIndex / 25) + 1;
-            const normalizedRating = Math.max(1, Math.min(5, Number(displayRating.toFixed(1))));
+            const normalizedRating = Number(Math.max(1, Math.min(5, displayRating)).toFixed(1));
 
             jsonLd.review = {
                 '@type': 'Review',
+                '@id': `${pageUrl}#review`,
                 author: {
                     '@type': 'Organization',
                     name: 'Actual.fyi',
@@ -92,15 +100,14 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                 reviewRating: {
                     '@type': 'Rating',
                     ratingValue: normalizedRating,
-                    bestRating: '5',
-                    worstRating: '1',
+                    bestRating: 5,
+                    worstRating: 1,
                 },
                 itemReviewed: {
-                    '@type': 'Product',
-                    name: jsonLd.name,
+                    '@id': `${pageUrl}#product`,
                 },
-                datePublished: product.created_at || new Date().toISOString(),
-                reviewBody: `Technical audit results for ${jsonLd.name}. Independent analysis yielded a Truth Index of ${rawTruthIndex}%. ${initialAudit.score_interpretation || ''}`,
+                datePublished: product.created_at ? new Date(product.created_at).toISOString() : new Date().toISOString(),
+                reviewBody: `Technical audit results for ${productName}. Independent analysis yielded a Truth Index of ${rawTruthIndex}%. ${initialAudit.score_interpretation || ''}`,
             };
         }
 
