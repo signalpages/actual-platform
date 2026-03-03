@@ -2,7 +2,6 @@ import React from 'react';
 import './globals.css';
 import Layout from '@/components/Layout';
 import { Inter } from 'next/font/google';
-import Script from 'next/script';
 
 const inter = Inter({
     subsets: ['latin'],
@@ -44,10 +43,6 @@ export default function RootLayout({
                     dangerouslySetInnerHTML={{
                         __html: `console.log("[Actual.fyi] Build ID: ${process.env.NEXT_PUBLIC_BUILD_ID}");`
                     }}
-                />
-                <Script
-                    src="https://s.skimresources.com/js/299398X1787162.skimlinks.js"
-                    strategy="afterInteractive"
                 />
             </body>
         </html>

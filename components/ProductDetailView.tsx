@@ -21,9 +21,6 @@ interface ProductDetailViewProps {
   initialAudit?: CanonicalAuditResult | null;
   slug: string;
 }
-
-import { PurchaseOptions } from "@/components/PurchaseOptions";
-
 export default function ProductDetailView({ initialAsset, initialAudit, slug }: ProductDetailViewProps) {
   // ---------- Hooks (MUST be unconditional, top-level) ----------
   const router = useRouter();
@@ -402,15 +399,6 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
               >
                 AUDIT STATUS: {auditStatusLabel}
               </p>
-
-              {/* Purchase Options (R3) */}
-              {asset.affiliate_link && (
-                <PurchaseOptions
-                  links={[
-                    { label: `Purchase ${asset.model_name}`, url: asset.affiliate_link }
-                  ]}
-                />
-              )}
             </div>
 
             <div className="flex flex-col items-end gap-6 min-w-[220px]">
@@ -524,6 +512,9 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
         </div>
 
         <div className="p-10 md:p-14">
+          <p className="text-[11px] leading-relaxed text-slate-400 mb-8 max-w-2xl">
+            This page functions as a technical review of the {asset.brand} {asset.model_name}, conducted through a structured four-stage audit process. We prioritize technical reality over manufacturer marketing to deliver a verified Truth Index score.
+          </p>
           <div className="flex gap-8 border-b border-slate-100 mb-10">
             <button
               onClick={() => setActiveTab('audit')}

@@ -18,8 +18,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const productName = `${product.brand || ''} ${product.model_name || ''}`.trim() || 'Product';
 
     return {
-        title: `${productName} Review & Performance Audit`,
-        description: `Independent analysis of the ${productName} including real-world performance, specifications verification, and comparison insights.`,
+        title: `${productName} Review – Forensic Audit & Truth Index`,
+        description: `Independent review and forensic audit of the ${productName} including real-world performance validation and Truth Index scoring.`,
         alternates: {
             canonical: `/specs/${slug}`,
         }

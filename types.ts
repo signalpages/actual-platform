@@ -44,6 +44,7 @@ export interface Product {
   tags?: string[];
   is_audited: boolean;
   signature: string;
+  image_url?: string;
 }
 
 // Aligned with 'shadow_specs' table in ERD
