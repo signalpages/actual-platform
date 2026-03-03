@@ -20,6 +20,15 @@ export const metadata = {
     alternates: {
         canonical: '/',
     },
+    icons: {
+        icon: [
+            { url: '/favicon.png?v=2', type: 'image/png' },
+            { url: '/icon.png?v=2', type: 'image/png' },
+        ],
+        apple: [
+            { url: '/icon.png?v=2', type: 'image/png' },
+        ],
+    },
 };
 
 export default function RootLayout({
