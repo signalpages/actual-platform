@@ -2,6 +2,7 @@ import React from 'react';
 import { getProductBySlug, getAudit, mapShadowToResult } from "@/lib/dataBridge.server";
 import ProductDetailView from '@/components/ProductDetailView';
 import { normalizeAuditResult } from "@/lib/auditNormalizer";
+import { Product } from "@/types";
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -15,11 +16,19 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const product = await getProductBySlug(slug);
     if (!product) return {};
 
+    const audit = await getAudit(product.id);
+    const rawTruthIndex = audit && typeof audit.truth_score === 'number' ? audit.truth_score : null;
     const productName = `${product.brand || ''} ${product.model_name || ''}`.trim() || 'Product';
+
+    // High-tension CTR meta description
+    let description = `Independent review and forensic audit of the ${productName} including real-world performance validation and Truth Index scoring.`;
+    if (rawTruthIndex !== null) {
+        description = `${rawTruthIndex}% Truth Index. Independent forensic audit of the ${productName}. Verified discrepancies, real-world performance validation, and evidence-backed findings.`;
+    }
 
     return {
         title: `${productName} Review – Forensic Audit & Truth Index`,
-        description: `Independent review and forensic audit of the ${productName} including real-world performance validation and Truth Index scoring.`,
+        description,
         alternates: {
             canonical: `/specs/${slug}`,
         }
@@ -38,19 +47,19 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     }
 
     try {
-        const product = await getProductBySlug(slug);
-
-        if (!product) {
+        const asset = await getProductBySlug(slug);
+        if (!asset) {
             return <ProductDetailView initialAsset={null} slug={slug} />;
         }
+        const product = asset as Product;
 
-        // Try to fetch initial audit if available (Server Side) to speed up load
+        // Fetch audit using product.id, not slug
         const auditShadow = await getAudit(product.id);
         const rawAudit = auditShadow ? mapShadowToResult(auditShadow) : null;
         const initialAudit = normalizeAuditResult(rawAudit, product);
 
         // Map Product (DB) to Asset (UI)
-        const asset = {
+        const uiAsset = {
             ...product,
             // products table has is_audited. Mapping to UI model:
             verified: (product as any).is_audited || (product as any).is_verified || false,
@@ -66,17 +75,21 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
         const jsonLd: any = {
             '@context': 'https://schema.org',
-            '@type': 'Product',
-            '@id': `${pageUrl}#product`,
-            name: productName,
-            brand: {
-                '@type': 'Brand',
-                name: product.brand || 'Unknown',
-            },
-            description: `Independent analysis and verified performance audit of the ${productName}.`,
-            sku: slug, // Internal identifier
-            category: categoryLabel,
-            image: product.image_url ? [product.image_url] : [],
+            '@graph': [
+                {
+                    '@type': 'Product',
+                    '@id': `${pageUrl}#product`,
+                    name: productName,
+                    brand: {
+                        '@type': 'Brand',
+                        name: product.brand || 'Unknown',
+                    },
+                    description: `Independent analysis and verified performance audit of the ${productName}.`,
+                    sku: slug, // Internal identifier
+                    category: categoryLabel,
+                    image: product.image_url ? [product.image_url] : [],
+                }
+            ]
         };
 
         // Add Review data if truth index is available (Editorial Review approach)
@@ -86,7 +99,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             const displayRating = (rawTruthIndex / 25) + 1;
             const normalizedRating = Number(Math.max(1, Math.min(5, displayRating)).toFixed(1));
 
-            jsonLd.review = {
+            const review = {
                 '@type': 'Review',
                 '@id': `${pageUrl}#review`,
                 author: {
@@ -109,6 +122,32 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                 datePublished: product.created_at ? new Date(product.created_at).toISOString() : new Date().toISOString(),
                 reviewBody: `Technical audit results for ${productName}. Independent analysis yielded a Truth Index of ${rawTruthIndex}%. ${initialAudit.score_interpretation || ''}`,
             };
+
+            // Add FAQPage for SERP real estate
+            const faq = {
+                '@type': 'FAQPage',
+                'mainEntity': [
+                    {
+                        '@type': 'Question',
+                        'name': `Is the ${productName} worth it?`,
+                        'acceptedAnswer': {
+                            '@type': 'Answer',
+                            'text': `The ${productName} receives a ${rawTruthIndex}% Truth Index based on structured cross-source validation and forensic performance analysis. ${initialAudit.score_interpretation || ''}`
+                        }
+                    },
+                    {
+                        '@type': 'Question',
+                        'name': `How was the ${productName} tested?`,
+                        'acceptedAnswer': {
+                            '@type': 'Answer',
+                            'text': `Actual.fyi uses a structured four-stage audit process: Manufacturer Profile, Technical Deep Scan, Ledger Cross-Validation, and Delta Analysis to verify all performance claims.`
+                        }
+                    }
+                ]
+            };
+
+            jsonLd['@graph'][0].review = review;
+            jsonLd['@graph'].push(faq);
         }
 
         return (
@@ -118,7 +157,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
                 />
                 <ProductDetailView
-                    initialAsset={asset as any} // Cast to any or strict Asset if type aligns
+                    initialAsset={uiAsset as any} // Cast to any or strict Asset if type aligns
                     initialAudit={initialAudit}
                     slug={slug}
                 />
