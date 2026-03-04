@@ -161,29 +161,24 @@ function CompareIndexContent() {
                     </div>
                 </section>
 
-                {/* Scenario Units */}
+                {/* Scenario Decision Surfaces — teaser */}
                 <section>
                     <div className="flex items-center justify-between mb-8 border-b border-slate-200 pb-4">
-                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Scenario Guides</h2>
+                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Scenario Decision Surfaces</h2>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rule-Based Filtering</span>
                     </div>
-                    <div className="grid sm:grid-cols-1 gap-4">
+                    <div className="flex items-center justify-between p-6 border border-slate-200 rounded-xl bg-slate-50/50">
+                        <div>
+                            <div className="text-base font-black uppercase text-slate-900 mb-1">Find the right unit for your use case</div>
+                            <p className="text-xs text-slate-500 max-w-md">
+                                Scenario-guided filters for Home Backup, RV Power, and more — each applying deterministic criteria to the forensic database.
+                            </p>
+                        </div>
                         <Link
-                            href="/best-portable-power-stations-for-home-backup"
-                            className="flex items-center justify-between p-6 border border-slate-200 rounded-xl hover:border-blue-300 hover:bg-slate-50 transition-all group"
+                            href="/decision-surfaces"
+                            className="flex-shrink-0 ml-6 inline-flex items-center gap-2 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-5 py-3 rounded-xl hover:bg-blue-600 transition-all"
                         >
-                            <div className="flex items-center gap-6">
-                                <div className="w-12 h-12 bg-blue-600 text-white rounded-xl flex items-center justify-center font-black text-xl">
-                                    H
-                                </div>
-                                <div>
-                                    <div className="text-base font-black uppercase text-slate-900">Best for Home Backup</div>
-                                    <div className="text-xs text-slate-500 mt-1">
-                                        Deterministic filtering: ≥1000Wh capacity, ≥1800W AC output, ≥80% Truth Index.
-                                    </div>
-                                </div>
-                            </div>
-                            <span className="text-slate-300 group-hover:text-blue-600 transition-colors">→</span>
+                            Browse Decision Surfaces <span>→</span>
                         </Link>
                     </div>
                 </section>

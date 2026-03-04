@@ -143,8 +143,59 @@ export default async function Home() {
                 </div>
             </section>
 
-            {/* Systems Secondary */}
+            {/* Buying Guides */}
             <section className="py-24 bg-slate-50 border-t border-slate-200">
+                <div className="max-w-6xl mx-auto px-6">
+                    <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+                        <div>
+                            <div className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-600 mb-3">Buying Guides</div>
+                            <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-900 leading-tight">
+                                Which one is <span className="text-blue-600">right for you?</span>
+                            </h2>
+                            <p className="text-slate-500 mt-3 max-w-md text-sm">
+                                Each guide filters the verified database down to units that actually qualify for a specific situation. No rankings, no sponsored picks.
+                            </p>
+                        </div>
+                        <Link
+                            href="/decision-surfaces"
+                            className="flex-shrink-0 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 border-b border-slate-300 hover:border-slate-900 pb-0.5 transition-colors"
+                        >
+                            All Buying Guides →
+                        </Link>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-5">
+                        <Link
+                            href="/best-portable-power-stations-for-home-backup"
+                            className="group flex items-center gap-6 p-6 bg-white border border-slate-200 rounded-2xl hover:border-blue-300 hover:shadow-lg transition-all"
+                        >
+                            <div className="w-14 h-14 bg-blue-600 text-white rounded-xl flex items-center justify-center font-black text-2xl flex-shrink-0">H</div>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-1">Home Backup</div>
+                                <div className="font-black text-slate-900 text-base">Best Power Stations for Home Backup</div>
+                                <div className="text-xs text-slate-500 mt-1">Capacity ≥1500Wh · Continuous ≥2000W · Truth Index ≥80%</div>
+                            </div>
+                            <span className="text-slate-300 group-hover:text-blue-600 transition-colors text-xl flex-shrink-0">→</span>
+                        </Link>
+
+                        <Link
+                            href="/best-portable-power-stations-for-rv"
+                            className="group flex items-center gap-6 p-6 bg-white border border-slate-200 rounded-2xl hover:border-emerald-300 hover:shadow-lg transition-all"
+                        >
+                            <div className="w-14 h-14 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-black text-2xl flex-shrink-0">R</div>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">RV Power</div>
+                                <div className="font-black text-slate-900 text-base">Best Power Stations for RV Use</div>
+                                <div className="text-xs text-slate-500 mt-1">30A Compatible · Surge Documented · Truth Index ≥80%</div>
+                            </div>
+                            <span className="text-slate-300 group-hover:text-emerald-600 transition-colors text-xl flex-shrink-0">→</span>
+                        </Link>
+                    </div>
+                </div>
+            </section>
+
+            {/* Systems Secondary */}
+            <section className="py-24 bg-white border-t border-slate-200">
                 <div className="max-w-4xl mx-auto px-6 text-center">
                     <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-400 mb-4">Build a Complete System</h2>
                     <p className="text-slate-500 mb-8 max-w-lg mx-auto">

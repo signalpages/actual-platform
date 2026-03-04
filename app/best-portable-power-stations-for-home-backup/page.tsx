@@ -157,28 +157,40 @@ function HomeBackupScenarioContent() {
         <main className="max-w-6xl mx-auto px-6 py-16 md:py-24">
             {/* Hero Section */}
             <header className="mb-20 text-center max-w-4xl mx-auto">
-                <div className="inline-block bg-blue-50 text-blue-600 border border-blue-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-6">
-                    Scenario Guided Strategy
-                </div>
+                <Link
+                    href="/decision-surfaces"
+                    className="inline-block bg-blue-50 text-blue-600 border border-blue-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-6 hover:bg-blue-100 transition-colors"
+                >
+                    ← Buying Guides
+                </Link>
                 <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-slate-900 leading-[0.9] mb-8">
                     Home Backup <br />
-                    <span className="text-blue-600">Decision Surface</span>
+                    <span className="text-blue-600">Buying Guide</span>
                 </h1>
                 <p className="text-slate-500 text-lg leading-relaxed mb-12">
                     Not all "generators" can handle a home outage. We narrow the forensic database to units capable of high-draw motor starting and multi-hour appliance support.
                 </p>
 
-                {/* Criteria Bar */}
-                <div className="flex flex-wrap justify-center gap-4 mb-12">
-                    <div className="bg-slate-900 text-white rounded-full px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-slate-900">
-                        Inclusion Baseline: ≥{minCap}Wh Capacity
-                    </div>
-                    <div className="bg-white text-slate-900 rounded-full px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-slate-200">
-                        Output: ≥2000W Continuous
-                    </div>
-                    <div className="bg-white text-slate-900 rounded-full px-5 py-2 text-[10px] font-black uppercase tracking-widest border border-slate-200">
-                        Integrity: ≥80% Truth Index
-                    </div>
+                {/* Tier jump nav */}
+                <div className="flex flex-wrap justify-center gap-3 mb-12">
+                    <a
+                        href="#tier-1"
+                        className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-5 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-colors cursor-pointer"
+                    >
+                        Essential Backup ↓
+                    </a>
+                    <a
+                        href="#tier-2"
+                        className="bg-blue-50 text-blue-700 border border-blue-200 rounded-full px-5 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-blue-100 transition-colors cursor-pointer"
+                    >
+                        Extended Coverage ↓
+                    </a>
+                    <a
+                        href="#tier-3"
+                        className="bg-purple-50 text-purple-700 border border-purple-200 rounded-full px-5 py-2 text-[10px] font-black uppercase tracking-widest hover:bg-purple-100 transition-colors cursor-pointer"
+                    >
+                        High-Demand ↓
+                    </a>
                 </div>
             </header>
 

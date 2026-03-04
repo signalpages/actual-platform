@@ -50,9 +50,11 @@ export interface CanonicalSpecs {
     rated_power_w: number | null;
     rating: string | null;
     remote_monitoring: boolean | null;
+    rv_adapter_included: boolean | null;
     solar_input_max_w: number | null;
     storage_capacity_wh: number | null;
     surge_output_w: number | null;
+    tt30_port: boolean | null;
     ups_eps_switchover_ms: number | null;
     vmpp_v: number | null;
     voc_v: number | null;

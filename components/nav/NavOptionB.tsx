@@ -51,6 +51,10 @@ export default function NavOptionB({ mode }: NavOptionBProps) {
                             Compare
                         </Link>
 
+                        <Link href={withUi('/decision-surfaces', mode)} className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
+                            Buying Guides
+                        </Link>
+
                         <Link href={withUi('/learn', mode)} className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
                             Methodology
                         </Link>
@@ -76,6 +80,7 @@ export default function NavOptionB({ mode }: NavOptionBProps) {
                         <Link href={withUi('/systems', mode)} className="block text-sm font-bold text-slate-800 pl-4">Portable Power Stations</Link>
                         <Link href={withUi('/systems', mode)} className="block text-sm font-bold text-slate-800 pl-4">Home Backup</Link>
                     </div>
+                    <Link href={withUi('/decision-surfaces', mode)} className="block text-sm font-bold text-blue-600 border border-blue-100 bg-blue-50 rounded-lg px-3 py-2">Buying Guides →</Link>
                 </div>
             )}
         </nav>

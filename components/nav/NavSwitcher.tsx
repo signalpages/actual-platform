@@ -21,11 +21,14 @@ function DefaultNav() {
                     Actual<span className="text-blue-600">.</span>fyi
                 </Link>
                 <div className="flex items-center gap-4 md:gap-8">
+                    <Link href="/decision-surfaces" className={`text-[10px] font-black uppercase tracking-widest transition-colors text-slate-500 hover:text-blue-600`}>
+                        Buying Guides
+                    </Link>
+                    <Link href="/compare" className={`text-[10px] font-black uppercase tracking-widest transition-colors text-slate-500 hover:text-blue-600`}>
+                        Compare
+                    </Link>
                     <Link href="/specs?status=verified" className={`text-[10px] font-black uppercase tracking-widest transition-colors ${status === 'verified' || (!status) ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}>
                         Ledger
-                    </Link>
-                    <Link href="/specs?status=provisional" className={`text-[10px] font-black uppercase tracking-widest transition-colors ${status === 'provisional' ? 'text-amber-600' : 'text-slate-500 hover:text-amber-600'}`}>
-                        Provisional
                     </Link>
                     <Link href="/contribute" className="text-[10px] font-black uppercase tracking-widest text-white bg-slate-900 px-4 py-2 rounded-lg hover:bg-blue-600 transition-all shadow-sm">
                         Submit
