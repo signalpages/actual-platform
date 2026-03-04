@@ -204,7 +204,11 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
             status,
             last_run_at: specs.created_at,
         },
-        claim_profile: Array.isArray(specs.claimed_specs) ? specs.claimed_specs : [],
+        // Fall back to actual_specs ({label,value} array) when claimed_specs is empty.
+        // This covers products like charge controllers that were audited without a pre-seeded claim profile.
+        claim_profile: (Array.isArray(specs.claimed_specs) && specs.claimed_specs.length > 0)
+            ? specs.claimed_specs
+            : (Array.isArray(specs.actual_specs) ? specs.actual_specs : []),
         reality_ledger,
         discrepancies: Array.isArray(specs.red_flags) ? specs.red_flags : [],
         truth_index: specs.truth_score,
@@ -387,4 +391,49 @@ export const getLedgerStats = async () => {
             ledgerUpdatedAt: new Date().toISOString()
         };
     }
+};
+
+/**
+ * Fetch verified products + summary audit data by category (For Category Hubs)
+ */
+export const getProductsByCategoryWithAudits = async (categorySlug: string) => {
+    const supabase = await getSupabase();
+
+    // 1) Fetch Products in category
+    const { data: products, error: pErr } = await supabase
+        .from("products")
+        .select("*")
+        .eq("category", categorySlug)
+        .eq("is_hidden", false)
+        .order("model_name");
+
+    if (pErr || !products) return [];
+
+    // 2) Fetch verified audits
+    const productIds = products.map((p) => p.id);
+    const { data: shadows, error: sErr } = await supabase
+        .from("shadow_specs")
+        .select("product_id, is_verified, truth_score, created_at, actual_specs, red_flags, claimed_specs")
+        .in("product_id", productIds)
+        // We only want verified ones for the Truth Index table
+        .eq("is_verified", true);
+
+    if (sErr) console.warn("[DataBridge Server] Error fetching shadows in getProductsByCategoryWithAudits", sErr);
+
+    const shadowMap = new Map((shadows || []).map((s) => [s.product_id, s]));
+
+    // 3) Map together
+    return products.map((p) => {
+        const shadow = shadowMap.get(p.id);
+        const actualSpecs = typeof shadow?.actual_specs === 'object' && shadow.actual_specs !== null ? (shadow.actual_specs as any) : {};
+
+        return {
+            ...p,
+            verified: !!shadow?.is_verified,
+            truth_score: shadow?.truth_score || null,
+            // Provide sensible defaults if missing, mimicking the Verdict Snapshot
+            key_strength: actualSpecs.strengths?.[0] || 'Technical parity verified',
+            key_limitation: actualSpecs.limitations?.[0] || 'Pricing or marketing may diverge',
+        };
+    });
 };

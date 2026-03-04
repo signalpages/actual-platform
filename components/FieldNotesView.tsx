@@ -16,16 +16,12 @@ export const FieldNotesView: React.FC<FieldNotesViewProps> = ({ snapshot }) => {
         });
     };
 
+    // Use the explicit contract from snapshot_json if available, fallback for safety
+    const data = (snapshot.snapshot_json || snapshot) as any;
+
     // 1. Source Grouping Logic
-    const rawSources = snapshot.sources || snapshot.raw_blob?.sources || snapshot.source_urls.map(url => ({ title: url, url }));
-
-    const ownerDiscussions = rawSources.filter((s: any) => {
-        const d = (s.url || '').toLowerCase();
-        const t = (s.title || '').toLowerCase();
-        return d.includes('reddit.com') || d.includes('community') || d.includes('forum') || t.includes('community') || t.includes('reddit');
-    });
-
-    const referenceDocs = rawSources.filter((s: any) => !ownerDiscussions.includes(s));
+    const ownerDiscussions = data.sources_owner || [];
+    const referenceDocs = data.sources_reference || [];
 
     // 2. Language Guardrail for Friction
     const formatFriction = (text: string) => {
@@ -43,12 +39,13 @@ export const FieldNotesView: React.FC<FieldNotesViewProps> = ({ snapshot }) => {
                 </h2>
                 <p className="text-slate-500 text-sm font-medium leading-relaxed mb-6">
                     Long-term ownership patterns surfaced from owner discussions — distinct from the structured product audit. Field Notes are derived from unstructured forum posts and review commentary rather than the validation framework used for scoring, and do not influence the Truth Index. Field Notes are only available for select products where sufficient ownership discussions exist.
+                    {data.disclaimer && ` ${data.disclaimer}`}
                 </p>
 
                 <div className="flex flex-wrap gap-6">
                     <div className="flex flex-col">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sources Surfaced</span>
-                        <span className="text-xs font-bold text-slate-700">{snapshot.source_count}</span>
+                        <span className="text-xs font-bold text-slate-700">{(ownerDiscussions.length + referenceDocs.length) || snapshot.source_count || 0}</span>
                     </div>
                     <div className="flex flex-col">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Last Refreshed from Discussions</span>
@@ -65,7 +62,7 @@ export const FieldNotesView: React.FC<FieldNotesViewProps> = ({ snapshot }) => {
                         <span className="text-base">👍</span> What Owners Like
                     </h3>
                     <ul className="space-y-3">
-                        {snapshot.praise.slice(0, 7).map((item, i) => (
+                        {(data.praise || []).slice(0, 7).map((item: any, i: number) => (
                             <li key={i} className="text-sm text-slate-700 font-medium flex items-start gap-2">
                                 <span className="text-emerald-500 font-bold">•</span>
                                 {item}
@@ -80,7 +77,7 @@ export const FieldNotesView: React.FC<FieldNotesViewProps> = ({ snapshot }) => {
                         <span className="text-base">⚠️</span> Where Friction Appears
                     </h3>
                     <ul className="space-y-3">
-                        {snapshot.friction.slice(0, 7).map((item, i) => (
+                        {(data.friction || []).slice(0, 7).map((item: any, i: number) => (
                             <li key={i} className="text-sm text-slate-700 font-medium flex items-start gap-2">
                                 <span className="text-amber-500 font-bold">•</span>
                                 {formatFriction(item)}
@@ -95,7 +92,7 @@ export const FieldNotesView: React.FC<FieldNotesViewProps> = ({ snapshot }) => {
                         <span className="text-base">🔎</span> Long-Term Patterns
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-3">
-                        {snapshot.themes.slice(0, 6).map((item, i) => (
+                        {(data.themes || []).slice(0, 6).map((item: any, i: number) => (
                             <li key={i} className="text-sm text-slate-700 font-medium flex items-start gap-2 list-none">
                                 <span className="text-slate-300 font-bold">•</span>
                                 {item}
@@ -105,7 +102,7 @@ export const FieldNotesView: React.FC<FieldNotesViewProps> = ({ snapshot }) => {
                 </div>
 
                 {/* Optional Delta Section */}
-                {snapshot.delta_summary && snapshot.delta_summary.length > 0 && (
+                {data.delta_summary && data.delta_summary.length > 0 && (
                     <div className="md:col-span-2 mt-4">
                         <details className="group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden transition-all duration-300">
                             <summary className="flex items-center justify-between p-6 cursor-pointer list-none">
@@ -116,12 +113,17 @@ export const FieldNotesView: React.FC<FieldNotesViewProps> = ({ snapshot }) => {
                             </summary>
                             <div className="p-6 pt-0">
                                 <ul className="space-y-3">
-                                    {snapshot.delta_summary.slice(0, 3).map((item, i) => (
+                                    {Array.isArray(data.delta_summary) ? data.delta_summary.slice(0, 3).map((item: any, i: number) => (
                                         <li key={i} className="text-sm text-slate-600 font-medium flex items-start gap-2">
                                             <span className="text-slate-400 font-bold">•</span>
                                             {item}
                                         </li>
-                                    ))}
+                                    )) : (
+                                        <li className="text-sm text-slate-600 font-medium flex items-start gap-2">
+                                            <span className="text-slate-400 font-bold">•</span>
+                                            {data.delta_summary}
+                                        </li>
+                                    )}
                                 </ul>
                             </div>
                         </details>

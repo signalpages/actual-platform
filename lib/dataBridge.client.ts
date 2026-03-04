@@ -132,16 +132,14 @@ export const getAssetBySlug = async (slug: string): Promise<Asset | null> => {
   }
 };
 
-export const getFieldNotes = async (productId: string): Promise<any | null> => {
+export const getFieldNotes = async (productSlug: string): Promise<any | null> => {
   try {
     const client = getPublicClient();
     const { data, error } = await client
       .from("field_notes_snapshots")
       .select("*")
-      .eq("product_id", productId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .eq("product_slug", productSlug)
+      .single();
 
     if (error) throw error;
     return data;

@@ -246,45 +246,62 @@ export async function executeStage3(
         throw new Error('GOOGLE_AI_STUDIO_KEY not configured');
     }
 
-    const prompt = `You are a fair and impartial forensic auditor evaluating ${product.brand} ${product.model_name}. Your mission is to find the "Truth Index" by verifying manufacturer claims against real-world evidence.
+    const claimList = stage1.claim_profile.length > 0
+        ? stage1.claim_profile.map(c => `- ${c.label}: ${c.value}`).join('\n')
+        : `(No manufacturer spec sheet provided — use community signals as primary evidence)`;
+
+    const prompt = `You are a forensic product auditor. Your job is to find REAL discrepancies between what a manufacturer claims and what users actually experience.
+
+PRODUCT: ${product.brand} ${product.model_name}
+CATEGORY: ${product.category || 'unknown'}
 
 MANUFACTURER CLAIMS:
-${stage1.claim_profile.map(c => `- ${c.label}: ${c.value}`).join('\n')}
+${claimList}
 
-COMMUNITY FEEDBACK & SIGNALS:
-Most Praised: ${stage2.independent_signal.most_praised.map(p => p.text).join('; ')}
-Issues & Trade-offs: ${stage2.independent_signal.most_reported_issues.map(i => i.text).join('; ')}
+COMMUNITY SIGNALS:
+Praised: ${stage2.independent_signal.most_praised.map(p => p.text).join('; ')}
+Reported Issues: ${stage2.independent_signal.most_reported_issues.map(i => i.text).join('; ')}
 
-TASK 1: VERIFY DISCREPANCIES (FAIRNESS FIRST)
-Identify ONLY clear technical discrepancies or performance failures.
-- A "Loud Fan" is only a red flag if it's excessive or indicates a hardware flaw. If it's a standard trade-off for high power, do not penalize it.
-- "Heavy Weight" is NOT a discrepancy if it matches the spec sheet.
-- "App requires account" is a limitation, but not necessarily a "Fact Failure."
-- Focus on: "Claimed 2000Wh but only delivers 1600Wh", "Advertising fast charging but limited by firmware", or "Recurring inverter failures."
-- If the product meets its claims, it is OK to have zero discrepancies. Excellence is allowed.
+=== TASK 1: FIND DISCREPANCIES ===
+You MUST actively look for discrepancies. Do NOT default to "no discrepancies" without a thorough check.
 
-TASK 2: REALITY LEDGER
-For EACH manufacturer claim above, determine the "Real World" value based on the evidence.
-- If confirmed: Use the claimed value (e.g. "Confirmed 2000W").
-- If there is a significant (>5%) variance: Use the real observed value (e.g. "Actually ~1850W").
-- If unknown: write "Not verified".
+Examine each community-reported issue above. For each one, determine: Is this a real technical discrepancy (manufacturer claim vs. verified reality) or just a design trade-off?
+
+Types of discrepancies you SHOULD flag:
+- Spec sheet value differs from measured/reported performance by >5%
+- Advertised feature missing or requires expensive add-on
+- Firmware-capped performance below rated spec
+- Recurring hardware failure not disclosed by manufacturer
+- Missing connectivity/feature that manufacturer implies is present
+- Safety or reliability issue not reflected in marketing
+
+Do NOT flag:
+- Weight/size that matches the spec sheet
+- Price (not a claim discrepancy)
+- Subjectivity ("some users prefer X")
+
+If you find ZERO discrepancies after genuinely checking all community issues, you MAY return an empty array — but only if you have verified that each reported issue is purely a design trade-off with no misleading manufacturer claim attached.
+
+=== TASK 2: REALITY LEDGER ===
+For EACH manufacturer claim listed, write the real-world verified value:
+- If confirmed accurate: "Confirmed [value]"
+- If variance >5%: "Actually [real value]"
+- If not verifiable: "Not verified"
 
 CRITICAL: Do not use quotation marks (") inside any string values. Use apostrophes or rewrite.
 Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
 
-Return JSON:
 {
   "red_flags": [
     {
-      "claim": "exact claim text",
-      "reality": "specific verification finding",
+      "claim": "exact claim or issue text",
+      "reality": "specific verified finding with numbers where possible",
       "severity": "minor|moderate|severe",
       "impact": "practical effect on users"
     }
   ],
   "reality_ledger": [
-    { "label": "Battery Capacity", "value": "2850Wh (tested avg)" },
-    { "label": "AC Output", "value": "Confirmed 3000W" }
+    { "label": "Spec Name", "value": "Confirmed X or Actually Y" }
   ]
 }`;
 

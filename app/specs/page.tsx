@@ -119,7 +119,7 @@ function SpecLedgerContent() {
                             Forensic Ledger
                         </h1>
                         <p className="text-slate-500 font-medium text-xs uppercase tracking-wide mb-4">
-                            {categoryFilter === 'all' ? 'BoM Level Inventory' : `Category: ${categories.find(c => c.id === categoryFilter)?.label}`}
+                            {categoryFilter === 'all' ? 'Verified Technical Inventory' : `Category: ${categories.find(c => c.id === categoryFilter)?.label}`}
                         </p>
                         {categoryFilter !== 'all' && (
                             <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest">
@@ -249,20 +249,43 @@ function SpecLedgerContent() {
                                             <span className="text-right">Delta</span>
                                             <span className="text-right">Sev</span>
                                         </div>
-                                        <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr] gap-2 items-center text-[10px] font-mono border-b border-slate-50 pb-2">
-                                            <span className="font-bold text-slate-700 font-sans">Capacity</span>
-                                            <span className="text-right text-slate-500">2048</span>
-                                            <span className="text-right text-slate-900 font-bold">2055</span>
-                                            <span className="text-right text-emerald-600 font-bold">+0.3%</span>
-                                            <span className="text-right"><div className="w-2 h-2 rounded-full bg-slate-200 ml-auto"></div></span>
-                                        </div>
-                                        <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr] gap-2 items-center text-[10px] font-mono">
-                                            <span className="font-bold text-slate-700 font-sans">Cycles</span>
-                                            <span className="text-right text-slate-500">3500</span>
-                                            <span className="text-right text-slate-900 font-bold">3100</span>
-                                            <span className="text-right text-amber-600 font-bold">-11.4%</span>
-                                            <span className="text-right"><div className="w-2 h-2 rounded-full bg-amber-500 ml-auto"></div></span>
-                                        </div>
+                                        {(() => {
+                                            const discs: any[] = asset.latest_discrepancies || [];
+                                            const actualSpecs: any[] = (asset as any).latest_actual_specs || [];
+
+                                            if (discs.length > 0) {
+                                                // Show up to 2 real discrepancies
+                                                return discs.slice(0, 2).map((d: any, i: number) => (
+                                                    <div key={i} className={`grid grid-cols-[1.5fr_1fr_1fr_1fr_1fr] gap-2 items-center text-[10px] font-mono ${i < discs.slice(0, 2).length - 1 ? 'border-b border-slate-50 pb-2' : ''}`}>
+                                                        <span className="font-bold text-slate-700 font-sans truncate" title={d.claim}>{d.claim?.split(' ').slice(0, 3).join(' ') || 'Spec'}</span>
+                                                        <span className="text-right text-slate-400 text-[9px]">Claimed</span>
+                                                        <span className="text-right text-slate-900 font-bold text-[9px] truncate">{d.reality?.split(' ').slice(0, 3).join(' ') || '—'}</span>
+                                                        <span className={`text-right font-bold ${d.severity === 'severe' ? 'text-red-600' : d.severity === 'moderate' ? 'text-amber-600' : 'text-slate-500'}`}>▲ gap</span>
+                                                        <span className="text-right">
+                                                            <div className={`w-2 h-2 rounded-full ml-auto ${d.severity === 'severe' ? 'bg-red-500' : d.severity === 'moderate' ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
+                                                        </span>
+                                                    </div>
+                                                ));
+                                            }
+
+                                            if (actualSpecs.length > 0) {
+                                                // Show up to 2 verified spec entries
+                                                return actualSpecs.slice(0, 2).map((s: any, i: number) => (
+                                                    <div key={i} className={`grid grid-cols-[1.5fr_2fr_1fr] gap-2 items-center text-[10px] ${i < actualSpecs.slice(0, 2).length - 1 ? 'border-b border-slate-50 pb-2' : ''}`}>
+                                                        <span className="font-bold text-slate-700 font-sans truncate">{s.label}</span>
+                                                        <span className="text-right text-slate-900 font-mono truncate text-[9px]">{s.value}</span>
+                                                        <span className="text-right"><div className="w-2 h-2 rounded-full bg-emerald-400 ml-auto"></div></span>
+                                                    </div>
+                                                ));
+                                            }
+
+                                            // No data yet
+                                            return (
+                                                <div className="text-center text-[9px] text-slate-400 font-medium py-2">
+                                                    No discrepancies on record
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
                                 ) : (
                                     <div className="py-4 text-center bg-slate-50 rounded-xl border border-slate-100">

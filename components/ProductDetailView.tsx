@@ -39,8 +39,12 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
   const [hasRevealedLedger, setHasRevealedLedger] = useState(
-    // Auto-reveal if SSR already delivered a complete audit
-    () => typeof initialAudit?.truth_index === 'number' && initialAudit.truth_index > 0
+    // Auto-reveal if SSR audit OR asset.truth_score indicates a completed audit exists.
+    // This covers cases where initialAudit.truth_index is null at SSR time but shadow_specs has a score.
+    () => (
+      (typeof initialAudit?.truth_index === 'number' && initialAudit.truth_index > 0) ||
+      (typeof initialAsset?.truth_score === 'number' && initialAsset.truth_score > 0)
+    )
   );
 
   // UX-001: Verify Integrity state
@@ -151,32 +155,13 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
     [] // Dependencies cleanly empty since we use refs and stable external functions
   );
 
-  // CACHE-001: Auto-run guard — only trigger LLM if no canonical data exists.
-  // Priority: initialAudit (SSR) > session cache > auto-run.
-  // This prevents refresh from re-triggering compute.
-  useEffect(() => {
-    if (!mounted) return;
-    // audit here includes initialAudit (from SSR) and session cache (from earlier useEffect)
-    if (asset && shouldAutoRun && auditProcessed.current !== slug && !audit) {
-      auditProcessed.current = slug;
-      handleDeepScan(asset);
-    }
-  }, [mounted, asset, shouldAutoRun, slug, audit, handleDeepScan]);
-
-  // Field Notes Effect
-  useEffect(() => {
-    if (mounted && asset?.id && FIELD_NOTES_ALLOWLIST.has(slug)) {
-      getFieldNotes(asset.id).then(setFieldNotesSnapshot);
-    }
-  }, [mounted, asset, slug]);
-
   // UX-001: Ledger retrieval — honest integrity check, no LLM unless needed.
   const handleVerifyIntegrity = useCallback(async () => {
     if (!asset?.slug || integrityState === 'checking') return;
     setIntegrityState('checking');
     const t0 = Date.now();
     try {
-      const res = await fetch('/api/audit/integrity', {
+      const res = await fetch(`/api/audit/integrity?t=${Date.now()}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ slug: asset.slug }),
@@ -202,6 +187,42 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
       handleDeepScan(asset);
     }
   }, [asset, integrityState, handleDeepScan]);
+
+  // CACHE-001: Auto-run guard — only trigger LLM if no canonical data exists.
+  useEffect(() => {
+    if (!mounted) return;
+    if (asset && shouldAutoRun && auditProcessed.current !== slug && !audit) {
+      auditProcessed.current = slug;
+      handleDeepScan(asset);
+    }
+  }, [mounted, asset, shouldAutoRun, slug, audit, handleDeepScan]);
+
+  // COMPUTE EFFECTIVE AUDIT
+  // Always normalize asset to skeleton audit if real audit is missing to ensure AuditResults can render
+  const effectiveAudit = audit || (asset ? normalizeAuditResult(null, asset) : null);
+
+  // UX-001: Force reveal if truth index is present
+  useEffect(() => {
+    if (effectiveAudit?.truth_index || asset?.truth_score) {
+      setHasRevealedLedger(true);
+    }
+  }, [effectiveAudit?.truth_index, asset?.truth_score]);
+
+  // UX-001: Auto-verify integrity if no verified audit exists yet.
+  useEffect(() => {
+    if (!mounted || !asset || isScanning) return;
+    const isComplete = !!(audit?.truth_index && audit.stages?.stage_4?.status === 'done');
+    if (!isComplete) {
+      handleVerifyIntegrity();
+    }
+  }, [mounted, asset, audit, handleVerifyIntegrity, isScanning]);
+
+  // Field Notes Effect
+  useEffect(() => {
+    if (mounted && asset?.id && FIELD_NOTES_ALLOWLIST.has(slug)) {
+      getFieldNotes(asset.id).then(setFieldNotesSnapshot);
+    }
+  }, [mounted, asset, slug]);
 
   // Stage recovery: re-run a single atomic stage endpoint.
   const handleRunStage = useCallback(async (stage: 'stage2' | 'stage3' | 'stage4') => {
@@ -243,27 +264,27 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const productHasSpecs = hasMeaningfulSpecs(asset?.technical_specs);
   const stage1Done = productHasSpecs;
 
-  // COMPUTE EFFECTIVE AUDIT
-  // Always normalize asset to skeleton audit if real audit is missing to ensure AuditResults can render
-  const effectiveAudit = audit || (asset ? normalizeAuditResult(null, asset) : null);
+  // If the product achieved a truth index from a full run, we consider the audit complete
+  // even if there were no 'meaningful' specs to claim initially.
+  const isActuallyComplete = effectiveAudit?.truth_index !== null && effectiveAudit?.truth_index !== undefined;
 
   const allStagesComplete = !!(
-    stage1Done &&
-    effectiveAudit?.stages?.stage_2?.status === "done" &&
-    effectiveAudit?.stages?.stage_3?.status === "done" &&
-    effectiveAudit?.stages?.stage_4?.status === "done"
+    (productHasSpecs || isActuallyComplete) &&
+    (effectiveAudit?.stages?.stage_2?.status === "done" || isActuallyComplete) &&
+    (effectiveAudit?.stages?.stage_3?.status === "done" || isActuallyComplete) &&
+    (effectiveAudit?.stages?.stage_4?.status === "done" || isActuallyComplete)
   );
 
-  const cacheHasVerifiedAudit = stage1Done && allStagesComplete && !!effectiveAudit?.truth_index;
+  const cacheHasVerifiedAudit = allStagesComplete && !!effectiveAudit?.truth_index;
   const isVerifiedAudit = cacheHasVerifiedAudit && hasRevealedLedger;
   const isProvisional = asset?.verification_status === "provisional";
 
   const visibleAudit = useMemo(() => {
     if (!effectiveAudit) return null;
 
-    // If the product has no real specs, hide everything downstream (stages 2–4)
-    // so the user sees a clean pending state with the "Retrieve Ledger Entry" button.
-    if (!productHasSpecs) {
+    // If the product has no real specs AND it does not have a verified truth_index,
+    // hide everything downstream (stages 2–4) so the user sees a clean pending state.
+    if (!productHasSpecs && effectiveAudit.truth_index === null) {
       return {
         ...effectiveAudit,
         truth_index: null,
@@ -295,7 +316,8 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   if (isScanning) auditStatusLabel = "Verifying...";
   else if (isProvisional && !hasTruthIndex) auditStatusLabel = "Preliminary synthesis required";
   else if (isProvisional && hasTruthIndex) auditStatusLabel = "Verified Auditor Verdict";
-  else if (!isVerifiedAudit) auditStatusLabel = "Verified Asset (Pending Full Audit)";
+  else if (hasTruthIndex) auditStatusLabel = "Verified Ledger Entry";
+  else auditStatusLabel = "Verification Pending";
 
   const truthColor = isVerifiedAudit
     ? (audit?.truth_index || 0) >= 90
@@ -386,7 +408,17 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
             <div className="space-y-1 flex-grow">
               <div className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-blue-600">
                 {asset.brand} <span className="text-slate-300">—</span>{" "}
-                <Link href={`/specs?category=${asset.category}`} className="hover:underline">
+                {/* Dynamically link to authority silo if it exists, fallback to specs filter */}
+                <Link
+                  href={
+                    asset.category === 'portable_power_station' ? '/portable-power-stations' :
+                      asset.category === 'solar_panel' ? '/solar-panels' :
+                        asset.category === 'ev_charger' ? '/ev-chargers' :
+                          asset.category === 'inverter' ? '/inverters' :
+                            `/specs?category=${asset.category}`
+                  }
+                  className="hover:underline"
+                >
                   {formatCategoryLabel(asset.category)}
                 </Link>
               </div>
@@ -513,7 +545,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
         <div className="p-10 md:p-14">
           <p className="text-[11px] leading-relaxed text-slate-400 mb-6 max-w-2xl">
-            This page functions as a technical review of the {asset.brand} {asset.model_name}, conducted through a structured four-stage audit process. We prioritize technical reality over manufacturer marketing to deliver a verified Truth Index score. Unlike opinion-based reviews, this audit flags discrepancies where marketing claims diverge from category norms.
+            This log functions as a technical audit of the {asset.brand} {asset.model_name}, conducted through a structured four-stage validation process. We prioritize technical reality over manufacturer marketing to deliver a verified Truth Index score. This forensic baseline flags discrepancies where marketing claims diverge from category norms.
           </p>
 
           {/* Verdict Snapshot (CTR Optimization) */}

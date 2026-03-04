@@ -30,8 +30,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-6">
             <p className="text-[10px] text-slate-300 font-bold uppercase">&copy; 2026 Actual.fyi</p>
             <div className="flex items-center gap-6">
+              <Link href="/truth-index-methodology" className="text-[10px] text-slate-300 hover:text-blue-600 font-bold uppercase tracking-widest transition-colors underline decoration-slate-200 underline-offset-4">Methodology</Link>
               <Link href="/coverage" className="text-[10px] text-slate-300 hover:text-blue-600 font-bold uppercase tracking-widest transition-colors underline decoration-slate-200 underline-offset-4">Coverage</Link>
               <Link href="/contact" className="text-[10px] text-slate-300 hover:text-blue-600 font-bold uppercase tracking-widest transition-colors underline decoration-slate-200 underline-offset-4">Contact</Link>
+              <Link href="/affiliate-disclosure" className="text-[10px] text-slate-300 hover:text-blue-600 font-bold uppercase tracking-widest transition-colors underline decoration-slate-200 underline-offset-4">Disclosure</Link>
             </div>
           </div>
         </div>

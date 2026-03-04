@@ -157,15 +157,17 @@ export interface ComparisonResult {
 
 export interface FieldNotesSnapshot {
   id: string;
-  product_id: string;
+  product_slug: string;
   created_at: string;
-  source_count: number;
-  source_urls: string[];
-  sources?: { title: string; url: string }[];
-  praise: string[];
-  friction: string[];
-  themes: string[];
-  delta_summary?: string[];
-  raw_blob?: any;
   snapshot_hash: string;
+  source_count?: number; // Kept optional for backward compatibility in UI
+  snapshot_json: {
+    praise: string[];
+    friction: string[];
+    themes: { title: string; bullets: string[] }[] | string[];
+    delta_summary: string | string[];
+    sources_owner: { label: string; url?: string }[];
+    sources_reference: { label: string; url?: string }[];
+    disclaimer?: string;
+  };
 }

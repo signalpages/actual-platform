@@ -81,7 +81,12 @@ export function AuditResults({ product, audit, onRetryStage, isRunning }: AuditR
 
     // Single source of truth: composeClaimProfile handles schema + generic fallback,
     // always filters out TBD/N/A/internal keys.
-    const claimItems = composeClaimProfile(product.technical_specs, product.category);
+    // Fallback to audit.claim_profile for products where technical_specs is empty
+    // but the audit pipeline produced verified spec data (e.g. charge controllers).
+    const rawClaimItems = composeClaimProfile(product.technical_specs, product.category);
+    const claimItems = rawClaimItems.length > 0
+        ? rawClaimItems
+        : (Array.isArray(audit.claim_profile) ? audit.claim_profile : []);
 
     const hasSpecs = claimItems.length >= 1;
 

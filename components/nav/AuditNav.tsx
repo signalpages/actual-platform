@@ -60,7 +60,23 @@ export default function AuditNav() {
                             </div>
                         </div>
 
-                        <Link href="/learn" className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
+                        {/* About Dropdown */}
+                        <div className="relative group">
+                            <button className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-blue-600 py-4 flex items-center gap-1">
+                                About
+                                <svg className="w-3 h-3 text-slate-300 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                            </button>
+                            <div className="absolute left-0 mt-0 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0 duration-200 z-50 overflow-hidden">
+                                <div className="p-2">
+                                    <Link href="/how-we-audit" className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
+                                        <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">How We Audit</div>
+                                        <div className="text-[10px] text-slate-500 mt-0.5">Validation process</div>
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+
+                        <Link href="/truth-index-methodology" className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
                             Methodology
                         </Link>
                     </div>
@@ -91,6 +107,11 @@ export default function AuditNav() {
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Systems</div>
                         <Link href="/systems" className="block text-sm font-bold text-slate-800 pl-4">Ready-Made Systems</Link>
                         <Link href="/systems" className="block text-sm font-bold text-slate-800 pl-4">System Context</Link>
+                    </div>
+                    <div className="space-y-2">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">About</div>
+                        <Link href="/how-we-audit" className="block text-sm font-bold text-slate-800 pl-4">How We Audit</Link>
+                        <Link href="/truth-index-methodology" className="block text-sm font-bold text-slate-800 pl-4">Methodology</Link>
                     </div>
                 </div>
             )}
