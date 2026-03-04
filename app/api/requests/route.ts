@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+export const runtime = "edge";
+
 function ok() {
     return NextResponse.json({ ok: true }, { status: 200 });
 }
