@@ -44,25 +44,6 @@ export default function AuditNav() {
                             Buying Guides
                         </Link>
 
-                        {/* Systems Dropdown (Secondary) */}
-                        <div className="relative group">
-                            <button className="text-[11px] font-black uppercase tracking-widest text-slate-500 group-hover:text-blue-600 py-4 flex items-center gap-1">
-                                Systems
-                                <svg className="w-3 h-3 text-slate-300 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                            </button>
-                            <div className="absolute left-0 mt-0 w-64 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0 duration-200 z-50 overflow-hidden">
-                                <div className="p-2">
-                                    <Link href="/systems" className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
-                                        <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">Ready-Made Systems</div>
-                                        <div className="text-[10px] text-slate-500 mt-0.5">Portable Power Stations</div>
-                                    </Link>
-                                    <Link href="/systems" className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
-                                        <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">System Context</div>
-                                        <div className="text-[10px] text-slate-500 mt-0.5">How components fit together</div>
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
 
                         {/* About Dropdown */}
                         <div className="relative group">
@@ -108,11 +89,7 @@ export default function AuditNav() {
                     </div>
                     <Link href="/compare" className="block text-[10px] font-black uppercase tracking-widest text-slate-600">Compare</Link>
                     <Link href="/decision-surfaces" className="block text-[10px] font-black uppercase tracking-widest text-blue-600">Buying Guides</Link>
-                    <div className="space-y-2">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Systems</div>
-                        <Link href="/systems" className="block text-sm font-bold text-slate-800 pl-4">Ready-Made Systems</Link>
-                        <Link href="/systems" className="block text-sm font-bold text-slate-800 pl-4">System Context</Link>
-                    </div>
+
                     <div className="space-y-2">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">About</div>
                         <Link href="/how-we-audit" className="block text-sm font-bold text-slate-800 pl-4">How We Audit</Link>
