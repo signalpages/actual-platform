@@ -97,6 +97,27 @@ function CompareIndexContent() {
     const searchParams = useSearchParams();
     const capacityFilter = searchParams.get('capacity') || null;
 
+    const jsonLd = React.useMemo(() => {
+        return {
+            '@context': 'https://schema.org',
+            '@type': 'BreadcrumbList',
+            'itemListElement': [
+                {
+                    '@type': 'ListItem',
+                    'position': 1,
+                    'name': 'Home',
+                    'item': 'https://actual.fyi'
+                },
+                {
+                    '@type': 'ListItem',
+                    'position': 2,
+                    'name': 'Compare',
+                    'item': 'https://actual.fyi/compare'
+                }
+            ]
+        };
+    }, []);
+
     const activeClass = capacityFilter
         ? CAPACITY_CLASSES.find((c) => c.key === capacityFilter)
         : null;
@@ -107,6 +128,10 @@ function CompareIndexContent() {
 
     return (
         <main className="max-w-6xl mx-auto px-6 py-16 md:py-24">
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+            />
             <header className="mb-20 text-center max-w-3xl mx-auto">
                 <div className="inline-block bg-blue-50 text-blue-600 border border-blue-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-6">
                     Structured Face-Offs

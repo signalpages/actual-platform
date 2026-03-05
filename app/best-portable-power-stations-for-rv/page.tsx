@@ -150,10 +150,74 @@ function RVScenarioContent() {
         };
     }, [products]);
 
+    const jsonLd = useMemo(() => {
+        if (products.length === 0) return null;
+
+        return {
+            '@context': 'https://schema.org',
+            '@graph': [
+                {
+                    '@type': 'ItemList',
+                    'name': 'Best Power Stations for RV Use',
+                    'description': 'Forensic verification of portable power stations optimized for RV travel and boondocking.',
+                    'itemListElement': products.slice(0, 10).map((p, index) => ({
+                        '@type': 'ListItem',
+                        'position': index + 1,
+                        'url': `https://actual.fyi/specs/${p.slug}`,
+                        'name': `${p.brand} ${p.model_name}`
+                    }))
+                },
+                {
+                    '@type': 'BreadcrumbList',
+                    'itemListElement': [
+                        { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'https://actual.fyi' },
+                        { '@type': 'ListItem', 'position': 2, 'name': 'Buying Guides', 'item': 'https://actual.fyi/decision-surfaces' },
+                        { '@type': 'ListItem', 'position': 3, 'name': 'RV Power Buying Guide', 'item': 'https://actual.fyi/best-portable-power-stations-for-rv' }
+                    ]
+                },
+                {
+                    '@type': 'FAQPage',
+                    'mainEntity': [
+                        {
+                            '@type': 'Question',
+                            'name': 'Can a portable power station run an RV air conditioner?',
+                            'acceptedAnswer': {
+                                '@type': 'Answer',
+                                'text': 'Yes, but it requires high peak surge capacity (usually 3000W+) or a soft-start on the AC unit. Many 2000W+ continuous units can run smaller AC units efficiently.'
+                            }
+                        },
+                        {
+                            '@type': 'Question',
+                            'name': 'Do I need a 30A adapter for my RV?',
+                            'acceptedAnswer': {
+                                '@type': 'Answer',
+                                'text': 'Premium units like the EcoFlow Delta Pro or Bluetti AC200MAX feature native 30A outlets. For other units, a high-quality pigtail adapter is required, but total draw will be limited by the unit\'s inverter.'
+                            }
+                        },
+                        {
+                            '@type': 'Question',
+                            'name': 'How do I charge my power station while boondocking?',
+                            'acceptedAnswer': {
+                                '@type': 'Answer',
+                                'text': 'Portable solar panels are the most effective way. Most RV-optimized power stations support high-voltage solar input (up to 150V) for faster charging in variable conditions.'
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+    }, [products]);
+
     const appliedThreshold = products.length > 8 ? 2400 : 2000;
 
     return (
         <main className="max-w-7xl mx-auto px-6 py-16 md:py-24">
+            {jsonLd && (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+                />
+            )}
             {/* Hero Section */}
             <header className="mb-20 text-center max-w-4xl mx-auto">
                 <Link
@@ -264,23 +328,59 @@ function RVScenarioContent() {
 
             {/* Practical Runtime Context Footer */}
             {!loading && products.length > 0 && (
-                <section className="mt-24 bg-white border border-slate-200 rounded-3xl p-10 shadow-sm">
-                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6">Scenario Assumptions</h3>
-                    <div className="grid sm:grid-cols-3 gap-8">
-                        <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">RV Fridge (~120W avg)</div>
-                            <p className="text-xs text-slate-500 leading-relaxed italic">Assumes a standard 12V or compression fridge cycling. Runtime varies based on ambient temp and door usage.</p>
+                <>
+                    <section className="mt-24 bg-white border border-slate-200 rounded-3xl p-10 shadow-sm">
+                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6">Scenario Assumptions</h3>
+                        <div className="grid sm:grid-cols-3 gap-8">
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">RV Fridge (~120W avg)</div>
+                                <p className="text-xs text-slate-500 leading-relaxed italic">Assumes a standard 12V or compression fridge cycling. Runtime varies based on ambient temp and door usage.</p>
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">85% Inverter Efficiency</div>
+                                <p className="text-xs text-slate-500 leading-relaxed italic">Calculations factor in real-world energy loss during DC-to-AC conversion.</p>
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Deterministic Inclusion</div>
+                                <p className="text-xs text-slate-500 leading-relaxed italic">No paid inclusions. All results are live-filtered based on verified technical forensic data.</p>
+                            </div>
                         </div>
-                        <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">85% Inverter Efficiency</div>
-                            <p className="text-xs text-slate-500 leading-relaxed italic">Calculations factor in real-world energy loss during DC-to-AC conversion.</p>
+                    </section>
+
+                    {/* FAQ Section */}
+                    <section className="mt-24">
+                        <div className="flex items-center gap-4 mb-10">
+                            <div className="h-0.5 w-10 bg-emerald-500"></div>
+                            <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-600">Frequently Asked Questions</h2>
                         </div>
-                        <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Deterministic Inclusion</div>
-                            <p className="text-xs text-slate-500 leading-relaxed italic">No paid inclusions. All results are live-filtered based on verified technical forensic data.</p>
+                        <div className="grid md:grid-cols-2 gap-8">
+                            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100">
+                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 mb-4">Can a portable power station run an RV air conditioner?</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    Yes, but it requires high peak surge capacity (usually 3000W+) or a soft-start on the AC unit. Many 2000W+ continuous units can run smaller AC units efficiently if the initial surge is managed.
+                                </p>
+                            </div>
+                            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100">
+                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 mb-4">Do RV power stations require 30A compatibility?</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    Premium units feature native 30A TT-30 outlets for direct RV plug-in. For other units, a high-quality pigtail adapter is required, though total draw will still be limited by the unit's inverter.
+                                </p>
+                            </div>
+                            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100">
+                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 mb-4">How do I charge my power station while boondocking?</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    Portable or roof-mounted solar panels are the most effective way. Most RV-optimized power stations support high-voltage solar input (up to 150V) for faster charging in variable conditions.
+                                </p>
+                            </div>
+                            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100">
+                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 mb-4">What wattage is needed for RV appliances?</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    A microwave typically needs 1500W, a coffee maker 1000W, and a fridge 150W. We recommend a unit with at least 2000W continuous output to handle simultaneous appliance loads.
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
+                </>
             )}
 
             {/* Integrity Statement */}

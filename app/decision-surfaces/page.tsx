@@ -11,6 +11,25 @@ export const metadata: Metadata = {
     alternates: { canonical: '/decision-surfaces' },
 };
 
+const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    'itemListElement': [
+        {
+            '@type': 'ListItem',
+            'position': 1,
+            'name': 'Home',
+            'item': 'https://actual.fyi'
+        },
+        {
+            '@type': 'ListItem',
+            'position': 2,
+            'name': 'Buying Guides',
+            'item': 'https://actual.fyi/decision-surfaces'
+        }
+    ]
+};
+
 function SurfaceCard({ surface }: { surface: DecisionSurface }) {
     const isLive = surface.status === 'live';
 
@@ -107,6 +126,10 @@ export default function DecisionSurfacesPage() {
 
     return (
         <main>
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+            />
             {/* Hero */}
             <section className="bg-slate-900 border-b border-slate-800">
                 <div className="max-w-6xl mx-auto px-6 py-24 md:py-32">

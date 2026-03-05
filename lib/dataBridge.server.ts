@@ -195,8 +195,44 @@ export const mapShadowToResult = (specs: ShadowSpecs): AuditResult => {
     const stages = {
         stage_1: baseStages.stage_1 || (isActuallyComplete ? mockDone : undefined),
         stage_2: baseStages.stage_2 || (isActuallyComplete ? mockDone : undefined),
-        stage_3: baseStages.stage_3 || (isActuallyComplete ? mockDone : undefined),
-        stage_4: baseStages.stage_4 || (isActuallyComplete ? mockDone : undefined),
+        stage_3: (() => {
+            const s3Base = baseStages.stage_3 || (isActuallyComplete ? { ...mockDone } : undefined);
+            if (!s3Base) return undefined;
+            // Inject red_flags into stage_3.data.entries if they're empty/missing
+            const existingEntries = s3Base?.data?.entries || s3Base?.data?.discrepancies || [];
+            const redFlags = Array.isArray(specs.red_flags) ? specs.red_flags : [];
+            if (existingEntries.length === 0 && redFlags.length > 0) {
+                return {
+                    ...s3Base,
+                    data: {
+                        ...s3Base.data,
+                        entries: redFlags,
+                    }
+                };
+            }
+            return s3Base;
+        })(),
+        stage_4: (() => {
+            const s4Base = baseStages.stage_4 || (isActuallyComplete ? { ...mockDone } : undefined);
+            if (!s4Base) return undefined;
+            // Inject stage4Data (strengths, limitations, etc.) into stage_4.data when it's empty
+            const hasVerdictData = !!(
+                s4Base?.data?.strengths?.length ||
+                s4Base?.data?.metric_bars?.length ||
+                s4Base?.data?.truth_index != null
+            );
+            if (!hasVerdictData && Object.keys(stage4Data).length > 0) {
+                return {
+                    ...s4Base,
+                    data: {
+                        ...s4Base.data,
+                        ...stage4Data,
+                        truth_index: specs.truth_score,
+                    }
+                };
+            }
+            return s4Base;
+        })(),
     };
     return {
         assetId: specs.product_id,

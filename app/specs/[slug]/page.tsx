@@ -88,6 +88,29 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     sku: slug, // Internal identifier
                     category: categoryLabel,
                     image: product.image_url ? [product.image_url] : [],
+                },
+                {
+                    '@type': 'BreadcrumbList',
+                    'itemListElement': [
+                        {
+                            '@type': 'ListItem',
+                            'position': 1,
+                            'name': 'Home',
+                            'item': baseUrl
+                        },
+                        {
+                            '@type': 'ListItem',
+                            'position': 2,
+                            'name': categoryLabel,
+                            'item': `${baseUrl}/specs?category=${product.category}`
+                        },
+                        {
+                            '@type': 'ListItem',
+                            'position': 3,
+                            'name': productName,
+                            'item': pageUrl
+                        }
+                    ]
                 }
             ]
         };

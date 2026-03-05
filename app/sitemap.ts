@@ -8,7 +8,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const baseUrl = 'https://actual.fyi';
 
-    // Base static routes
+    // Base static routes with specific priorities
     const routes: MetadataRoute.Sitemap = [
         {
             url: baseUrl,
@@ -17,39 +17,57 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             priority: 1.0,
         },
         {
+            url: `${baseUrl}/best-portable-power-stations-for-home-backup`,
+            lastModified: new Date(),
+            changeFrequency: 'weekly',
+            priority: 0.9,
+        },
+        {
+            url: `${baseUrl}/best-portable-power-stations-for-rv`,
+            lastModified: new Date(),
+            changeFrequency: 'weekly',
+            priority: 0.9,
+        },
+        {
             url: `${baseUrl}/compare`,
             lastModified: new Date(),
             changeFrequency: 'weekly',
             priority: 0.8,
+        },
+        {
+            url: `${baseUrl}/portable-power-stations`,
+            lastModified: new Date(),
+            changeFrequency: 'weekly',
+            priority: 0.8,
+        },
+        {
+            url: `${baseUrl}/how-we-audit`,
+            lastModified: new Date(),
+            changeFrequency: 'monthly',
+            priority: 0.6,
+        },
+        {
+            url: `${baseUrl}/truth-index-methodology`,
+            lastModified: new Date(),
+            changeFrequency: 'monthly',
+            priority: 0.6,
         }
     ];
 
-    // Fetch products
+    // Fetch products for dynamic specs pages
     const { data: products } = await supabase
         .from('products')
-        .select('slug, category, updated_at, created_at');
+        .select('slug, updated_at, created_at')
+        .not('slug', 'is', null);
 
     if (products) {
-        // Collect unique categories for category pages
-        const categories = Array.from(new Set(products.map(p => p.category).filter(Boolean)));
-
-        categories.forEach((cat) => {
-            routes.push({
-                url: `${baseUrl}/specs?category=${cat}`,
-                lastModified: new Date(),
-                changeFrequency: 'weekly',
-                priority: 0.9,
-            });
-        });
-
-        // Add individual product pages
         products.forEach((product) => {
             if (product.slug && product.slug !== 'null') {
                 routes.push({
                     url: `${baseUrl}/specs/${product.slug}`,
                     lastModified: product.updated_at ? new Date(product.updated_at) : new Date(product.created_at || new Date()),
                     changeFrequency: 'weekly',
-                    priority: 0.8,
+                    priority: 0.7,
                 });
             }
         });

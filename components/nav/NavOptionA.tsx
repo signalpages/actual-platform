@@ -24,25 +24,7 @@ export default function NavOptionA({ mode }: NavOptionAProps) {
                     {/* Desktop Menu */}
                     <div className="hidden md:flex items-center gap-8">
 
-                        {/* Systems Dropdown */}
-                        <div className="relative group">
-                            <button className="text-[11px] font-black uppercase tracking-widest text-slate-600 group-hover:text-blue-600 py-4 flex items-center gap-1">
-                                Systems
-                                <svg className="w-3 h-3 text-slate-400 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                            </button>
-                            <div className="absolute left-0 mt-0 w-64 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0 duration-200 z-50 overflow-hidden">
-                                <div className="p-2">
-                                    <Link href={withUi('/systems', mode)} className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
-                                        <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">Portable Power Stations</div>
-                                        <div className="text-[10px] text-slate-500 mt-0.5">All-in-one portable energy systems</div>
-                                    </Link>
-                                    <Link href={withUi('/systems', mode)} className="block px-4 py-3 hover:bg-slate-50 rounded-lg">
-                                        <div className="text-[11px] font-black uppercase tracking-wide text-slate-900">Home Backup Batteries</div>
-                                        <div className="text-[10px] text-slate-500 mt-0.5">Whole-home storage solutions</div>
-                                    </Link>
-                                </div>
-                            </div>
-                        </div>
+
 
                         {/* Components Dropdown */}
                         <div className="relative group">
@@ -107,11 +89,7 @@ export default function NavOptionA({ mode }: NavOptionAProps) {
             {mobileMenuOpen && (
                 <div className="md:hidden bg-white border-b border-slate-200 px-6 py-4 space-y-4">
                     {/* Simplified Mobile Nav for MVP */}
-                    <div className="space-y-2">
-                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Systems</div>
-                        <Link href={withUi('/systems', mode)} className="block text-sm font-bold text-slate-800 pl-4">Portable Power Stations</Link>
-                        <Link href={withUi('/systems', mode)} className="block text-sm font-bold text-slate-800 pl-4">Home Backup</Link>
-                    </div>
+
                     <Link href={withUi('/decision-surfaces', mode)} className="block text-sm font-bold text-blue-600 border border-blue-100 bg-blue-50 rounded-lg px-3 py-2">Buying Guides →</Link>
                     <div className="space-y-2">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Components</div>

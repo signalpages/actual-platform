@@ -150,11 +150,75 @@ function HomeBackupScenarioContent() {
         };
     }, [products]);
 
+    const jsonLd = useMemo(() => {
+        if (products.length === 0) return null;
+
+        return {
+            '@context': 'https://schema.org',
+            '@graph': [
+                {
+                    '@type': 'ItemList',
+                    'name': 'Best Power Stations for Home Backup',
+                    'description': 'Forensic verification of portable power stations optimized for residential emergency backup.',
+                    'itemListElement': products.slice(0, 10).map((p, index) => ({
+                        '@type': 'ListItem',
+                        'position': index + 1,
+                        'url': `https://actual.fyi/specs/${p.slug}`,
+                        'name': `${p.brand} ${p.model_name}`
+                    }))
+                },
+                {
+                    '@type': 'BreadcrumbList',
+                    'itemListElement': [
+                        { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'https://actual.fyi' },
+                        { '@type': 'ListItem', 'position': 2, 'name': 'Buying Guides', 'item': 'https://actual.fyi/decision-surfaces' },
+                        { '@type': 'ListItem', 'position': 3, 'name': 'Home Backup Buying Guide', 'item': 'https://actual.fyi/best-portable-power-stations-for-home-backup' }
+                    ]
+                },
+                {
+                    '@type': 'FAQPage',
+                    'mainEntity': [
+                        {
+                            '@type': 'Question',
+                            'name': 'Can a portable power station run a whole house?',
+                            'acceptedAnswer': {
+                                '@type': 'Answer',
+                                'text': 'Yes, but it depends on the load and capacity. Modular systems with 240V output and 10kWh+ capacity are typically needed for critical loads and heavy appliances.'
+                            }
+                        },
+                        {
+                            '@type': 'Question',
+                            'name': 'How long will a portable power station last during an outage?',
+                            'acceptedAnswer': {
+                                '@type': 'Answer',
+                                'text': 'It depends on what you run. A 2000Wh unit can run a standard refrigerator for about 12-15 hours. Larger expandable systems can provide multi-day backup.'
+                            }
+                        },
+                        {
+                            '@type': 'Question',
+                            'name': 'Do I need a transfer switch for home backup?',
+                            'acceptedAnswer': {
+                                '@type': 'Answer',
+                                'text': 'For safe, whole-home circuit integration, a transfer switch or Smart Home Panel is recommended to avoid back-feeding and to simplify power distribution.'
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+    }, [products]);
+
     // Inclusion stats for hero
     const minCap = products.length > 0 ? Math.min(...products.map(p => Number(p.technical_specs?.storage_capacity_wh || p.technical_specs?.capacity_wh || 2000))) : 1500;
 
     return (
         <main className="max-w-6xl mx-auto px-6 py-16 md:py-24">
+            {jsonLd && (
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+                />
+            )}
             {/* Hero Section */}
             <header className="mb-20 text-center max-w-4xl mx-auto">
                 <Link
@@ -265,23 +329,59 @@ function HomeBackupScenarioContent() {
 
             {/* Practical Runtime Context Footer */}
             {!loading && products.length > 0 && (
-                <section className="mt-24 bg-white border border-slate-200 rounded-3xl p-10 shadow-sm">
-                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6">Runtime Assumptions</h3>
-                    <div className="grid sm:grid-cols-3 gap-8">
-                        <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Refrigerator (~150W avg)</div>
-                            <p className="text-xs text-slate-500 leading-relaxed italic">Assumes a modern energy-efficient full-size model cycling throughout the day.</p>
+                <>
+                    <section className="mt-24 bg-white border border-slate-200 rounded-3xl p-10 shadow-sm">
+                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 mb-6">Runtime Assumptions</h3>
+                        <div className="grid sm:grid-cols-3 gap-8">
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Refrigerator (~150W avg)</div>
+                                <p className="text-xs text-slate-500 leading-relaxed italic">Assumes a modern energy-efficient full-size model cycling throughout the day.</p>
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">High Inverter Efficiency</div>
+                                <p className="text-xs text-slate-500 leading-relaxed italic">Calculations factor in a conservative 85% real-world DC-to-AC conversion efficiency.</p>
+                            </div>
+                            <div>
+                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Deterministic Logic</div>
+                                <p className="text-xs text-slate-500 leading-relaxed italic">All runtimes are mathematically derived from verified audit capacity, not marketing brochures.</p>
+                            </div>
                         </div>
-                        <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">High Inverter Efficiency</div>
-                            <p className="text-xs text-slate-500 leading-relaxed italic">Calculations factor in a conservative 85% real-world DC-to-AC conversion efficiency.</p>
+                    </section>
+
+                    {/* FAQ Section */}
+                    <section className="mt-24">
+                        <div className="flex items-center gap-4 mb-10">
+                            <div className="h-0.5 w-10 bg-blue-500"></div>
+                            <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-blue-600">Frequently Asked Questions</h2>
                         </div>
-                        <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Deterministic Logic</div>
-                            <p className="text-xs text-slate-500 leading-relaxed italic">All runtimes are mathematically derived from verified audit capacity, not marketing brochures.</p>
+                        <div className="grid md:grid-cols-2 gap-8">
+                            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100">
+                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 mb-4">What size power station is needed for home backup?</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    For critical essentials, a 2000Wh unit is the baseline. For multi-day outages or running heavy appliances like well pumps or space heaters, modular systems with 10kWh+ capacity are recommended.
+                                </p>
+                            </div>
+                            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100">
+                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 mb-4">Can a power station run a refrigerator during an outage?</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    Yes. A standard 2000Wh unit can run a modern energy-efficient refrigerator for 12-15 hours. Larger expandable systems can extend this to several days.
+                                </p>
+                            </div>
+                            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100">
+                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 mb-4">Do I need a transfer switch for home backup?</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    For safe, whole-home circuit integration, a transfer switch or Smart Home Panel is recommended to avoid back-feeding and to simplify power distribution to hardwired appliances.
+                                </p>
+                            </div>
+                            <div className="bg-slate-50 rounded-2xl p-8 border border-slate-100">
+                                <h3 className="text-sm font-black uppercase tracking-tight text-slate-900 mb-4">How many watts are needed for whole-home backup?</h3>
+                                <p className="text-xs text-slate-500 leading-relaxed">
+                                    "Whole home" usually requires 5000W-7000W of continuous output to handle simultaneous loads like microwaves, coffee makers, and lighting, plus high-surge capacity for AC units.
+                                </p>
+                            </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
+                </>
             )}
 
             {/* Integrity Statement */}

@@ -4,7 +4,10 @@ import Link from 'next/link';
 export const runtime = 'edge';
 
 export const metadata = {
-    robots: 'noindex, follow'
+    robots: {
+        index: false,
+        follow: false
+    }
 };
 
 export default function SystemsLanding() {

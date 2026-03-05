@@ -194,18 +194,7 @@ export default async function Home() {
                 </div>
             </section>
 
-            {/* Systems Secondary */}
-            <section className="py-24 bg-white border-t border-slate-200">
-                <div className="max-w-4xl mx-auto px-6 text-center">
-                    <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-400 mb-4">Build a Complete System</h2>
-                    <p className="text-slate-500 mb-8 max-w-lg mx-auto">
-                        Use verified components to design a compatible energy setup. Learn how these parts work together.
-                    </p>
-                    <Link href="/systems" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-900 transition-colors border-b-2 border-transparent hover:border-slate-900 pb-1">
-                        Explore System Context →
-                    </Link>
-                </div>
-            </section>
+
         </main>
     );
 }

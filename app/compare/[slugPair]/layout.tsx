@@ -25,8 +25,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slugPair:
     const nameB = `${productB.brand || ''} ${productB.model_name || ''}`.trim() || slugB;
 
     return {
-        title: `${nameA} vs ${nameB} Comparison`,
-        description: `Side-by-side performance comparison and forensic audit of ${nameA} vs ${nameB}. Verification backed by unbiased performance data.`,
+        title: `${nameA} vs ${nameB} Comparison | Actual.fyi`,
+        description: `Side-by-side performance comparison and forensic audit of ${nameA} vs ${nameB}. Verification backed by unbiased performance data and Truth Index scoring.`,
         alternates: {
             canonical: `/compare/${rawPairs}`,
         }
