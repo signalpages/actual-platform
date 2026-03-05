@@ -76,7 +76,7 @@ export const searchAssets = async (
     const productIds = products.map((p: any) => p.id);
     const { data: shadows, error: sErr } = await client
       .from("shadow_specs")
-      .select("product_id, is_verified, truth_score, created_at, red_flags, actual_specs, claimed_specs")
+      .select("product_id, is_verified, truth_score, created_at, red_flags, actual_specs, claimed_specs, stages")
       .in("product_id", productIds);
 
     if (sErr) throw sErr;
@@ -98,7 +98,8 @@ export const searchAssets = async (
         truth_score: truthScore,
         latest_discrepancies: shadow?.red_flags || [],
         latest_actual_specs: shadow?.actual_specs || [],
-        latest_claimed_specs: shadow?.claimed_specs || []
+        latest_claimed_specs: shadow?.claimed_specs || [],
+        stages: shadow?.stages || {}
       };
     }) as Asset[];
   } catch (e) {

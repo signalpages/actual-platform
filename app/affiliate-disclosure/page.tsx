@@ -32,7 +32,7 @@ export default function AffiliateDisclosurePage() {
                         </li>
                         <li className="flex items-start gap-3">
                             <span className="text-slate-300 mt-0.5">•</span>
-                            <span><strong>Truth Index gating ≥ 80%.</strong> We do not monetize products that fail to meet our minimum technical standards. Products scoring below 80% do not carry affiliate links.</span>
+                            <span><strong>Verification Score gating ≥ 80%.</strong> We do not monetize products that fail to meet our minimum technical standards. Products scoring below 80% do not carry affiliate links.</span>
                         </li>
                         <li className="flex items-start gap-3">
                             <span className="text-slate-300 mt-0.5">•</span>
@@ -51,7 +51,7 @@ export default function AffiliateDisclosurePage() {
                             Manufacturers may request expedited processing for an upcoming product launch by sponsoring an audit.
                         </p>
                         <p>
-                            <strong>Payment covers prioritization only.</strong> It moves the product to the front of the analysis queue. It does not alter the outcome, and it does not guarantee a positive Truth Index score or an affiliate link.
+                            <strong>Payment covers prioritization only.</strong> It moves the product to the front of the analysis queue. It does not alter the outcome, and it does not guarantee a positive Verification Score or an affiliate link.
                         </p>
                         <p>
                             If a sponsored product inflates its claims or fails validation, those discrepancies will be published exactly the same as an unsponsored product.
@@ -69,7 +69,7 @@ export default function AffiliateDisclosurePage() {
                             All verdicts are locked by deterministic logic. If the independent evidence contradicts the marketing claims, the score is penalized.
                         </p>
                         <p>
-                            There are absolutely no post-hoc edits made to a Truth Index to appease advertisers or affiliate partners. The protocol is uniform across all brands.
+                            There are absolutely no post-hoc edits made to a Verification Score to appease advertisers or affiliate partners. The protocol is uniform across all brands.
                         </p>
                     </div>
                 </section>

@@ -21,13 +21,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     const productName = `${product.brand || ''} ${product.model_name || ''}`.trim() || 'Product';
 
     // High-tension CTR meta description
-    let description = `Independent review and forensic audit of the ${productName} including real-world performance validation and Truth Index scoring.`;
+    let description = `Independent review and forensic audit of the ${productName} including real-world performance validation and Verification Scoring.`;
     if (rawTruthIndex !== null) {
-        description = `${rawTruthIndex}% Truth Index. Independent forensic audit of the ${productName}. Verified discrepancies, real-world performance validation, and evidence-backed findings.`;
+        description = `${rawTruthIndex}% Verification Score. Independent forensic audit of the ${productName}. Verified discrepancies, real-world performance validation, and evidence-backed findings.`;
     }
 
     return {
-        title: `${productName} Review – Forensic Audit & Truth Index`,
+        title: `${productName} Review – Forensic Audit & Verification Score`,
         description,
         alternates: {
             canonical: `/specs/${slug}`,
@@ -115,10 +115,10 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             ]
         };
 
-        // Add Review data if truth index is available (Editorial Review approach)
+        // Add Review data if verification score is available (Editorial Review approach)
         if (initialAudit && initialAudit.truth_index !== null) {
             const rawTruthIndex = initialAudit.truth_index;
-            // Map 0-100 Truth Index to 1-5 scale for search result stars optimization
+            // Map 0-100 Verification Score to 1-5 scale for search result stars optimization
             const displayRating = (rawTruthIndex / 25) + 1;
             const normalizedRating = Number(Math.max(1, Math.min(5, displayRating)).toFixed(1));
 
@@ -143,7 +143,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     '@id': `${pageUrl}#product`,
                 },
                 datePublished: product.created_at ? new Date(product.created_at).toISOString() : new Date().toISOString(),
-                reviewBody: `Technical audit results for ${productName}. Independent analysis yielded a Truth Index of ${rawTruthIndex}%. ${initialAudit.score_interpretation || ''}`,
+                reviewBody: `Technical audit results for ${productName}. Independent analysis yielded a Verification Score of ${rawTruthIndex}%. ${initialAudit.score_interpretation || ''}`,
             };
 
             // Add FAQPage for SERP real estate
@@ -155,7 +155,7 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                         'name': `Is the ${productName} worth it?`,
                         'acceptedAnswer': {
                             '@type': 'Answer',
-                            'text': `The ${productName} receives a ${rawTruthIndex}% Truth Index based on structured cross-source validation and forensic performance analysis. ${initialAudit.score_interpretation || ''}`
+                            'text': `The ${productName} receives a ${rawTruthIndex}% Verification Score based on structured cross-source validation and forensic performance analysis. ${initialAudit.score_interpretation || ''}`
                         }
                     },
                     {

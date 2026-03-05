@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
 
         const gating = { verifiedCount, disputedCount };
 
-        // Compute Truth Index (with Gating)
+        // Compute Verification Score (with Gating)
         const truthBreakdown = computeTruthIndex(
             normalized.entries,
             baseScores,

@@ -17,6 +17,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
             priority: 1.0,
         },
         {
+            url: `${baseUrl}/buying-guides`,
+            lastModified: new Date(),
+            changeFrequency: 'weekly',
+            priority: 0.8,
+        },
+        {
             url: `${baseUrl}/best-portable-power-stations-for-home-backup`,
             lastModified: new Date(),
             changeFrequency: 'weekly',
@@ -24,6 +30,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         },
         {
             url: `${baseUrl}/best-portable-power-stations-for-rv`,
+            lastModified: new Date(),
+            changeFrequency: 'weekly',
+            priority: 0.9,
+        },
+        {
+            url: `${baseUrl}/best-portable-power-stations-for-apartments`,
+            lastModified: new Date(),
+            changeFrequency: 'weekly',
+            priority: 0.9,
+        },
+        {
+            url: `${baseUrl}/best-portable-power-stations-for-off-grid-cabin`,
+            lastModified: new Date(),
+            changeFrequency: 'weekly',
+            priority: 0.9,
+        },
+        {
+            url: `${baseUrl}/best-portable-power-stations-for-high-demand`,
+            lastModified: new Date(),
+            changeFrequency: 'weekly',
+            priority: 0.9,
+        },
+        {
+            url: `${baseUrl}/best-portable-power-stations-for-emergency-power`,
             lastModified: new Date(),
             changeFrequency: 'weekly',
             priority: 0.9,

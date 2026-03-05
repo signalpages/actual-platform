@@ -476,6 +476,7 @@ export async function executeStage4(
             penalties: { severe: number; moderate: number; minor: number; total: number };
             llm_adjustment: { delta: number; reason: string } | null;
         };
+        claimCount?: number;  // stage1 claim_profile.length for coverage penalty
     }
 ): Promise<Stage4Result> {
     console.log(`[Stage 4] Computing verdict for ${product.model_name}`);
@@ -607,7 +608,8 @@ Return ONLY valid JSON. No markdown, no code fences.
                         {
                             delta: result.adjustment_delta,
                             reason: result.adjustment_reason
-                        }
+                        },
+                        precomputed.claimCount  // coverage confidence penalty
                     )
                     : breakdown!;
 

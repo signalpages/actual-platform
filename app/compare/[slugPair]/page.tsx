@@ -181,7 +181,7 @@ export default async function ComparisonPage({ params }: PageProps) {
                     {productB.brand} {productB.model_name}
                 </h1>
                 <p className="text-slate-500 font-medium mt-6 max-w-2xl mx-auto">
-                    A direct head-to-head comparison of two {formatCategoryLabel(productA.category)} models based on verified technical data and Truth Index scoring.
+                    A direct head-to-head comparison of two {formatCategoryLabel(productA.category)} models based on verified technical data and Verification Scoring.
                 </p>
             </header>
 
@@ -228,7 +228,7 @@ export default async function ComparisonPage({ params }: PageProps) {
                 </div>
             </section>
 
-            {/* 3️⃣ Truth Index & Discrepancies Comparison is already inside FullAuditPanel, 
+            {/* 3️⃣ Verification Score & Discrepancies Comparison is already inside FullAuditPanel, 
                 but we can add a summary section if needed. The DecisionSummary covers the verdict. */}
 
             {/* 4️⃣ Verdict Summary */}

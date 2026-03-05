@@ -40,7 +40,7 @@ export default function AuditNav() {
                             Compare
                         </Link>
 
-                        <Link href="/decision-surfaces" className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
+                        <Link href="/buying-guides" className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
                             Buying Guides
                         </Link>
 
@@ -88,7 +88,7 @@ export default function AuditNav() {
                         <Link href="/specs?category=ev_charger" className="block text-sm font-bold text-slate-800 pl-4">EV Chargers</Link>
                     </div>
                     <Link href="/compare" className="block text-[10px] font-black uppercase tracking-widest text-slate-600">Compare</Link>
-                    <Link href="/decision-surfaces" className="block text-[10px] font-black uppercase tracking-widest text-blue-600">Buying Guides</Link>
+                    <Link href="/buying-guides" className="block text-[10px] font-black uppercase tracking-widest text-blue-600">Buying Guides</Link>
 
                     <div className="space-y-2">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">About</div>

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 export const metadata: Metadata = {
-    title: 'Truth Index Methodology | Actual.fyi',
+    title: 'Verification Score Methodology | Actual.fyi',
     description: 'A structured scoring model measuring the accuracy of product claims against independently validated evidence.',
 };
 
@@ -16,7 +16,7 @@ export default function MethodologyPage() {
                     ← Back to How We Audit
                 </Link>
                 <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight uppercase mb-6">
-                    Truth Index Methodology
+                    Verification Score Methodology
                 </h1>
                 <p className="text-xl md:text-2xl text-slate-600 font-medium leading-relaxed max-w-3xl">
                     A structured scoring model measuring the accuracy of product claims against independently validated evidence.
@@ -51,7 +51,7 @@ export default function MethodologyPage() {
 
                     <div className="mt-8 p-6 bg-slate-50 border border-slate-200 rounded-xl">
                         <p className="text-sm text-slate-700 italic font-medium">
-                            A 100% Truth Index means no claim inflation was detected. It does not imply the product is superior in price, ecosystem, or use-case fit.
+                            A 100% Verification Score means no claim inflation was detected. It does not imply the product is superior in price, ecosystem, or use-case fit.
                         </p>
                     </div>
                 </section>
@@ -152,7 +152,7 @@ export default function MethodologyPage() {
                         We do not publish "Best Solar Generator" or "Top 10" lists.
                     </p>
                     <p>
-                        Many products score high on the Truth Index simply because they do not inflate their technical specifications. A high score means the product is exactly what the manufacturer claims it is—it does not mean it is the best value, or the most powerful in its class.
+                        Many products score high on the Verification Score simply because they do not inflate their technical specifications. A high score means the product is exactly what the manufacturer claims it is—it does not mean it is the best value, or the most powerful in its class.
                     </p>
                     <p>
                         Price-to-value, ecosystem compatibility, and specific use-case fitness are completely separate dimensions from technical honesty. Traditional rankings distort these separate dimensions into a single list, leading to poor purchasing decisions.

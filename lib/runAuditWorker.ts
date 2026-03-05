@@ -332,8 +332,9 @@ export async function runAuditWorker({
         const baseScores = computeBaseScores(normalizedStage3.entries);
         const metricBars = buildMetricBars(baseScores);
 
-        // Compute deterministic Truth Index
-        const truthBreakdown = computeTruthIndex(normalizedStage3.entries, baseScores);
+        // Compute deterministic Truth Index (with coverage confidence penalty)
+        const claimCount = stage1Result.claim_profile.length;
+        const truthBreakdown = computeTruthIndex(normalizedStage3.entries, baseScores, undefined, claimCount);
 
         console.log(`[Worker Normalize] ${normalizedStage3.totalCount} raw → ${normalizedStage3.uniqueCount} unique entries`);
 
@@ -376,7 +377,8 @@ export async function runAuditWorker({
                 stage1: stage1Result,
                 stage2: stage2Result,
                 stage3: { red_flags: normalizedStage3.entries, reality_ledger: stage3Result.reality_ledger || [] }
-            }, { baseScores, metricBars, truthBreakdown });
+            }, { baseScores, metricBars, truthBreakdown, claimCount });
+
             const stage4Ms = Date.now() - stage4Start;
 
             const validation = validateStage4(stage4Result);

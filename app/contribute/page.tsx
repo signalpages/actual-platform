@@ -57,7 +57,7 @@ export default function ContributePage() {
             </div>
 
             <h1 className="text-6xl font-black uppercase tracking-tighter text-slate-900 leading-none mb-4">
-                Influence the Truth Index Rankings
+                Influence the Verification Score Rankings
             </h1>
 
             <p className="text-lg text-slate-600 mb-12 max-w-2xl leading-relaxed">
@@ -205,7 +205,7 @@ export default function ContributePage() {
                             </li>
                             <li className="flex gap-3">
                                 <span className="text-blue-500">04</span>
-                                Verified results are added to the Truth Index rankings.
+                                Verified results are added to the Verification Rankings.
                             </li>
                         </ul>
                     </div>

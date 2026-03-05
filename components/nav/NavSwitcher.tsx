@@ -21,7 +21,7 @@ function DefaultNav() {
                     Actual<span className="text-blue-600">.</span>fyi
                 </Link>
                 <div className="flex items-center gap-4 md:gap-8">
-                    <Link href="/decision-surfaces" className={`text-[10px] font-black uppercase tracking-widest transition-colors text-slate-500 hover:text-blue-600`}>
+                    <Link href="/buying-guides" className={`text-[10px] font-black uppercase tracking-widest transition-colors text-slate-500 hover:text-blue-600`}>
                         Buying Guides
                     </Link>
                     <Link href="/compare" className={`text-[10px] font-black uppercase tracking-widest transition-colors text-slate-500 hover:text-blue-600`}>

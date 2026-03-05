@@ -186,10 +186,10 @@ function CompareIndexContent() {
                     </div>
                 </section>
 
-                {/* Scenario Decision Surfaces — teaser */}
+                {/* Buying Guides — teaser */}
                 <section>
                     <div className="flex items-center justify-between mb-8 border-b border-slate-200 pb-4">
-                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Scenario Decision Surfaces</h2>
+                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Buying Guides</h2>
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rule-Based Filtering</span>
                     </div>
                     <div className="flex items-center justify-between p-6 border border-slate-200 rounded-xl bg-slate-50/50">
@@ -200,10 +200,10 @@ function CompareIndexContent() {
                             </p>
                         </div>
                         <Link
-                            href="/decision-surfaces"
+                            href="/buying-guides"
                             className="flex-shrink-0 ml-6 inline-flex items-center gap-2 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest px-5 py-3 rounded-xl hover:bg-blue-600 transition-all"
                         >
-                            Browse Decision Surfaces <span>→</span>
+                            View Buying Guides <span>→</span>
                         </Link>
                     </div>
                 </section>

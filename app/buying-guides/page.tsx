@@ -1,14 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { DECISION_SURFACES, DecisionSurface } from '@/lib/scenarios/decisionSurfaces';
+import { BUYING_GUIDES, BuyingGuide } from '@/lib/scenarios/buyingGuides';
 
 export const runtime = 'edge';
 
 export const metadata: Metadata = {
     title: 'Power Station Buying Guides — Find the Right Generator for Your Situation',
     description: 'Which portable power station is right for you? Buying guides for home backup, RV power, off-grid cabins, and more — based on verified specs, not marketing claims.',
-    alternates: { canonical: '/decision-surfaces' },
+    alternates: { canonical: '/buying-guides' },
 };
 
 const jsonLd = {
@@ -25,22 +25,14 @@ const jsonLd = {
             '@type': 'ListItem',
             'position': 2,
             'name': 'Buying Guides',
-            'item': 'https://actual.fyi/decision-surfaces'
+            'item': 'https://actual.fyi/buying-guides'
         }
     ]
 };
 
-function SurfaceCard({ surface }: { surface: DecisionSurface }) {
-    const isLive = surface.status === 'live';
-
-    const iconColors: Record<string, string> = {
-        'H': 'bg-blue-600',
-        'R': 'bg-emerald-600',
-        'A': 'bg-slate-400',
-        'C': 'bg-slate-400',
-        'D': 'bg-slate-400',
-    };
-    const iconBg = iconColors[surface.icon] ?? 'bg-slate-400';
+function GuideCard({ surface: guide }: { surface: BuyingGuide }) {
+    const isLive = guide.status === 'live';
+    const iconBg = isLive ? guide.themeColor : 'bg-slate-400';
 
     const cardContent = (
         <div
@@ -53,7 +45,7 @@ function SurfaceCard({ surface }: { surface: DecisionSurface }) {
             {/* Status badge */}
             <div className="flex items-start justify-between mb-6">
                 <div className={`w-12 h-12 ${iconBg} text-white rounded-xl flex items-center justify-center font-black text-xl flex-shrink-0`}>
-                    {surface.icon}
+                    {guide.icon}
                 </div>
                 <span
                     className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border
@@ -69,19 +61,19 @@ function SurfaceCard({ surface }: { surface: DecisionSurface }) {
             {/* Title + subtitle */}
             <div className="mb-6 flex-1">
                 <h2 className={`text-xl font-black uppercase tracking-tight mb-2 ${isLive ? 'text-slate-900' : 'text-slate-500'}`}>
-                    {surface.title}
+                    {guide.title}
                     <span className={`text-[10px] font-black uppercase tracking-widest ml-2 ${isLive ? 'text-slate-400' : 'text-slate-300'}`}>
                         Guide
                     </span>
                 </h2>
                 <p className="text-slate-500 text-xs leading-relaxed">
-                    {surface.subtitle}
+                    {guide.subtitle}
                 </p>
             </div>
 
             {/* Criteria chips */}
             <div className="flex flex-wrap gap-2 mb-6">
-                {surface.baselineCriteria.map((chip) => (
+                {guide.baselineCriteria.map((chip) => (
                     <span
                         key={chip}
                         className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full border
@@ -103,15 +95,15 @@ function SurfaceCard({ surface }: { surface: DecisionSurface }) {
                         : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                     }`}
             >
-                {surface.ctaLabel}
+                {guide.ctaLabel}
                 {isLive && <span className="ml-1.5">→</span>}
             </div>
         </div>
     );
 
-    if (isLive && surface.slug) {
+    if (isLive && guide.slug) {
         return (
-            <Link href={surface.slug} className="flex h-full">
+            <Link href={guide.slug} className="flex h-full">
                 {cardContent}
             </Link>
         );
@@ -120,9 +112,8 @@ function SurfaceCard({ surface }: { surface: DecisionSurface }) {
     return <div className="flex h-full">{cardContent}</div>;
 }
 
-export default function DecisionSurfacesPage() {
-    const liveSurfaces = DECISION_SURFACES.filter(s => s.status === 'live');
-    const upcomingSurfaces = DECISION_SURFACES.filter(s => s.status === 'coming_soon');
+export default function BuyingGuidesPage() {
+    const liveGuides = BUYING_GUIDES.filter(s => s.status === 'live');
 
     return (
         <main>
@@ -138,25 +129,17 @@ export default function DecisionSurfacesPage() {
                             Buying Guides
                         </div>
                         <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-white leading-[0.9] mb-6">
-                            Which Power Station <br />
-                            <span className="text-blue-500">Is Right for You?</span>
+                            Portable Power Station <br />
+                            <span className="text-blue-500">Buying Guides</span>
                         </h1>
                         <p className="text-slate-400 text-lg leading-relaxed mb-8 max-w-xl">
-                            Every guide below filters the verified hardware database down to units that actually qualify for a specific use case. Hard criteria only — no paid placements, no editorial guesswork.
+                            Scenario-based buying guides for portable power stations. Each guide filters products using verified specifications, surge capability, and independent evidence from technical documentation and field reports.
                         </p>
-                        <div className="flex flex-wrap gap-3">
-                            <div className="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-300">
-                                {liveSurfaces.length} Live Now
-                            </div>
-                            <div className="bg-slate-800 border border-slate-700 rounded-full px-4 py-1.5 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                {upcomingSurfaces.length} Coming Soon
-                            </div>
-                        </div>
                     </div>
                 </div>
             </section>
 
-            {/* Live Surfaces */}
+            {/* Live Guides */}
             <section className="py-20 bg-white">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="flex items-center gap-4 mb-10">
@@ -165,32 +148,13 @@ export default function DecisionSurfacesPage() {
                     </div>
 
                     <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-                        {liveSurfaces.map(surface => (
-                            <SurfaceCard key={surface.id} surface={surface} />
+                        {liveGuides.map(guide => (
+                            <GuideCard key={guide.id} surface={guide} />
                         ))}
                     </div>
                 </div>
             </section>
 
-            {/* Coming Soon */}
-            <section className="py-20 bg-slate-50 border-t border-slate-100">
-                <div className="max-w-6xl mx-auto px-6">
-                    <div className="flex items-center gap-4 mb-10">
-                        <div className="h-0.5 w-10 bg-slate-300"></div>
-                        <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-400">Coming Soon</h2>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {upcomingSurfaces.map(surface => (
-                            <SurfaceCard key={surface.id} surface={surface} />
-                        ))}
-                    </div>
-
-                    <p className="text-slate-400 text-[10px] uppercase font-bold tracking-widest mt-10">
-                        These guides are in development. Criteria are preliminary.
-                    </p>
-                </div>
-            </section>
 
             {/* Methodology note */}
             <section className="py-16 bg-white border-t border-slate-200">
@@ -198,7 +162,7 @@ export default function DecisionSurfacesPage() {
                     <div className="max-w-2xl">
                         <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-4">How these guides work</h3>
                         <p className="text-xs text-slate-500 leading-relaxed">
-                            Each guide runs a fixed set of technical checks against the Actual.fyi verified hardware database. A product only appears if it clears every requirement — capacity, output, surge rating, and Truth Index score. Nothing is ranked by popularity or sponsored placement. If a product qualifies, it shows up. If it doesn't, it doesn't.
+                            Each guide runs a fixed set of technical checks against the Actual.fyi verified hardware database. A product only appears if it clears every requirement — capacity, output, surge rating, and Verification Score. Nothing is ranked by popularity or sponsored placement. If a product qualifies, it shows up. If it doesn't, it doesn't.
                         </p>
                         <Link
                             href="/learn"

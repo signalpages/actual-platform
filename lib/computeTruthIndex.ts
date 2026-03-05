@@ -53,10 +53,21 @@ const WEIGHTS = {
 
 // ── Core Function ──────────────────────────────────────
 
+// Coverage confidence penalty table (claimCount → penalty points)
+// Penalizes audits with too few verified claims to be meaningful
+const COVERAGE_PENALTY: Record<number, number> = {
+    0: 20,
+    1: 16,
+    2: 12,
+    3: 8,
+    4: 4,
+};
+
 export function computeTruthIndex(
     entries: NormalizedEntry[],
     bucketScores: BaseScores,
-    llmSuggestion?: { delta?: number; reason?: string }
+    llmSuggestion?: { delta?: number; reason?: string },
+    claimCount?: number  // total claims examined in stage 1 (claim_profile.length)
 ): TruthIndexBreakdown {
     // 1. Weighted blend of per-bucket scores (which already have penalties)
     const base = Math.round(
@@ -82,8 +93,15 @@ export function computeTruthIndex(
     // 3. LLM adjustment (validate strictly)
     const llmAdj = validateLLMAdjustment(llmSuggestion, entries);
 
-    // 4. Final score = base + LLM only (bucket scores already have penalties)
-    const raw = base + (llmAdj?.delta ?? 0);
+    // 4. Coverage confidence penalty: insufficient claims = unreliable 100
+    // Applied when fewer than 5 distinct claims were examined in stage 1.
+    // This prevents a product with only Isc/Voc confirmed from scoring 100.
+    const coveragePenalty = (typeof claimCount === 'number' && claimCount < 5)
+        ? (COVERAGE_PENALTY[Math.min(claimCount, 4)] ?? 0)
+        : 0;
+
+    // 5. Final score = base + LLM - coverage penalty
+    const raw = base + (llmAdj?.delta ?? 0) - coveragePenalty;
     const final = Math.max(0, Math.min(100, raw));
 
     return {

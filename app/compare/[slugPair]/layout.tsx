@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slugPair:
 
     return {
         title: `${nameA} vs ${nameB} Comparison | Actual.fyi`,
-        description: `Side-by-side performance comparison and forensic audit of ${nameA} vs ${nameB}. Verification backed by unbiased performance data and Truth Index scoring.`,
+        description: `Side-by-side performance comparison and forensic audit of ${nameA} vs ${nameB}. Verification backed by unbiased performance data and Verification Scoring.`,
         alternates: {
             canonical: `/compare/${rawPairs}`,
         }

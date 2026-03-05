@@ -82,7 +82,7 @@ export function AuditDetailsModal({ isOpen, onClose, audit, product }: AuditDeta
                     <div className="grid grid-cols-2 gap-6">
                         <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                                Truth Index
+                                Verification Score
                             </label>
                             <span className={`text-3xl font-black ${(audit.truth_index || 0) >= 90 ? 'text-emerald-500' :
                                 (audit.truth_index || 0) >= 60 ? 'text-blue-500' : 'text-amber-500'

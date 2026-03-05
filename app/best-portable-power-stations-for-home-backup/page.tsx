@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { searchAssets } from '@/lib/dataBridge.client';
 import { Asset } from '@/types';
 import { filterHomeBackupProducts, ScenarioProduct } from '@/lib/scenarioFilters';
+import { organizationJsonLd, itemListJsonLd } from '@/lib/seo/jsonld';
 
 function TierSection({
     tier,
@@ -48,7 +49,7 @@ function TierSection({
                     <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                             <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Model & Specs</th>
-                            <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Truth Index</th>
+                            <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Verification Score</th>
                             <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">
                                 Runtime (Fridge)
                                 <div className="text-[7px] font-medium lowercase tracking-normal mt-1 opacity-70">
@@ -156,22 +157,19 @@ function HomeBackupScenarioContent() {
         return {
             '@context': 'https://schema.org',
             '@graph': [
-                {
-                    '@type': 'ItemList',
-                    'name': 'Best Power Stations for Home Backup',
-                    'description': 'Forensic verification of portable power stations optimized for residential emergency backup.',
-                    'itemListElement': products.slice(0, 10).map((p, index) => ({
-                        '@type': 'ListItem',
-                        'position': index + 1,
-                        'url': `https://actual.fyi/specs/${p.slug}`,
-                        'name': `${p.brand} ${p.model_name}`
+                organizationJsonLd(),
+                itemListJsonLd(
+                    'Best Portable Power Stations for Home Backup',
+                    products.slice(0, 10).map(p => ({
+                        name: `${p.brand} ${p.model_name}`,
+                        url: `https://actual.fyi/specs/${p.slug}`
                     }))
-                },
+                ),
                 {
                     '@type': 'BreadcrumbList',
                     'itemListElement': [
                         { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'https://actual.fyi' },
-                        { '@type': 'ListItem', 'position': 2, 'name': 'Buying Guides', 'item': 'https://actual.fyi/decision-surfaces' },
+                        { '@type': 'ListItem', 'position': 2, 'name': 'Buying Guides', 'item': 'https://actual.fyi/buying-guides' },
                         { '@type': 'ListItem', 'position': 3, 'name': 'Home Backup Buying Guide', 'item': 'https://actual.fyi/best-portable-power-stations-for-home-backup' }
                     ]
                 },
@@ -222,7 +220,7 @@ function HomeBackupScenarioContent() {
             {/* Hero Section */}
             <header className="mb-20 text-center max-w-4xl mx-auto">
                 <Link
-                    href="/decision-surfaces"
+                    href="/buying-guides"
                     className="inline-block bg-blue-50 text-blue-600 border border-blue-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-6 hover:bg-blue-100 transition-colors"
                 >
                     ← Buying Guides
@@ -287,7 +285,7 @@ function HomeBackupScenarioContent() {
                             </p>
                         </div>
                         <div>
-                            <div className="text-lg font-black uppercase mb-4 text-white">4. Truth Index</div>
+                            <div className="text-lg font-black uppercase mb-4 text-white">4. Verification Score</div>
                             <p className="text-slate-400 text-xs leading-relaxed">
                                 Our audit verification score. It confirms that the manufacturer's performance claims align with technical forensic tests. High scores indicate high technical transparency.
                             </p>
@@ -389,7 +387,7 @@ function HomeBackupScenarioContent() {
                 <div className="max-w-2xl">
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-4">Integrity Statement</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                        Inclusion on this page is strictly rule-based and derived from the Actual.fyi forensic database. No manufacturer can pay for placement or inclusion. Products are only surfaced if they meet the hard technical criteria (≥{minCap}Wh, ≥2000W) and pass our claim validation audit with a Truth Index score of 80 or higher.
+                        Inclusion on this page is strictly rule-based and derived from the Actual.fyi forensic database. No manufacturer can pay for placement or inclusion. Products are only surfaced if they meet the hard technical criteria (≥{minCap}Wh, ≥2000W) and pass our claim validation audit with a Verification Score of 80 or higher.
                     </p>
                 </div>
             </footer>

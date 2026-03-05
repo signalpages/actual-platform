@@ -273,7 +273,7 @@ export function AuditResults({ product, audit, onRetryStage, isRunning }: AuditR
             <StageCard
                 stageNumber={4}
                 title="Final Verdict"
-                description="Calculating Truth Index and generating summary."
+                description="Calculating Verification Score and generating summary."
                 status={stageStatus('stage_4')}
                 data={stage4}
             >

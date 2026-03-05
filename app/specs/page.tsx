@@ -81,9 +81,9 @@ function SpecLedgerContent() {
     let materialVarianceCount = 0;
 
     assetsWithAudits.forEach(asset => {
-        // Approximate claim delta using Truth Index inverse if explicit delta not readily available in flat list
+        // Approximate claim delta using Verification Score inverse if explicit delta not readily available in flat list
         // In full impl, we would compare actual vs claimed for every spec.
-        // For V1, we'll use (100 - Truth Index) as a proxy for "Total Variance"
+        // For V1, we'll use (100 - Verification Score) as a proxy for "Total Variance"
         const variance = 100 - (asset.truth_score || 0);
         totalDeltaSum += variance;
         deltaCount++;
@@ -144,7 +144,7 @@ function SpecLedgerContent() {
                         <div className="text-3xl font-black">{totalAssets}</div>
                     </div>
                     <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Avg Truth Index</div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Avg Verification Score</div>
                         <div className={`text-3xl font-black ${typeof avgTruthIndex === 'number' && avgTruthIndex < 80 ? 'text-amber-500' : 'text-blue-600'}`}>
                             {avgTruthIndex}
                         </div>
@@ -183,7 +183,7 @@ function SpecLedgerContent() {
                             onClick={() => setSortMethod('truth_score')}
                             className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${sortMethod === 'truth_score' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-900'}`}
                         >
-                            Truth Index
+                            Verification Score
                         </button>
                         <button
                             onClick={() => setSortMethod('delta')}
@@ -294,7 +294,7 @@ function SpecLedgerContent() {
                                         </div>
                                         <div className="text-[10px] text-slate-500 font-medium">
                                             Insufficient Evidence Depth<br />
-                                            Truth Index Withheld
+                                            Verification Score Withheld
                                         </div>
                                     </div>
                                 )}

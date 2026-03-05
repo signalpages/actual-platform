@@ -85,7 +85,7 @@ export function ComparisonHeader({ product, audit, className }: ComparisonSectio
                         <div className={`text-4xl font-black ${(truthIndex || 0) >= 90 ? 'text-emerald-500' : 'text-blue-600'} leading-none`}>
                             {truthIndex}%
                         </div>
-                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">Truth Index</p>
+                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest mt-1">Verification Score</p>
                     </div>
                 )}
             </div>

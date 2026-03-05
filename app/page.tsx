@@ -157,7 +157,7 @@ export default async function Home() {
                             </p>
                         </div>
                         <Link
-                            href="/decision-surfaces"
+                            href="/buying-guides"
                             className="flex-shrink-0 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-slate-900 border-b border-slate-300 hover:border-slate-900 pb-0.5 transition-colors"
                         >
                             All Buying Guides →
@@ -173,7 +173,7 @@ export default async function Home() {
                             <div className="flex-1 min-w-0">
                                 <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-1">Home Backup</div>
                                 <div className="font-black text-slate-900 text-base">Best Power Stations for Home Backup</div>
-                                <div className="text-xs text-slate-500 mt-1">Capacity ≥1500Wh · Continuous ≥2000W · Truth Index ≥80%</div>
+                                <div className="text-xs text-slate-500 mt-1">Capacity ≥1500Wh · Continuous ≥2000W · Verification Score ≥80%</div>
                             </div>
                             <span className="text-slate-300 group-hover:text-blue-600 transition-colors text-xl flex-shrink-0">→</span>
                         </Link>
@@ -186,7 +186,7 @@ export default async function Home() {
                             <div className="flex-1 min-w-0">
                                 <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">RV Power</div>
                                 <div className="font-black text-slate-900 text-base">Best Power Stations for RV Use</div>
-                                <div className="text-xs text-slate-500 mt-1">30A Compatible · Surge Documented · Truth Index ≥80%</div>
+                                <div className="text-xs text-slate-500 mt-1">30A Compatible · Surge Documented · Verification Score ≥80%</div>
                             </div>
                             <span className="text-slate-300 group-hover:text-emerald-600 transition-colors text-xl flex-shrink-0">→</span>
                         </Link>

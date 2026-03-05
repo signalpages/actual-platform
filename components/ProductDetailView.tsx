@@ -201,7 +201,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   // Always normalize asset to skeleton audit if real audit is missing to ensure AuditResults can render
   const effectiveAudit = audit || (asset ? normalizeAuditResult(null, asset) : null);
 
-  // UX-001: Force reveal if truth index is present
+  // UX-001: Force reveal if verification score is present
   useEffect(() => {
     if (effectiveAudit?.truth_index || asset?.truth_score) {
       setHasRevealedLedger(true);
@@ -264,7 +264,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
   const productHasSpecs = hasMeaningfulSpecs(asset?.technical_specs);
   const stage1Done = productHasSpecs;
 
-  // If the product achieved a truth index from a full run, we consider the audit complete
+  // If the product achieved a verification score from a full run, we consider the audit complete
   // even if there were no 'meaningful' specs to claim initially.
   const isActuallyComplete = effectiveAudit?.truth_index !== null && effectiveAudit?.truth_index !== undefined;
 
@@ -439,10 +439,10 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
                   {isVerifiedAudit ? effectiveAudit?.truth_index || "--" : "--"}%
                 </div>
                 <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mt-1">
-                  {isVerifiedAudit ? "Truth Index" : "Pending Verification"}
+                  {isVerifiedAudit ? "Verification Score" : "Pending Verification"}
                 </p>
 
-                {/* Desktop "Compare" under the Truth Index */}
+                {/* Desktop "Compare" under the Verification Score */}
                 <button
                   type="button"
                   onClick={(e) => {
@@ -545,7 +545,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
         <div className="p-10 md:p-14">
           <p className="text-[11px] leading-relaxed text-slate-400 mb-6 max-w-2xl">
-            This log functions as a technical audit of the {asset.brand} {asset.model_name}, conducted through a structured four-stage validation process. We prioritize technical reality over manufacturer marketing to deliver a verified Truth Index score. This forensic baseline flags discrepancies where marketing claims diverge from category norms.
+            This log functions as a technical audit of the {asset.brand} {asset.model_name}, conducted through a structured four-stage validation process. We prioritize technical reality over manufacturer marketing to deliver a verified Verification Score. This forensic baseline flags discrepancies where marketing claims diverge from category norms.
           </p>
 
           {/* Verdict Snapshot (CTR Optimization) */}
@@ -554,7 +554,7 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4">Verdict Snapshot</div>
               <div className="space-y-3">
                 <div className="flex items-center gap-4">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 w-32">Truth Index:</div>
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 w-32">Verification Score:</div>
                   <div className={`text-sm font-black ${truthColor}`}>{effectiveAudit.truth_index}%</div>
                 </div>
                 <div className="flex items-start gap-4">

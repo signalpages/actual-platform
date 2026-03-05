@@ -14,7 +14,7 @@ export default function LearnLanding() {
                     METHODOLOGY
                 </h1>
                 <p className="text-slate-500 text-xl leading-relaxed font-medium">
-                    Our verification engine, scoring logic, and Truth Index explained.
+                    Our verification engine, scoring logic, and Verification Score explained.
                 </p>
             </header>
 
@@ -46,7 +46,7 @@ export default function LearnLanding() {
                 <section>
                     <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-4 flex items-center gap-3">
                         <span className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm">3</span>
-                        The Truth Index
+                        The Verification Score
                     </h2>
                     <div className="pl-11 border-l-2 border-slate-100 ml-4">
                         <p className="text-slate-600 leading-relaxed mb-6">
@@ -79,7 +79,7 @@ export default function LearnLanding() {
                             Field Notes summarize recurring themes observed in publicly available owner discussions and long-term usage reports at the time of generation.
                         </p>
                         <p className="text-slate-600 leading-relaxed mb-6">
-                            This section provides contextual insight and does not influence the Truth Index. Field Notes may change over time as products receive updates or as new usage reports emerge.
+                            This section provides contextual insight and does not influence the Verification Score. Field Notes may change over time as products receive updates or as new usage reports emerge.
                         </p>
                     </div>
                 </section>

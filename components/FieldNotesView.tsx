@@ -38,7 +38,7 @@ export const FieldNotesView: React.FC<FieldNotesViewProps> = ({ snapshot }) => {
                     Field Notes
                 </h2>
                 <p className="text-slate-500 text-sm font-medium leading-relaxed mb-6">
-                    Long-term ownership patterns surfaced from owner discussions — distinct from the structured product audit. Field Notes are derived from unstructured forum posts and review commentary rather than the validation framework used for scoring, and do not influence the Truth Index. Field Notes are only available for select products where sufficient ownership discussions exist.
+                    Long-term ownership patterns surfaced from owner discussions — distinct from the structured product audit. Field Notes are derived from unstructured forum posts and review commentary rather than the validation framework used for scoring, and do not influence the Verification Score. Field Notes are only available for select products where sufficient ownership discussions exist.
                     {data.disclaimer && ` ${data.disclaimer}`}
                 </p>
 

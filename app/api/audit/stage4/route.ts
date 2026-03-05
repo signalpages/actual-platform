@@ -16,7 +16,7 @@ function sbAdmin() {
 
 /**
  * POST /api/audit/stage4
- * Verdict + truth index. Prereq: stage_3 done AND valid.
+ * Verdict + verification score. Prereq: stage_3 done AND valid.
  * The ONLY stage that writes to shadow_specs canonical snapshot.
  * Never runs if stage_3 invalid. Never wipes prior verdict on failure.
  */
@@ -72,14 +72,15 @@ export async function POST(req: NextRequest) {
 
         const baseScores = computeBaseScores(s3Data.entries);
         const metricBars = buildMetricBars(baseScores);
-        const truthBreakdown = computeTruthIndex(s3Data.entries, baseScores);
+        const claimCount = s1Data?.claim_profile?.length ?? 0;
+        const truthBreakdown = computeTruthIndex(s3Data.entries, baseScores, undefined, claimCount);
 
         // 6. Execute
         const result = await executeStage4(product, {
             stage1: s1Data || { claim_profile: [] },
             stage2: s2Data ? { independent_signal: s2Data } : { independent_signal: { most_praised: [], most_reported_issues: [] } },
             stage3: { red_flags: s3Data.entries, reality_ledger: [] }
-        }, { baseScores, metricBars, truthBreakdown });
+        }, { baseScores, metricBars, truthBreakdown, claimCount });
 
         const validation = validateStage4(result);
         if (!validation.valid) {

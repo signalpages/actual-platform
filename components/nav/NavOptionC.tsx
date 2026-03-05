@@ -49,7 +49,7 @@ export default function NavOptionC({ mode }: NavOptionCProps) {
                             Compare
                         </Link>
 
-                        <Link href={withUi('/decision-surfaces', mode)} className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
+                        <Link href={withUi('/buying-guides', mode)} className="text-[11px] font-black uppercase tracking-widest text-slate-600 hover:text-blue-600 transition-colors">
                             Buying Guides
                         </Link>
 
@@ -74,7 +74,7 @@ export default function NavOptionC({ mode }: NavOptionCProps) {
                 <div className="md:hidden bg-white border-b border-slate-200 px-6 py-4 space-y-4">
                     <Link href={withUi('/start', mode)} className="block text-center text-[10px] font-black uppercase tracking-widest text-white bg-emerald-600 px-4 py-3 rounded-lg">Start Planning</Link>
 
-                    <Link href={withUi('/decision-surfaces', mode)} className="block text-sm font-bold text-blue-600 border border-blue-100 bg-blue-50 rounded-lg px-3 py-2">Buying Guides →</Link>
+                    <Link href={withUi('/buying-guides', mode)} className="block text-sm font-bold text-blue-600 border border-blue-100 bg-blue-50 rounded-lg px-3 py-2">Buying Guides →</Link>
                     <div className="space-y-2">
                         <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Components</div>
                         <Link href={withUi('/specs?category=solar_panel', mode)} className="block text-sm font-bold text-slate-800 pl-4">Solar Panels</Link>

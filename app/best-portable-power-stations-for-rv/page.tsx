@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { searchAssets } from '@/lib/dataBridge.client';
 import { Asset } from '@/types';
 import { filterRVProducts, RVProduct } from '@/lib/scenarioFilters';
+import { organizationJsonLd, itemListJsonLd } from '@/lib/seo/jsonld';
 
 function TierSection({
     tier,
@@ -46,7 +47,7 @@ function TierSection({
                     <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                             <th className="px-6 py-4 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Model & Specs</th>
-                            <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Truth Index</th>
+                            <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">Verification Score</th>
                             <th className="px-6 py-4 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">
                                 Runtime (RV Fridge)
                                 <div className="text-[7px] font-medium lowercase tracking-normal mt-1 opacity-70">
@@ -156,22 +157,19 @@ function RVScenarioContent() {
         return {
             '@context': 'https://schema.org',
             '@graph': [
-                {
-                    '@type': 'ItemList',
-                    'name': 'Best Power Stations for RV Use',
-                    'description': 'Forensic verification of portable power stations optimized for RV travel and boondocking.',
-                    'itemListElement': products.slice(0, 10).map((p, index) => ({
-                        '@type': 'ListItem',
-                        'position': index + 1,
-                        'url': `https://actual.fyi/specs/${p.slug}`,
-                        'name': `${p.brand} ${p.model_name}`
+                organizationJsonLd(),
+                itemListJsonLd(
+                    'Best Portable Power Stations for RV',
+                    products.slice(0, 10).map(p => ({
+                        name: `${p.brand} ${p.model_name}`,
+                        url: `https://actual.fyi/specs/${p.slug}`
                     }))
-                },
+                ),
                 {
                     '@type': 'BreadcrumbList',
                     'itemListElement': [
                         { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'https://actual.fyi' },
-                        { '@type': 'ListItem', 'position': 2, 'name': 'Buying Guides', 'item': 'https://actual.fyi/decision-surfaces' },
+                        { '@type': 'ListItem', 'position': 2, 'name': 'Buying Guides', 'item': 'https://actual.fyi/buying-guides' },
                         { '@type': 'ListItem', 'position': 3, 'name': 'RV Power Buying Guide', 'item': 'https://actual.fyi/best-portable-power-stations-for-rv' }
                     ]
                 },
@@ -221,7 +219,7 @@ function RVScenarioContent() {
             {/* Hero Section */}
             <header className="mb-20 text-center max-w-4xl mx-auto">
                 <Link
-                    href="/decision-surfaces"
+                    href="/buying-guides"
                     className="inline-block bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] mb-6 hover:bg-emerald-100 transition-colors"
                 >
                     ← Buying Guides
@@ -388,7 +386,7 @@ function RVScenarioContent() {
                 <div className="max-w-2xl">
                     <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-4">Integrity Statement</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                        Inclusion on this page is strictly rule-based and derived from the Actual.fyi forensic database. Products are only surfaced if they meet the hard technical criteria (Continuous ≥{appliedThreshold}W, 30A Capable, Surge Docs) and pass our audit with a Truth Index score of 80 or higher.
+                        Inclusion on this page is strictly rule-based and derived from the Actual.fyi forensic database. Products are only surfaced if they meet the hard technical criteria (Continuous ≥{appliedThreshold}W, 30A Capable, Surge Docs) and pass our audit with a Verification Score of 80 or higher.
                     </p>
                 </div>
             </footer>

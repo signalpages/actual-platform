@@ -90,7 +90,7 @@ export function FullAuditPanel({ product, audit, isRightColumn }: FullAuditPanel
                             {isVerified ? audit.truth_index ?? '--' : '--'}%
                         </span>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Truth Index
+                            Verification Score
                         </span>
                     </div>
                 </div>

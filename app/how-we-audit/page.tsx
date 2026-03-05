@@ -126,7 +126,7 @@ export default function HowWeAuditPage() {
                     {/* Stage 4 */}
                     <div className="bg-white p-8">
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Stage 4</div>
-                        <h3 className="text-xl font-bold text-slate-900 mb-4">Truth Index Calculation</h3>
+                        <h3 className="text-xl font-bold text-slate-900 mb-4">Verification Score Calculation</h3>
                         <ul className="space-y-3 text-sm text-slate-600">
                             <li className="flex items-start gap-2">
                                 <span className="text-slate-300 mt-0.5">•</span>
@@ -163,7 +163,7 @@ export default function HowWeAuditPage() {
                         </h3>
                         <div className="space-y-4 text-sm text-slate-600 leading-relaxed flex-grow">
                             <p>
-                                A Truth Index is only issued when sufficient independent validation exists. When you see a notice for <strong>Insufficient Forensic Depth</strong>, it indicates one or both of the following:
+                                A Verification Score is only issued when sufficient independent validation exists. When you see a notice for <strong>Insufficient Forensic Depth</strong>, it indicates one or both of the following:
                             </p>
                             <ul className="space-y-3">
                                 <li className="flex items-start gap-3">
@@ -176,7 +176,7 @@ export default function HowWeAuditPage() {
                                 </li>
                             </ul>
                             <p className="pt-2 font-medium text-slate-800">
-                                By withholding a score in these cases, we prevent confusion and ensure that every Truth Index on our platform is backed by hard, undeniable data.
+                                By withholding a score in these cases, we prevent confusion and ensure that every Verification Score on our platform is backed by hard, undeniable data.
                             </p>
                         </div>
                     </div>
@@ -230,7 +230,7 @@ export default function HowWeAuditPage() {
                 </p>
                 <div className="pt-8 border-t border-slate-200 max-w-xl mx-auto">
                     <p className="text-sm text-slate-500 italic">
-                        A 100% Truth Index means no claim inflation was detected. It does not mean the product is the best choice for every use case.
+                        A 100% Verification Score means no claim inflation was detected. It does not mean the product is the best choice for every use case.
                     </p>
                 </div>
             </footer>
