@@ -3,42 +3,56 @@
     "sources": [
         {
             "title": "BLUETTI EB70S Portable Power Station | 800W 716Wh",
-            "url": "https://ussolarsupplier.com/products/bluetti-eb70s-portable-power-station-800w-716wh"
+            "url": "https://ussolarsupplier.com/products/bluetti-eb70s-portable-power-station-800w-716wh",
+            "type": "reference"
         },
         {
             "title": "BLUETTI 800W Continuous/1400W Peak Output Power Station EB70S",
-            "url": "https://www.homedepot.com/p/BLUETTI-800W-Continuous-1400W-Peak-Output-Power-Station-EB70S-Gray-Push-Button-Start-LiFePO4-Battery-Solar-Generator-for-Outdoor-EB70GR/323268512"
+            "url": "https://www.homedepot.com/p/BLUETTI-800W-Continuous-1400W-Peak-Output-Power-Station-EB70S-Gray-Push-Button-Start-LiFePO4-Battery-Solar-Generator-for-Outdoor-EB70GR/323268512",
+            "type": "reference"
         },
         {
             "title": "Review: Bluetti EB70S Portable Power Station - Jeff Wilson",
-            "url": "https://www.jeffwilsonexplore.com/post/review-bluetti-eb70s-portable-power-station"
+            "url": "https://www.jeffwilsonexplore.com/post/review-bluetti-eb70s-portable-power-station",
+            "type": "reference"
         },
         {
             "title": "Bluetti EB70S Portable Power Station - Bug Out Bag Builder",
-            "url": "https://bugoutbagbuilder.com/product-reviews/bluetti-eb70s-portable-power-station"
+            "url": "https://bugoutbagbuilder.com/product-reviews/bluetti-eb70s-portable-power-station",
+            "type": "reference"
         },
         {
             "title": "Bluetti EB70S Portable Power Station Review - Mountain IQ",
-            "url": "https://www.mountainiq.com/gear/technology/bluetti-eb70s-review/"
+            "url": "https://www.mountainiq.com/gear/technology/bluetti-eb70s-review/",
+            "type": "reference"
         },
         {
             "title": "BLUETTI EB70S Portable Power Station | 716Wh | 1400W",
-            "url": "https://outboundpower.com/products/bluetti-eb70s-portable-power-station-716wh-1400w-200w-solar-input"
+            "url": "https://outboundpower.com/products/bluetti-eb70s-portable-power-station-716wh-1400w-200w-solar-input",
+            "type": "reference"
         },
         {
             "title": "BLUETTI User Guide",
-            "url": "https://www.bluettipower.com/pages/user-guides"
+            "url": "https://www.bluettipower.com/pages/user-guides",
+            "type": "reference"
         },
         {
             "title": "Hell with BLUETTI app - Reddit",
-            "url": "https://www.reddit.com/r/bluetti/comments/13k21e0/hell_with_bluetti_app/"
+            "url": "https://www.reddit.com/r/bluetti/comments/13k21e0/hell_with_bluetti_app/",
+            "type": "owner"
         },
         {
             "title": "Bluetti EB70S - Reddit",
-            "url": "https://www.reddit.com/r/bluetti/comments/pq7z4j/bluetti_eb70s/"
+            "url": "https://www.reddit.com/r/bluetti/comments/pq7z4j/bluetti_eb70s/",
+            "type": "owner"
+        },
+        {
+            "title": "Is there compatible charger for the Bluetti EB70 - Reddit",
+            "url": "https://www.reddit.com/r/bluetti/comments/165fyi7/is_there_compatible_charger_for_the_bluetti_eb70/",
+            "type": "owner"
         }
     ],
-    "source_count": 9,
+    "source_count": 10,
     "praise": [
         "Compact form factor comparable to a double-layered lunchbox",
         "Utilizes lithium iron phosphate battery chemistry for increased safety",

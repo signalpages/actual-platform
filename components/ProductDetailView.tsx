@@ -12,7 +12,6 @@ import SubmissionSuccess from "@/components/SubmissionSuccess";
 import { AuditResults } from "@/components/AuditResults";
 import { FieldNotesView } from "@/components/FieldNotesView";
 import { formatCategoryLabel } from "@/lib/categoryFormatter";
-import { FIELD_NOTES_ALLOWLIST } from "@/lib/fieldNotesAllowlist";
 import { getFieldNotes } from "@/lib/dataBridge.client";
 import { FieldNotesSnapshot } from "@/types";
 
@@ -219,8 +218,8 @@ export default function ProductDetailView({ initialAsset, initialAudit, slug }: 
 
   // Field Notes Effect
   useEffect(() => {
-    if (mounted && asset?.id && FIELD_NOTES_ALLOWLIST.has(slug)) {
-      getFieldNotes(asset.id).then(setFieldNotesSnapshot);
+    if (mounted && asset?.id) {
+      getFieldNotes(slug).then(setFieldNotesSnapshot);
     }
   }, [mounted, asset, slug]);
 

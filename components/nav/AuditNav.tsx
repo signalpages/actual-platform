@@ -27,10 +27,11 @@ export default function AuditNav() {
                             <div className="absolute left-0 mt-0 w-56 bg-white border border-slate-200 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform translate-y-2 group-hover:translate-y-0 duration-200 z-50 overflow-hidden">
                                 <div className="p-2">
                                     <div className="px-4 py-2 text-[9px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 mb-1">Browse Categories</div>
+                                    <Link href="/specs?category=portable_power_station" className="block px-4 py-2 hover:bg-slate-50 rounded-lg text-[11px] font-bold text-slate-800">Portable Power Stations</Link>
                                     <Link href="/specs?category=solar_panel" className="block px-4 py-2 hover:bg-slate-50 rounded-lg text-[11px] font-bold text-slate-800">Solar Panels</Link>
                                     <Link href="/specs?category=inverter" className="block px-4 py-2 hover:bg-slate-50 rounded-lg text-[11px] font-bold text-slate-800">Inverters</Link>
-                                    <Link href="/specs?category=home_backup_system" className="block px-4 py-2 hover:bg-slate-50 rounded-lg text-[11px] font-bold text-slate-800">Batteries</Link>
                                     <Link href="/specs?category=charge_controller" className="block px-4 py-2 hover:bg-slate-50 rounded-lg text-[11px] font-bold text-slate-800">Charge Controllers</Link>
+                                    <Link href="/specs?category=home_backup_system" className="block px-4 py-2 hover:bg-slate-50 rounded-lg text-[11px] font-bold text-slate-800">Solar Backup Batteries</Link>
                                     <Link href="/specs?category=ev_charger" className="block px-4 py-2 hover:bg-slate-50 rounded-lg text-[11px] font-bold text-slate-800">EV Chargers</Link>
                                 </div>
                             </div>
@@ -82,9 +83,11 @@ export default function AuditNav() {
                 <div className="md:hidden bg-white border-b border-slate-200 px-6 py-4 space-y-4">
                     <div className="space-y-2">
                         <div className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Audits</div>
+                        <Link href="/specs?category=portable_power_station" className="block text-sm font-bold text-slate-800 pl-4">Portable Power Stations</Link>
                         <Link href="/specs?category=solar_panel" className="block text-sm font-bold text-slate-800 pl-4">Solar Panels</Link>
                         <Link href="/specs?category=inverter" className="block text-sm font-bold text-slate-800 pl-4">Inverters</Link>
-                        <Link href="/specs?category=home_backup_system" className="block text-sm font-bold text-slate-800 pl-4">Batteries</Link>
+                        <Link href="/specs?category=charge_controller" className="block text-sm font-bold text-slate-800 pl-4">Charge Controllers</Link>
+                        <Link href="/specs?category=home_backup_system" className="block text-sm font-bold text-slate-800 pl-4">Solar Backup Batteries</Link>
                         <Link href="/specs?category=ev_charger" className="block text-sm font-bold text-slate-800 pl-4">EV Chargers</Link>
                     </div>
                     <Link href="/compare" className="block text-[10px] font-black uppercase tracking-widest text-slate-600">Compare</Link>

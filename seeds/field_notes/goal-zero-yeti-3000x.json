@@ -1,0 +1,46 @@
+{
+    "product_slug": "goal-zero-yeti-3000x",
+    "source_urls": [
+        "https://goalzero.com/products/goal-zero-yeti-3000x-portable-power-station",
+        "https://www.rei.com/product/184368/goal-zero-yeti-3000x-portable-power-station",
+        "https://www.walmart.com/ip/Goal-Zero-Yeti-3000X-Portable-Power-Station-3032Wh-Lithium-Battery-Generator-2000-Watt-AC-Inverter-Home-Backup/382299987",
+        "https://shopsolarkits.com/blogs/learning-center/goal-zero-yeti-3000-review",
+        "https://thewildguides.com/jackery-explorer-3000-pro-vs-goal-zero-yeti-3000x-review/",
+        "https://www.trustpilot.com/review/goalzero.com"
+    ],
+    "source_count": 6,
+    "praise": [
+        "High storage capacity of 3,032Wh for extended use",
+        "Versatile port selection including 60W USB-C Power Delivery",
+        "Includes a 2,000W AC pure sine wave inverter with 3,500W surge",
+        "Integration with Yeti App 3.0 for remote power monitoring",
+        "Mobile design featuring an included heavy-duty roll cart",
+        "Regulated 12V output for consistent power to sensitive electronics",
+        "Supports simultaneous charging and discharging",
+        "Compatibility with multiple solar lines including Nomad and Boulder",
+        "Quiet operation suitable for indoor and campsite use",
+        "Ability to integrate into home circuits via a transfer switch kit"
+    ],
+    "friction": [
+        "Heavy unit weight of approximately 69.8 lbs complicates lifting",
+        "Reports of units failing to accept charges from wall or solar inputs",
+        "Limited battery lifespan rated at 500 cycles to 80% capacity",
+        "Long charging times of 14 hours using the standard 230W wall charger",
+        "Reports of firmware updates becoming stuck in progress loops",
+        "Short shelf life requiring recharges every 3 to 6 months",
+        "High price point relative to competing models with similar capacity",
+        "Only two AC outlets despite the high inverter capacity",
+        "Inadequate internal ventilation can lead to heat-related damage",
+        "Reports of inconsistent customer service experiences for out-of-warranty units"
+    ],
+    "themes": [
+        "Emergency home backup",
+        "Off-grid and van life utility",
+        "Battery longevity and cycle life",
+        "Charging efficiency and solar input",
+        "Mobile app connectivity and control",
+        "Physical portability and weight challenges",
+        "Reliability and hardware failure reports",
+        "Integration within a broader power ecosystem"
+    ]
+}

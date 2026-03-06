@@ -140,7 +140,7 @@ export const getFieldNotes = async (productSlug: string): Promise<any | null> =>
       .from("field_notes_snapshots")
       .select("*")
       .eq("product_slug", productSlug)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     return data;

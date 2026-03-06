@@ -1,0 +1,50 @@
+{
+    "product_slug": "ef-ecoflow-delta-2-max",
+    "source_urls": [
+        "r/Ecoflow_community - Reddit: I measured the Ecoflow Delta 2 EPS transfer speeds with some different loads (the 30ms they state is very misleading)",
+        "r/Ecoflow_community - Reddit: EcoFlow Delta 2 Max Issues",
+        "r/Ecoflow_community - Reddit: Delta 2 Max or Delta Pro?",
+        "EcoFlow Blog: How Long Do LiFePO₄ Batteries Last in Solar Energy Systems?",
+        "EcoFlow Blog: How to Install a Generator Transfer Switch: A Complete Beginner's Guide",
+        "The Solar Lab: EcoFlow DELTA 2 Max Review: Is It Still Worth Buying Years Later?",
+        "EcoFlow Official Documentation: EcoFlow DELTA 2 Max User Manual V1.0",
+        "Total Tools Presentation: Introducing EcoFlow DELTA 2 Max",
+        "Fair Trade Finder (Video/Article): Anker PowerHouse 767 vs EcoFlow Delta 2 Max: How Do They Compare?",
+        "Independent Testing: EcoFlow Delta 2 Max - Roundtrip Efficiency Test"
+    ],
+    "source_count": 10,
+    "praise": [
+        "High inverter efficiency measured at approximately 86% to 88%",
+        "Quiet operation during use with reported noise levels around 30 dB",
+        "Substantial solar input capacity of 1,000W relative to battery size",
+        "Expandable storage capacity up to 6,144Wh via extra batteries",
+        "Fast AC charging capable of reaching 80% in approximately 68 minutes",
+        "Low idle power draw compared to larger capacity units",
+        "Responsive mobile application for remote monitoring and control",
+        "Grounded AC outlet availability with six total ports",
+        "Durable build quality including a fire-resistant 5VA rated shell",
+        "LFP battery chemistry supporting up to 3,000 cycles to 80% capacity"
+    ],
+    "friction": [
+        "Reports of Emergency Power Supply (EPS) transfer speeds exceeding 30ms under low loads",
+        "Reports of sporadic battery percentage drops and BMS calibration issues",
+        "Reports of inaccuracies between displayed AC output and actual device draw",
+        "Lack of a built-in LED light for emergency visibility",
+        "Absence of wheels on the unit despite a weight of approximately 50 lbs",
+        "Reports of X-Boost functionality being inconsistent with sensitive electronics",
+        "Reports of solar input ports occasionally misidentifying panels as car chargers",
+        "Limited surge headroom when attempting to start high-demand appliances",
+        "Reports of high variability in switchover times with low power factor loads",
+        "Reports of firmware updates not fully resolving transfer speed inconsistencies"
+    ],
+    "themes": [
+        "Real-world EPS performance versus advertised specifications",
+        "Battery Management System (BMS) stability and calibration",
+        "Inverter efficiency and idle power consumption",
+        "Portability and physical design ergonomics",
+        "Solar and AC recharging speed performance",
+        "Ecosystem compatibility and expandability",
+        "Utility for sensitive electronic equipment",
+        "Long-term battery chemistry durability"
+    ]
+}

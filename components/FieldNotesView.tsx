@@ -181,27 +181,43 @@ export const FieldNotesView: React.FC<FieldNotesViewProps> = ({ snapshot }) => {
     );
 };
 
-const SourceCard: React.FC<{ source: any; domain: string }> = ({ source, domain }) => (
-    <a
-        href={source.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-sm transition-all group"
-    >
-        <div className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 border border-slate-50 group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
-            <img
-                src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
-                alt=""
-                className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity"
-            />
-        </div>
-        <div className="flex flex-col min-w-0">
-            <span className="text-xs font-bold text-slate-700 truncate group-hover:text-blue-600 transition-colors">
-                {source.title}
-            </span>
-            <span className="text-[10px] font-medium text-slate-400 truncate uppercase tracking-tight">
-                {domain}
-            </span>
-        </div>
-    </a>
-);
+const SourceCard: React.FC<{ source: any; domain: string }> = ({ source, domain }) => {
+    const isLink = !!domain;
+    const Wrapper = isLink ? 'a' : 'div';
+    const wrapperProps = isLink ? {
+        href: source.url,
+        target: "_blank",
+        rel: "noopener noreferrer"
+    } : {};
+
+    return (
+        <Wrapper
+            {...wrapperProps as any}
+            className={`flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-white transition-all ${isLink ? 'cursor-pointer hover:border-blue-200 hover:shadow-sm group' : ''}`}
+        >
+            <div className={`w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center shrink-0 border border-slate-50 transition-colors ${isLink ? 'group-hover:bg-blue-50 group-hover:border-blue-100' : ''}`}>
+                {domain ? (
+                    <img
+                        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+                        alt=""
+                        className="w-4 h-4 opacity-70 group-hover:opacity-100 transition-opacity"
+                    />
+                ) : (
+                    <svg className="w-4 h-4 opacity-40 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                )}
+            </div>
+            <div className="flex flex-col min-w-0">
+                <span className={`text-xs font-bold text-slate-700 truncate transition-colors ${isLink ? 'group-hover:text-blue-600' : ''}`}>
+                    {source.title}
+                </span>
+                {domain && (
+                    <span className="text-[10px] font-medium text-slate-400 truncate uppercase tracking-tight">
+                        {domain}
+                    </span>
+                )}
+            </div>
+        </Wrapper>
+    );
+};
