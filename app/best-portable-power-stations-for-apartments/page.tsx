@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { searchAssets } from '@/lib/dataBridge.client';
 import { Asset } from '@/types';
 import { filterApartmentBackupProducts, ApartmentProduct } from '@/lib/scenarioFilters';
-import { organizationJsonLd, itemListJsonLd } from '@/lib/seo/jsonld';
+import { organizationJsonLd, generateItemList } from '@/lib/seo/jsonld';
 
 function TierSection({
     tier,
@@ -127,13 +127,6 @@ export default function ApartmentBackupScenarioPage() {
             '@context': 'https://schema.org',
             '@graph': [
                 organizationJsonLd(),
-                itemListJsonLd(
-                    'Best Portable Power Stations for Apartments',
-                    products.slice(0, 10).map(p => ({
-                        name: `${p.brand} ${p.model_name}`,
-                        url: `https://actual.fyi/specs/${p.slug}`
-                    }))
-                ),
                 {
                     '@type': 'BreadcrumbList',
                     'itemListElement': [
@@ -141,7 +134,11 @@ export default function ApartmentBackupScenarioPage() {
                         { '@type': 'ListItem', 'position': 2, 'name': 'Buying Guides', 'item': 'https://actual.fyi/buying-guides' },
                         { '@type': 'ListItem', 'position': 3, 'name': 'Apartment Backup Buying Guide', 'item': 'https://actual.fyi/best-portable-power-stations-for-apartments' }
                     ]
-                }
+                },
+                generateItemList(
+                    'Best Portable Power Stations for Apartments',
+                    products.slice(0, 10).map(p => `https://actual.fyi/specs/${p.slug}`)
+                )
             ]
         };
     }, [products]);

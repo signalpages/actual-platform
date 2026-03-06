@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { searchAssets } from '@/lib/dataBridge.client';
 import { Asset } from '@/types';
 import { filterOffGridCabinProducts, CabinProduct } from '@/lib/scenarioFilters';
-import { organizationJsonLd, itemListJsonLd } from '@/lib/seo/jsonld';
+import { organizationJsonLd, generateItemList } from '@/lib/seo/jsonld';
 
 function TierSection({
     tier,
@@ -128,13 +128,6 @@ export default function CabinScenarioPage() {
             '@context': 'https://schema.org',
             '@graph': [
                 organizationJsonLd(),
-                itemListJsonLd(
-                    'Best Portable Power Stations for Off-Grid Cabin',
-                    products.slice(0, 10).map(p => ({
-                        name: `${p.brand} ${p.model_name}`,
-                        url: `https://actual.fyi/specs/${p.slug}`
-                    }))
-                ),
                 {
                     '@type': 'BreadcrumbList',
                     'itemListElement': [
@@ -142,7 +135,11 @@ export default function CabinScenarioPage() {
                         { '@type': 'ListItem', 'position': 2, 'name': 'Buying Guides', 'item': 'https://actual.fyi/buying-guides' },
                         { '@type': 'ListItem', 'position': 3, 'name': 'Off-Grid Cabin Buying Guide', 'item': 'https://actual.fyi/best-portable-power-stations-for-off-grid-cabin' }
                     ]
-                }
+                },
+                generateItemList(
+                    'Best Portable Power Stations for Off-Grid Cabin',
+                    products.slice(0, 10).map(p => `https://actual.fyi/specs/${p.slug}`)
+                )
             ]
         };
     }, [products]);

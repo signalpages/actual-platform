@@ -21,3 +21,19 @@ export function itemListJsonLd(title: string, items: any[]) {
         }))
     };
 }
+
+export function generateItemList(name: string, urls: string[]) {
+    return {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        name,
+        "itemListElement": urls.map((url, i) => ({
+            "@type": "ListItem",
+            "position": i + 1,
+            "item": {
+                "@type": "Product",
+                url
+            }
+        }))
+    };
+}

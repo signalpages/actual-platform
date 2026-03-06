@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { searchAssets } from '@/lib/dataBridge.client';
 import { Asset } from '@/types';
 import { filterHighDemandProducts, HighDemandProduct } from '@/lib/scenarioFilters';
-import { organizationJsonLd, itemListJsonLd } from '@/lib/seo/jsonld';
+import { organizationJsonLd, generateItemList } from '@/lib/seo/jsonld';
 
 function TierSection({
     tier,
@@ -128,13 +128,6 @@ export default function HighDemandScenarioPage() {
             '@context': 'https://schema.org',
             '@graph': [
                 organizationJsonLd(),
-                itemListJsonLd(
-                    'Best Portable Power Stations for High-Demand Loads',
-                    products.slice(0, 10).map(p => ({
-                        name: `${p.brand} ${p.model_name}`,
-                        url: `https://actual.fyi/specs/${p.slug}`
-                    }))
-                ),
                 {
                     '@type': 'BreadcrumbList',
                     'itemListElement': [
@@ -142,7 +135,11 @@ export default function HighDemandScenarioPage() {
                         { '@type': 'ListItem', 'position': 2, 'name': 'Buying Guides', 'item': 'https://actual.fyi/buying-guides' },
                         { '@type': 'ListItem', 'position': 3, 'name': 'High-Demand Loads Buying Guide', 'item': 'https://actual.fyi/best-portable-power-stations-for-high-demand' }
                     ]
-                }
+                },
+                generateItemList(
+                    'Best Portable Power Stations for High-Demand Loads',
+                    products.slice(0, 10).map(p => `https://actual.fyi/specs/${p.slug}`)
+                )
             ]
         };
     }, [products]);

@@ -139,9 +139,6 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
                     bestRating: 5,
                     worstRating: 1,
                 },
-                itemReviewed: {
-                    '@id': `${pageUrl}#product`,
-                },
                 datePublished: product.created_at ? new Date(product.created_at).toISOString() : new Date().toISOString(),
                 reviewBody: `Technical audit results for ${productName}. Independent analysis yielded a Verification Score of ${rawTruthIndex}%. ${initialAudit.score_interpretation || ''}`,
             };

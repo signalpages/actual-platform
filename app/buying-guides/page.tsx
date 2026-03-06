@@ -2,6 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { BUYING_GUIDES, BuyingGuide } from '@/lib/scenarios/buyingGuides';
+import { organizationJsonLd, generateItemList } from '@/lib/seo/jsonld';
 
 export const runtime = 'edge';
 
@@ -11,22 +12,37 @@ export const metadata: Metadata = {
     alternates: { canonical: '/buying-guides' },
 };
 
+const guideUrls = [
+    "https://actual.fyi/best-portable-power-stations-for-home-backup",
+    "https://actual.fyi/best-portable-power-stations-for-rv",
+    "https://actual.fyi/best-portable-power-stations-for-apartments",
+    "https://actual.fyi/best-portable-power-stations-for-emergency-power",
+    "https://actual.fyi/best-portable-power-stations-for-off-grid-cabin",
+    "https://actual.fyi/best-portable-power-stations-for-high-demand"
+];
+
 const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    'itemListElement': [
+    '@graph': [
+        organizationJsonLd(),
         {
-            '@type': 'ListItem',
-            'position': 1,
-            'name': 'Home',
-            'item': 'https://actual.fyi'
+            '@type': 'BreadcrumbList',
+            'itemListElement': [
+                {
+                    '@type': 'ListItem',
+                    'position': 1,
+                    'name': 'Home',
+                    'item': 'https://actual.fyi'
+                },
+                {
+                    '@type': 'ListItem',
+                    'position': 2,
+                    'name': 'Buying Guides',
+                    'item': 'https://actual.fyi/buying-guides'
+                }
+            ]
         },
-        {
-            '@type': 'ListItem',
-            'position': 2,
-            'name': 'Buying Guides',
-            'item': 'https://actual.fyi/buying-guides'
-        }
+        generateItemList("Portable Power Station Buying Guides", guideUrls)
     ]
 };
 

@@ -230,7 +230,7 @@ function SpecLedgerContent() {
                                                 {asset.truth_score}
                                             </div>
                                             <div className="text-[8px] font-bold text-slate-300 uppercase leading-none">
-                                                Truth<br />Index
+                                                Verif<br />Score
                                             </div>
                                         </div>
                                     )}

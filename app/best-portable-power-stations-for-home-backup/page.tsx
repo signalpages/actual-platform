@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { searchAssets } from '@/lib/dataBridge.client';
 import { Asset } from '@/types';
 import { filterHomeBackupProducts, ScenarioProduct } from '@/lib/scenarioFilters';
-import { organizationJsonLd, itemListJsonLd } from '@/lib/seo/jsonld';
+import { organizationJsonLd, generateItemList } from '@/lib/seo/jsonld';
 
 function TierSection({
     tier,
@@ -158,13 +158,6 @@ function HomeBackupScenarioContent() {
             '@context': 'https://schema.org',
             '@graph': [
                 organizationJsonLd(),
-                itemListJsonLd(
-                    'Best Portable Power Stations for Home Backup',
-                    products.slice(0, 10).map(p => ({
-                        name: `${p.brand} ${p.model_name}`,
-                        url: `https://actual.fyi/specs/${p.slug}`
-                    }))
-                ),
                 {
                     '@type': 'BreadcrumbList',
                     'itemListElement': [
@@ -173,35 +166,10 @@ function HomeBackupScenarioContent() {
                         { '@type': 'ListItem', 'position': 3, 'name': 'Home Backup Buying Guide', 'item': 'https://actual.fyi/best-portable-power-stations-for-home-backup' }
                     ]
                 },
-                {
-                    '@type': 'FAQPage',
-                    'mainEntity': [
-                        {
-                            '@type': 'Question',
-                            'name': 'Can a portable power station run a whole house?',
-                            'acceptedAnswer': {
-                                '@type': 'Answer',
-                                'text': 'Yes, but it depends on the load and capacity. Modular systems with 240V output and 10kWh+ capacity are typically needed for critical loads and heavy appliances.'
-                            }
-                        },
-                        {
-                            '@type': 'Question',
-                            'name': 'How long will a portable power station last during an outage?',
-                            'acceptedAnswer': {
-                                '@type': 'Answer',
-                                'text': 'It depends on what you run. A 2000Wh unit can run a standard refrigerator for about 12-15 hours. Larger expandable systems can provide multi-day backup.'
-                            }
-                        },
-                        {
-                            '@type': 'Question',
-                            'name': 'Do I need a transfer switch for home backup?',
-                            'acceptedAnswer': {
-                                '@type': 'Answer',
-                                'text': 'For safe, whole-home circuit integration, a transfer switch or Smart Home Panel is recommended to avoid back-feeding and to simplify power distribution.'
-                            }
-                        }
-                    ]
-                }
+                generateItemList(
+                    'Best Portable Power Stations for Home Backup',
+                    products.slice(0, 10).map(p => `https://actual.fyi/specs/${p.slug}`)
+                )
             ]
         };
     }, [products]);

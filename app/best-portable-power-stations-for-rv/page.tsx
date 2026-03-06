@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { searchAssets } from '@/lib/dataBridge.client';
 import { Asset } from '@/types';
 import { filterRVProducts, RVProduct } from '@/lib/scenarioFilters';
-import { organizationJsonLd, itemListJsonLd } from '@/lib/seo/jsonld';
+import { organizationJsonLd, generateItemList } from '@/lib/seo/jsonld';
 
 function TierSection({
     tier,
@@ -158,13 +158,6 @@ function RVScenarioContent() {
             '@context': 'https://schema.org',
             '@graph': [
                 organizationJsonLd(),
-                itemListJsonLd(
-                    'Best Portable Power Stations for RV',
-                    products.slice(0, 10).map(p => ({
-                        name: `${p.brand} ${p.model_name}`,
-                        url: `https://actual.fyi/specs/${p.slug}`
-                    }))
-                ),
                 {
                     '@type': 'BreadcrumbList',
                     'itemListElement': [
@@ -173,35 +166,10 @@ function RVScenarioContent() {
                         { '@type': 'ListItem', 'position': 3, 'name': 'RV Power Buying Guide', 'item': 'https://actual.fyi/best-portable-power-stations-for-rv' }
                     ]
                 },
-                {
-                    '@type': 'FAQPage',
-                    'mainEntity': [
-                        {
-                            '@type': 'Question',
-                            'name': 'Can a portable power station run an RV air conditioner?',
-                            'acceptedAnswer': {
-                                '@type': 'Answer',
-                                'text': 'Yes, but it requires high peak surge capacity (usually 3000W+) or a soft-start on the AC unit. Many 2000W+ continuous units can run smaller AC units efficiently.'
-                            }
-                        },
-                        {
-                            '@type': 'Question',
-                            'name': 'Do I need a 30A adapter for my RV?',
-                            'acceptedAnswer': {
-                                '@type': 'Answer',
-                                'text': 'Premium units like the EcoFlow Delta Pro or Bluetti AC200MAX feature native 30A outlets. For other units, a high-quality pigtail adapter is required, but total draw will be limited by the unit\'s inverter.'
-                            }
-                        },
-                        {
-                            '@type': 'Question',
-                            'name': 'How do I charge my power station while boondocking?',
-                            'acceptedAnswer': {
-                                '@type': 'Answer',
-                                'text': 'Portable solar panels are the most effective way. Most RV-optimized power stations support high-voltage solar input (up to 150V) for faster charging in variable conditions.'
-                            }
-                        }
-                    ]
-                }
+                generateItemList(
+                    'Best Portable Power Stations for RV',
+                    products.slice(0, 10).map(p => `https://actual.fyi/specs/${p.slug}`)
+                )
             ]
         };
     }, [products]);
