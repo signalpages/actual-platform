@@ -14,7 +14,7 @@ function SpecLedgerContent() {
     const categoryParam = searchParams.get('category') || 'all';
 
     const [assets, setAssets] = useState<Asset[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
+    const [categories, setCategories] = useState<Category[]>(listCategories());
     const [brandFilter, setBrandFilter] = useState('all');
     const [categoryFilter, setCategoryFilter] = useState(categoryParam);
     const [sortMethod, setSortMethod] = useState<'truth_score' | 'delta' | 'cleanest'>('truth_score');
@@ -28,12 +28,8 @@ function SpecLedgerContent() {
     useEffect(() => {
         const load = async () => {
             setLoading(true);
-            const [assetData, categoryData] = await Promise.all([
-                searchAssets('', 'all', 'all'),
-                listCategories()
-            ]);
+            const assetData = await searchAssets('', 'all', 'all');
             setAssets(assetData);
-            setCategories(categoryData as Category[]);
             setLoading(false);
         };
         load();
