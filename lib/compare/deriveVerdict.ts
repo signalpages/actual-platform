@@ -49,27 +49,130 @@ export function deriveVerdict(
     const winnerTI = tiA > tiB ? tiA : tiB;
     const loserTI = tiA > tiB ? tiB : tiA;
 
-    const drivers: string[] = [];
-
-    // 2. Identify Drivers
-
-    // Driver: Accuracy (Truth Index)
-    if (delta >= 15) {
-        drivers.push("Claims Accuracy Major Disparity");
-    } else if (delta >= 5) {
-        drivers.push("Slight Accuracy Advantage");
-    } else {
-        drivers.push("Comparable Claims Accuracy");
-    }
-
-    // Driver: Discrepancy Volume
-    // Ensure discrepancies is an array (safety check, though API should enforce)
     const discA = Array.isArray(assetA.audit.discrepancies) ? assetA.audit.discrepancies.length : 0;
     const discB = Array.isArray(assetB.audit.discrepancies) ? assetB.audit.discrepancies.length : 0;
     const discDelta = Math.abs(discA - discB);
 
-    if (discDelta >= 3) {
-        drivers.push(discA < discB ? `${assetA.model_name} has fewer red flags` : `${assetB.model_name} has fewer red flags`);
+    const drivers: string[] = [];
+
+    // 2. Identify Dynamic, Data-Grounded Drivers instead of generic boilerplate
+    const discListA = Array.isArray(assetA.audit.discrepancies) ? assetA.audit.discrepancies : [];
+    const discListB = Array.isArray(assetB.audit.discrepancies) ? assetB.audit.discrepancies : [];
+
+    const getSeverityRank = (sev?: string) => {
+        const s = (sev || '').toLowerCase();
+        if (s === 'high') return 3;
+        if (s === 'med' || s === 'medium') return 2;
+        if (s === 'low') return 1;
+        return 0;
+    };
+
+    // Compile active discrepancies for both products
+    const activeDiscrepancies: { model_name: string; issue: string; severity: string; rank: number }[] = [];
+    discListA.forEach((d: any) => {
+        if (d.issue && d.issue !== 'Discrepancy') {
+            activeDiscrepancies.push({
+                model_name: assetA.model_name,
+                issue: d.issue,
+                severity: d.severity || 'unknown',
+                rank: getSeverityRank(d.severity)
+            });
+        }
+    });
+    discListB.forEach((d: any) => {
+        if (d.issue && d.issue !== 'Discrepancy') {
+            activeDiscrepancies.push({
+                model_name: assetB.model_name,
+                issue: d.issue,
+                severity: d.severity || 'unknown',
+                rank: getSeverityRank(d.severity)
+            });
+        }
+    });
+
+    // Sort by severity rank descending
+    activeDiscrepancies.sort((a, b) => b.rank - a.rank);
+
+    // Track added topics to avoid duplicates (e.g. don't put two "Capacity" drivers)
+    const addedTopics = new Set<string>();
+
+    // Helper to get general category/topic from issue to avoid duplicate fields
+    const getTopic = (issue: string) => {
+        const lower = issue.toLowerCase();
+        if (lower.includes('capacity') || lower.includes('wh') || lower.includes('battery')) return 'capacity';
+        if (lower.includes('output') || lower.includes('inverter') || lower.includes('watt') || lower.includes('power')) return 'output';
+        if (lower.includes('solar') || lower.includes('input') || lower.includes('charge') || lower.includes('mppt')) return 'solar';
+        if (lower.includes('weight') || lower.includes('portability')) return 'weight';
+        return lower;
+    };
+
+    // 1. Add major discrepancies (severity high or medium)
+    for (const d of activeDiscrepancies) {
+        if (d.rank >= 2 && drivers.length < 3) {
+            const topic = getTopic(d.issue);
+            if (!addedTopics.has(topic)) {
+                drivers.push(`Flagged: ${d.model_name} ${d.issue} deviation`);
+                addedTopics.add(topic);
+            }
+        }
+    }
+
+    // 2. Add verified strengths/wins of either product
+    const strengthsA = Array.isArray(assetA.audit.strengths) ? assetA.audit.strengths : [];
+    const strengthsB = Array.isArray(assetB.audit.strengths) ? assetB.audit.strengths : [];
+
+    // Let's add winner strengths first, then loser strengths
+    const orderedStrengths = tiA >= tiB 
+        ? [
+            ...strengthsA.map(s => ({ model: assetA.model_name, strength: s })),
+            ...strengthsB.map(s => ({ model: assetB.model_name, strength: s }))
+          ]
+        : [
+            ...strengthsB.map(s => ({ model: assetB.model_name, strength: s })),
+            ...strengthsA.map(s => ({ model: assetA.model_name, strength: s }))
+          ];
+
+    for (const item of orderedStrengths) {
+        if (drivers.length < 3) {
+            const topic = getTopic(item.strength);
+            if (!addedTopics.has(topic)) {
+                let cleanStr = item.strength;
+                if (cleanStr.length > 50) {
+                    cleanStr = cleanStr.slice(0, 47) + '...';
+                }
+                drivers.push(`Win: ${item.model} ${cleanStr}`);
+                addedTopics.add(topic);
+            }
+        }
+    }
+
+    // 3. Add minor discrepancies
+    for (const d of activeDiscrepancies) {
+        if (d.rank === 1 && drivers.length < 3) {
+            const topic = getTopic(d.issue);
+            if (!addedTopics.has(topic)) {
+                drivers.push(`Flagged: ${d.model_name} ${d.issue} deviation`);
+                addedTopics.add(topic);
+            }
+        }
+    }
+
+    // 4. Fallback to general discrepancy count advantage if we still have space
+    if (drivers.length < 3 && discA !== discB) {
+        const cleaner = discA < discB ? assetA : assetB;
+        const diff = Math.abs(discA - discB);
+        drivers.push(`Integrity: ${cleaner.model_name} has ${diff} fewer flags`);
+    }
+
+    // 5. Fallback to verification score advantage
+    if (drivers.length < 3 && delta >= 5) {
+        drivers.push(`Accuracy: ${winner.model_name} leads by ${delta}%`);
+    }
+
+    // Ultimate fallback if absolutely empty
+    if (drivers.length === 0) {
+        drivers.push("Verified: Comparable claims accuracy");
+        drivers.push("Verified: Identical spec compliance");
     }
 
     // 3. Construct Headline — always specific, always names the leader

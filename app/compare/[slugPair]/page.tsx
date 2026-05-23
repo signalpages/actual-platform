@@ -9,6 +9,7 @@ import { FullAuditPanel } from '@/components/FullAuditPanel';
 import { deriveVerdict } from '@/lib/compare/deriveVerdict';
 import { formatCategoryLabel } from '@/lib/categoryFormatter';
 import { composeClaimProfile } from '@/lib/claimProfileComposer';
+import { ForensicAnalyzerWrapper } from '@/components/ForensicAnalyzerWrapper';
 
 export const runtime = "edge";
 
@@ -186,93 +187,99 @@ export default async function ComparisonPage({ params }: PageProps) {
     };
 
     return (
-        <main className="max-w-7xl mx-auto px-6 py-12 md:py-20">
-            <script
-                type="application/ld+json"
-                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-            />
+        <ForensicAnalyzerWrapper
+            modelA={`${productA.brand} ${productA.model_name}`}
+            modelB={`${productB.brand} ${productB.model_name}`}
+        >
+            <main className="max-w-7xl mx-auto px-6 py-12 md:py-20">
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+                />
 
-            {/* 1️⃣ Comparison Header */}
-            <header className="mb-16 text-center">
-                <div className="inline-flex items-center gap-2 bg-slate-900 text-white px-3 py-1 rounded text-[9px] font-black uppercase tracking-widest mb-6">
-                    Forensic Showdown Protocol
-                </div>
-                <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-slate-900 leading-[0.9] mb-4">
-                    {productA.brand} {productA.model_name} <br />
-                    <span className="text-slate-300 font-light italic text-2xl md:text-4xl lowercase mx-2">vs</span> <br />
-                    {productB.brand} {productB.model_name}
-                </h1>
-                <p className="text-slate-500 font-medium mt-6 max-w-2xl mx-auto">
-                    A direct head-to-head comparison of two {formatCategoryLabel(productA.category)} models based on verified technical data and Verification Scoring.
-                </p>
-            </header>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative mb-24">
-                {/* VS Badge */}
-                <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-slate-900 text-white rounded-full items-center justify-center font-black text-sm z-20 shadow-2xl border-4 border-white">VS</div>
-
-                {/* Left Product */}
-                <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden">
-                    <FullAuditPanel product={productA as any} audit={auditA} />
-                </div>
-
-                {/* Right Product */}
-                <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden">
-                    <FullAuditPanel product={productB as any} audit={auditB} />
-                </div>
-            </div>
-
-            {/* 2️⃣ Specification Comparison Table */}
-            <section className="mb-24">
-                <div className="flex items-center gap-4 mb-10">
-                    <div className="h-0.5 w-10 bg-blue-600"></div>
-                    <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-blue-600">Technical Spec Comparison</h2>
-                </div>
-                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200">
-                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Specification</th>
-                                <th className="p-6 text-sm font-black text-slate-900">{productA.model_name}</th>
-                                <th className="p-6 text-sm font-black text-slate-900">{productB.model_name}</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {specComparison.map((spec) => (
-                                <tr key={spec.key} className="hover:bg-slate-50/50 transition-colors">
-                                    <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-wide">{spec.label}</td>
-                                    <td className="p-6 text-sm font-bold text-slate-900">{spec.valueA}</td>
-                                    <td className="p-6 text-sm font-bold text-slate-900">{spec.valueB}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            {/* 3️⃣ Verification Score & Discrepancies Comparison is already inside FullAuditPanel, 
-                but we can add a summary section if needed. The DecisionSummary covers the verdict. */}
-
-            {/* 4️⃣ Verdict Summary */}
-            {verdict && (
-                <section>
-                    <div className="flex items-center gap-4 mb-10">
-                        <div className="h-0.5 w-10 bg-slate-900"></div>
-                        <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-900">Actual Verdict</h2>
+                {/* 1️⃣ Comparison Header */}
+                <header className="mb-16 text-center">
+                    <div className="inline-flex items-center gap-2 bg-slate-900 text-white px-3 py-1 rounded text-[9px] font-black uppercase tracking-widest mb-6">
+                        Forensic Showdown Protocol
                     </div>
-                    <DecisionSummary
-                        verdict={verdict}
-                        assets={[productA as any, productB as any]}
-                        audits={[auditA, auditB]}
-                    />
-                </section>
-            )}
+                    <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-slate-900 leading-[0.9] mb-4">
+                        {productA.brand} {productA.model_name} <br />
+                        <span className="text-slate-300 font-light italic text-2xl md:text-4xl lowercase mx-2">vs</span> <br />
+                        {productB.brand} {productB.model_name}
+                    </h1>
+                    <p className="text-slate-500 font-medium mt-6 max-w-2xl mx-auto">
+                        A direct head-to-head comparison of two {formatCategoryLabel(productA.category)} models based on verified technical data and Verification Scoring.
+                    </p>
+                </header>
 
-            {/* Bottom Navigation */}
-            <footer className="mt-32 pt-12 border-t border-slate-100 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
-                <Link href="/compare" className="text-slate-400 hover:text-blue-600 transition-colors">← All Comparisons</Link>
-                <div className="text-slate-300">Audited by Actual.fyi Forensic Team</div>
-            </footer>
-        </main>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start relative mb-24">
+                    {/* VS Badge */}
+                    <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-slate-900 text-white rounded-full items-center justify-center font-black text-sm z-20 shadow-2xl border-4 border-white">VS</div>
+
+                    {/* Left Product */}
+                    <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden">
+                        <FullAuditPanel product={productA as any} audit={auditA} />
+                    </div>
+
+                    {/* Right Product */}
+                    <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden">
+                        <FullAuditPanel product={productB as any} audit={auditB} />
+                    </div>
+                </div>
+
+                {/* 2️⃣ Specification Comparison Table */}
+                <section className="mb-24">
+                    <div className="flex items-center gap-4 mb-10">
+                        <div className="h-0.5 w-10 bg-blue-600"></div>
+                        <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-blue-600">Technical Spec Comparison</h2>
+                    </div>
+                    <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200">
+                                    <th className="p-6 text-[10px] font-black uppercase tracking-widest text-slate-400">Specification</th>
+                                    <th className="p-6 text-sm font-black text-slate-900">{productA.model_name}</th>
+                                    <th className="p-6 text-sm font-black text-slate-900">{productB.model_name}</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {specComparison.map((spec) => (
+                                    <tr key={spec.key} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-wide">{spec.label}</td>
+                                        <td className="p-6 text-sm font-bold text-slate-900">{spec.valueA}</td>
+                                        <td className="p-6 text-sm font-bold text-slate-900">{spec.valueB}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                {/* 3️⃣ Verification Score & Discrepancies Comparison is already inside FullAuditPanel, 
+                    but we can add a summary section if needed. The DecisionSummary covers the verdict. */}
+
+                {/* 4️⃣ Verdict Summary */}
+                {verdict && (
+                    <section>
+                        <div className="flex items-center gap-4 mb-10">
+                            <div className="h-0.5 w-10 bg-slate-900"></div>
+                            <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-slate-900">Actual Verdict</h2>
+                        </div>
+                        <DecisionSummary
+                            verdict={verdict}
+                            assets={[productA as any, productB as any]}
+                            audits={[auditA, auditB]}
+                        />
+                    </section>
+                )}
+
+                {/* Bottom Navigation */}
+                <footer className="mt-32 pt-12 border-t border-slate-100 flex justify-between items-center text-[10px] font-black uppercase tracking-widest">
+                    <Link href="/compare" className="text-slate-400 hover:text-blue-600 transition-colors">← All Comparisons</Link>
+                    <div className="text-slate-300">Audited by Actual.fyi Forensic Team</div>
+                </footer>
+            </main>
+        </ForensicAnalyzerWrapper>
     );
+
 }
