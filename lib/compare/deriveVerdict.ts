@@ -72,20 +72,25 @@ export function deriveVerdict(
         drivers.push(discA < discB ? `${assetA.model_name} has fewer red flags` : `${assetB.model_name} has fewer red flags`);
     }
 
-    // 3. Construct Headline
-    let headline = "No material forensic advantage detected.";
-    let winnerId = null;
+    // 3. Construct Headline — always specific, always names the leader
+    let headline: string;
+    let winnerId: string | null = null;
 
     if (delta >= 10) {
-        headline = `${winner.model_name} demonstrates superior claim accuracy.`;
+        headline = `${winner.model_name} demonstrates a clear accuracy advantage — ${delta} points ahead on verified claims.`;
         winnerId = winner.id;
     } else if (discDelta >= 4) {
         const cleaner = discA < discB ? assetA : assetB;
-        headline = `${cleaner.model_name} shows significantly fewer operational irregularities.`;
+        const messier = discA < discB ? assetB : assetA;
+        headline = `${cleaner.model_name} carries ${Math.abs(discDelta)} fewer flagged discrepancies than ${messier.model_name} — a meaningful signal for accuracy-first buyers.`;
         winnerId = cleaner.id;
-    } else if (delta < 5 && discDelta < 2) {
-        headline = "No distinct forensic advantage in verified claims.";
-        winnerId = null; // Tie
+    } else if (delta >= 5) {
+        headline = `${winner.model_name} leads by ${delta} points in a closely contested audit. Both products land in the same verification tier.`;
+        winnerId = winner.id;
+    } else {
+        // Scores within 4 points — make it buyer-decision focused
+        headline = `${winner.model_name} and ${loser.model_name} are forensically matched at ${winnerTI}% vs ${loserTI}%. Decision criteria: use case, price, and ecosystem fit.`;
+        winnerId = null;
     }
 
     // 4. Summaries (using Strengths/Limitations if available, else generated)

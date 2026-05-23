@@ -14,21 +14,29 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
     const [a1, a2] = assets as [Asset, Asset];
     const [audit1, audit2] = audits as [AuditResult, AuditResult];
 
-    // Helper to get fit
-    const getGoodFit = (audit: AuditResult) => {
-        // Prefer explicit 'good_fit' from Stage 4
+    // Helper to get fit — differentiates winner vs runner-up so columns never duplicate
+    const getGoodFit = (audit: AuditResult, isWinner: boolean) => {
+        // Stage 4 good_fit if available — most specific
         if (audit.good_fit && audit.good_fit.length > 0) return audit.good_fit[0];
-        // Fallback to practical impact
+        // Practical impact next
         if (audit.practical_impact && audit.practical_impact.length > 0) return audit.practical_impact[0];
-        // Derive from truth_index
+        // Derive from truth_index + relative standing so the two columns always differ
         const ti = audit.truth_index;
         if (typeof ti === 'number') {
-            if (ti >= 90) return "Buyers who prioritize verified accuracy and minimal marketing inflation.";
-            if (ti >= 75) return "Consumers wanting strong real-world reliability with minor spec caveats.";
-            if (ti >= 55) return "Value-focused buyers who can tolerate some spec discrepancies.";
-            return "Research-first buyers who want full transparency on where claims diverge from reality.";
+            if (isWinner) {
+                if (ti >= 90) return "Buyers demanding the highest verified claim accuracy in the category.";
+                if (ti >= 80) return "Accuracy-first buyers who want strong spec verification with minimal tradeoffs.";
+                if (ti >= 65) return "Buyers seeking reliable real-world performance with a vetted track record.";
+                return "Research-first buyers willing to overlook some spec deviations for the right use case.";
+            } else {
+                if (ti >= 80) return "Value-oriented buyers who accept minor spec caveats in exchange for competitive pricing or ecosystem fit.";
+                if (ti >= 65) return "Cost-conscious buyers who prioritize form factor or portability over perfect claim accuracy.";
+                return "Buyers who've reviewed the full discrepancy report and are comfortable with the identified tradeoffs.";
+            }
         }
-        return "General-purpose users — full classification pending deeper audit.";
+        return isWinner
+            ? "Buyers who prioritize verified accuracy above all other criteria."
+            : "Buyers for whom price, portability, or brand ecosystem is the deciding factor."
     };
 
     return (
@@ -77,7 +85,7 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
                         audit={audit1}
                         isWinner={verdict.winnerId === a1.id}
                         summary={verdict.summaryA}
-                        goodFit={getGoodFit(audit1)}
+                        goodFit={getGoodFit(audit1, verdict.winnerId === a1.id)}
                     />
 
                     {/* Asset B */}
@@ -86,7 +94,7 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
                         audit={audit2}
                         isWinner={verdict.winnerId === a2.id}
                         summary={verdict.summaryB}
-                        goodFit={getGoodFit(audit2)}
+                        goodFit={getGoodFit(audit2, verdict.winnerId === a2.id)}
                     />
                 </div>
             </div>
