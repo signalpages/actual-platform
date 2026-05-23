@@ -61,7 +61,7 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
                     </h2>
 
                     {/* Decision Drivers */}
-                    <div className="mb-8">
+                    <div>
                         <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-2">Primary Drivers</p>
                         <ul className="space-y-1">
                             {verdict.primaryDrivers.map((driver, i) => (
@@ -70,15 +70,6 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
                                 </li>
                             ))}
                         </ul>
-                    </div>
-
-                    <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">
-                            Decision Weighting
-                        </p>
-                        <p className="text-[10px] text-slate-500 leading-relaxed font-medium">
-                            Comparison prioritizes: Claims Accuracy (45%), Real-World Fit (35%), Operational Noise (20%).
-                        </p>
                     </div>
                 </div>
 
@@ -127,12 +118,28 @@ function VerdictColumn({ asset, audit, isWinner, summary, goodFit }: { asset: As
             </h3>
 
             {/* Generated Summary */}
-            <p className="text-xs text-slate-300 leading-relaxed font-medium mb-6">
+            <p className="text-xs text-slate-300 leading-relaxed font-medium mb-4">
                 {summary}
             </p>
 
-            {/* Forensic Details — Stage 4 only; scores are shown above in FullAuditPanel */}
-            <div className="space-y-6 mb-6">
+            {/* Verification Score */}
+            {audit.truth_index !== null && (
+                <div className="mb-4">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 block mb-1">Verification Score</span>
+                    <span className={`text-3xl font-black ${isWinner ? 'text-blue-400' : 'text-white'}`}>{audit.truth_index}%</span>
+                    {Array.isArray(audit.discrepancies) && audit.discrepancies.length > 0 && (
+                        <p className="text-[10px] text-amber-400/80 font-bold mt-1">
+                            {audit.discrepancies.length} discrepanc{audit.discrepancies.length !== 1 ? 'ies' : 'y'} flagged
+                        </p>
+                    )}
+                    {Array.isArray(audit.discrepancies) && audit.discrepancies.length === 0 && (
+                        <p className="text-[10px] text-emerald-400/80 font-bold mt-1">No discrepancies flagged</p>
+                    )}
+                </div>
+            )}
+
+            {/* Stage 4 forensic details when available */}
+            <div className="space-y-4 mb-6">
                 {strengths.length > 0 && (
                     <div>
                         <h4 className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-2">Forensic Strengths</h4>
@@ -145,7 +152,6 @@ function VerdictColumn({ asset, audit, isWinner, summary, goodFit }: { asset: As
                         </ul>
                     </div>
                 )}
-
                 {limitations.length > 0 && (
                     <div>
                         <h4 className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-2">Tradeoffs</h4>
