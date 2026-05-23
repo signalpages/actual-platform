@@ -33,7 +33,7 @@ export default async function ComparisonPage({ params }: PageProps) {
         getProductBySlug(slugB)
     ]);
 
-    if (!productA || !productB) {
+    if (!productA || !productB || productA.is_hidden || productB.is_hidden) {
         return notFound();
     }
 

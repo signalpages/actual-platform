@@ -45,6 +45,7 @@ export interface Product {
   is_audited: boolean;
   signature: string;
   image_url?: string;
+  is_hidden?: boolean;
 }
 
 // Aligned with 'shadow_specs' table in ERD

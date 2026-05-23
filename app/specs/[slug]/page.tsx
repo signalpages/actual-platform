@@ -3,6 +3,7 @@ import { getProductBySlug, getAudit, mapShadowToResult } from "@/lib/dataBridge.
 import ProductDetailView from '@/components/ProductDetailView';
 import { normalizeAuditResult } from "@/lib/auditNormalizer";
 import { Product } from "@/types";
+import { notFound } from 'next/navigation';
 
 export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     if (!slug) return {};
 
     const product = await getProductBySlug(slug);
-    if (!product) return {};
+    if (!product || product.is_hidden) return {};
 
     const audit = await getAudit(product.id);
     const rawTruthIndex = audit && typeof audit.truth_score === 'number' ? audit.truth_score : null;
@@ -48,8 +49,8 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
 
     try {
         const asset = await getProductBySlug(slug);
-        if (!asset) {
-            return <ProductDetailView initialAsset={null} slug={slug} />;
+        if (!asset || asset.is_hidden) {
+            return notFound();
         }
         const product = asset as Product;
 
