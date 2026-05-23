@@ -14,8 +14,8 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
     const [a1, a2] = assets as [Asset, Asset];
     const [audit1, audit2] = audits as [AuditResult, AuditResult];
 
-    // Helper to get fit — differentiates winner vs runner-up so columns never duplicate
-    const getGoodFit = (audit: AuditResult, isWinner: boolean) => {
+    // Helper to get fit — uses isHigherScorer so columns always differ even in tie
+    const getGoodFit = (audit: AuditResult, isHigherScorer: boolean) => {
         // Stage 4 good_fit if available — most specific
         if (audit.good_fit && audit.good_fit.length > 0) return audit.good_fit[0];
         // Practical impact next
@@ -23,21 +23,26 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
         // Derive from truth_index + relative standing so the two columns always differ
         const ti = audit.truth_index;
         if (typeof ti === 'number') {
-            if (isWinner) {
+            if (isHigherScorer) {
                 if (ti >= 90) return "Buyers demanding the highest verified claim accuracy in the category.";
                 if (ti >= 80) return "Accuracy-first buyers who want strong spec verification with minimal tradeoffs.";
                 if (ti >= 65) return "Buyers seeking reliable real-world performance with a vetted track record.";
                 return "Research-first buyers willing to overlook some spec deviations for the right use case.";
             } else {
-                if (ti >= 80) return "Value-oriented buyers who accept minor spec caveats in exchange for competitive pricing or ecosystem fit.";
-                if (ti >= 65) return "Cost-conscious buyers who prioritize form factor or portability over perfect claim accuracy.";
+                if (ti >= 80) return "Value-oriented buyers where price, portability, or ecosystem outweigh a 5–10 point accuracy margin.";
+                if (ti >= 65) return "Cost-conscious buyers who prioritize form factor or brand ecosystem over perfect claim accuracy.";
                 return "Buyers who've reviewed the full discrepancy report and are comfortable with the identified tradeoffs.";
             }
         }
-        return isWinner
+        return isHigherScorer
             ? "Buyers who prioritize verified accuracy above all other criteria."
-            : "Buyers for whom price, portability, or brand ecosystem is the deciding factor."
+            : "Buyers for whom price, portability, or brand ecosystem is the deciding factor.";
     };
+
+    // Determine higher scorer by truth_index (used for goodFit even in tie)
+    const ti1 = audit1.truth_index ?? -1;
+    const ti2 = audit2.truth_index ?? -1;
+    const a1IsHigher = ti1 >= ti2;
 
     return (
         <div className="bg-slate-900 text-white rounded-[2.5rem] p-10 md:p-14 shadow-xl mt-12 relative overflow-hidden">
@@ -85,7 +90,7 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
                         audit={audit1}
                         isWinner={verdict.winnerId === a1.id}
                         summary={verdict.summaryA}
-                        goodFit={getGoodFit(audit1, verdict.winnerId === a1.id)}
+                        goodFit={getGoodFit(audit1, a1IsHigher)}
                     />
 
                     {/* Asset B */}
@@ -94,7 +99,7 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
                         audit={audit2}
                         isWinner={verdict.winnerId === a2.id}
                         summary={verdict.summaryB}
-                        goodFit={getGoodFit(audit2, verdict.winnerId === a2.id)}
+                        goodFit={getGoodFit(audit2, !a1IsHigher)}
                     />
                 </div>
             </div>
@@ -126,7 +131,7 @@ function VerdictColumn({ asset, audit, isWinner, summary, goodFit }: { asset: As
                 {summary}
             </p>
 
-            {/* Forensic Details */}
+            {/* Forensic Details — Stage 4 only; scores are shown above in FullAuditPanel */}
             <div className="space-y-6 mb-6">
                 {strengths.length > 0 && (
                     <div>
@@ -151,27 +156,6 @@ function VerdictColumn({ asset, audit, isWinner, summary, goodFit }: { asset: As
                                 </li>
                             ))}
                         </ul>
-                    </div>
-                )}
-
-                {strengths.length === 0 && limitations.length === 0 && audit.truth_index !== null && (
-                    <div className="space-y-3">
-                        <div>
-                            <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Verification Score</h4>
-                            <p className="text-2xl font-black text-white">{audit.truth_index}%</p>
-                        </div>
-                        {Array.isArray(audit.discrepancies) && audit.discrepancies.length > 0 && (
-                            <div>
-                                <h4 className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-2">Verified Discrepancies</h4>
-                                <p className="text-[11px] text-slate-400">{audit.discrepancies.length} claim{audit.discrepancies.length !== 1 ? 's' : ''} flagged during forensic review</p>
-                            </div>
-                        )}
-                        {Array.isArray(audit.discrepancies) && audit.discrepancies.length === 0 && (
-                            <div>
-                                <h4 className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-2">Clean Forensic Record</h4>
-                                <p className="text-[11px] text-slate-400">No discrepancies flagged in this audit</p>
-                            </div>
-                        )}
                     </div>
                 )}
             </div>
