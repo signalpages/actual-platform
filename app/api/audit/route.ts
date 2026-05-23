@@ -24,8 +24,10 @@ interface AuditResult {
 }
 
 export async function POST(req: Request) {
+  console.log(`[AuditAPI] POST request received`);
   try {
     const body = await req.json().catch(() => ({}));
+    console.log(`[AuditAPI] Body parsed:`, body);
     const { slug, forceRefresh, context = 'detail' } = body;
 
     if (!slug) {
@@ -239,153 +241,20 @@ export async function POST(req: Request) {
       runId: 'failed-id'
     }, { status: 500 });
 
-    console.log(`[AuditAPI] Run ${runId} ready for ${slug}. executing worker in-process...`);
+    console.log(`[AuditAPI] Run ${runId} ready for ${slug}. executing worker asynchronously...`);
 
-    // DIRECT WORKER CALL (No HTTP fetch)
-    // This avoids Vercel Deployment Protection auth blocks.
-    try {
-      const result = await runAuditWorker({ runId, sb: supabase });
+    // ASYNC WORKER CALL
+    // We do NOT await here. We trigger it and return the runId immediately.
+    // The client (or bulk script) will then poll /api/status.
+    runAuditWorker({ runId, sb: supabase }).catch(err => {
+      console.error(`[AuditAPI] Background worker failed for ${runId}:`, err);
+    });
 
-      // FETCH CANONICAL RESULT (Fresh)
-      // Now that worker is done, we fetch the fresh shadow_spec to return the full payload
-      // matching the structure of a Cache Hit.
-      const { data: fresh, error: freshError } = await supabase
-        .from('shadow_specs')
-        .select('stages, id, created_at')
-        .eq('product_id', product.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (fresh && fresh.stages) {
-        const s3 = fresh.stages.stage_3;
-        const s4 = fresh.stages.stage_4;
-
-        // RE-APPLY STRICT READINESS LOGIC FOR FRESH DATA
-        const isS3Done = s3?.status === 'done';
-        const isS3Valid = isS3Done && s3?.data && validateAuditShape(s3.data);
-        const isS4Done = s4?.status === 'done';
-        const truthIndex = s4?.data?.truth_index;
-        const hasTruthIndex = typeof truthIndex === 'number';
-
-        const verdictReady = isS3Valid && isS4Done && hasTruthIndex;
-
-        // If fresh data invalid despite S3 Done -> Failed
-        if (isS3Done && !isS3Valid) {
-          return NextResponse.json({
-            ok: true,
-            analysis: {
-              status: 'failed',
-              verdictReady: false,
-              runId: result.runId,
-              error: { code: 'INVALID_FRESH_DATA', message: 'Worker produced invalid data structure.' }
-            },
-            audit: {
-              claim_profile: [], reality_ledger: [], discrepancies: [], verification_map: {}, truth_index: null, stages: fresh.stages
-            },
-            runId: result.runId
-          });
-        }
-
-        const auditData: AuditResult = {
-          claim_profile: fresh.stages.stage_1?.data?.claim_profile || [],
-          reality_ledger: s3?.data?.reality_ledger || s3?.data?.entries || [],
-          discrepancies: s3?.data?.red_flags || [],
-          verification_map: s3?.data?.verification_map || {},
-          truth_index: s4?.data?.truth_index ?? null,
-          strengths: s4?.data?.strengths || [],
-          limitations: s4?.data?.limitations || [],
-          practical_impact: s4?.data?.practical_impact || [],
-          stages: fresh.stages
-        };
-
-        return NextResponse.json({
-          ok: true,
-          analysis: {
-            status: 'ready',
-            verdictReady, // Strict check
-            runId: result.runId,
-            analyzedAt: new Date().toISOString()
-          },
-          audit: auditData,
-          runId: result.runId
-        });
-      }
-
-      // Fallback (Rare: Stage 1 only done or something)
-      return NextResponse.json({
-        ok: true,
-        analysis: { status: 'pending', verdictReady: false, runId },
-        audit: result, // Fallback to worker result structure if canonical fetch fails
-        runId
-      });
-
-    } catch (e: any) {
-      const message = String(e?.message || e);
-
-      // ✅ AUDIT-002: STAGE4_BLOCKED is a valid state, not a server error.
-      // Stages 1–3 completed; Stage 4 had insufficient signal.
-      // Return 200 with partial audit so UI can render what we have.
-      if (message.includes('STAGE4_BLOCKED')) {
-        console.warn(`[AuditAPI] Stage 4 blocked for ${slug} — returning partial audit (200)`);
-
-        // Fetch whatever canonical data we have from shadow_specs (stage 1-3 should be persisted)
-        const { data: partial } = await supabase
-          .from('shadow_specs')
-          .select('stages, created_at')
-          .eq('product_id', product.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const partialStages = partial?.stages || {};
-        const partialAudit = {
-          claim_profile: partialStages.stage_1?.data?.claim_profile || [],
-          reality_ledger: partialStages.stage_3?.data?.reality_ledger || partialStages.stage_3?.data?.entries || [],
-          discrepancies: partialStages.stage_3?.data?.red_flags || [],
-          verification_map: partialStages.stage_3?.data?.verification_map || {},
-          truth_index: null,
-          strengths: [],
-          limitations: [],
-          practical_impact: [],
-          stages: {
-            ...partialStages,
-            stage_4: {
-              status: 'blocked',
-              data: null,
-              meta: { reason: 'STAGE4_BLOCKED', message: 'Insufficient verification signal to compute verdict.' }
-            }
-          }
-        };
-
-        return NextResponse.json({
-          ok: true,
-          analysis: {
-            status: 'blocked',
-            verdictReady: false,
-            blockedStage: 'stage_4',
-            reason: 'STAGE4_BLOCKED',
-            runId: runId,
-          },
-          audit: partialAudit,
-          runId
-        }); // status 200 (default)
-      }
-
-      // ❌ True server failure
-      console.error(`[AuditAPI] Worker execution failed:`, e);
-      return NextResponse.json({
-        ok: true, // Client handles status: failed better than ok: false
-        analysis: {
-          status: 'failed',
-          verdictReady: false,
-          runId: runId,
-          error: { code: 'WORKER_FAILED', message: message }
-        },
-        audit: { claim_profile: [], reality_ledger: [], discrepancies: [], verification_map: {}, truth_index: null, stages: {} },
-        runId
-      }, { status: 500 });
-    }
+    return NextResponse.json({
+      ok: true,
+      analysis: { status: 'pending', verdictReady: false, runId },
+      runId
+    });
 
   } catch (err: any) {
     console.error("[AuditAPI] Unexpected error:", err);

@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
             normalized.entries,
             baseScores,
             undefined, // no llm suggestion yet
-            gating
+            stage1.claim_profile.length
         );
 
         // 5. Execute Stage 4 (Verdict)
@@ -124,8 +124,7 @@ export async function POST(req: NextRequest) {
                 baseScores,
                 metricBars,
                 truthBreakdown,
-                gating, // Pass gating so LLM adjustment respects it
-                normalizedEntries: normalized.entries
+                claimCount: stage1.claim_profile.length
             }
         );
 

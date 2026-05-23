@@ -14,6 +14,9 @@ interface Stage2Result {
         most_praised: Array<{ text: string; sources: number }>;
         most_reported_issues: Array<{ text: string; sources: number }>;
     };
+    _meta?: {
+        raw_text: string;
+    };
 }
 
 interface Stage3Result {
@@ -27,6 +30,7 @@ interface Stage3Result {
         label: string;
         value: string;
     }>;
+    verification_map?: Record<string, { status: 'verified_true' | 'verified_false' | 'unverified'; reason?: string }>;
     _meta?: {
         status: 'partial' | 'error';
         raw_text: string;
@@ -142,8 +146,9 @@ TRUTH-SEEKING RULES (Fair but Firm):
    - What do users love? What features actually deliver on their promises?
    - Include estimated number of sources mentioning each.
 
-2. REAL-WORLD LIMITATIONS & ISSUES (3-5 items):
-   - Identify actual failures or significant "grey areas" where the product underperforms its advertised potential.
+2. REAL-WORLD LIMITATIONS & KNOWN FAILURE MODES (3-5 items):
+   - Identify actual failures, software/app reliability issues, or discontinued support cases.
+   - Look for: broken Wi-Fi/Bluetooth, buggy apps, hardware safety recalls, or melting connectors.
    - Include estimated number of sources mentioning each.
 
 Focus on objective, verifiable observations. Avoid marketing language.
@@ -208,6 +213,9 @@ Return JSON in this EXACT format:
                     independent_signal: {
                         most_praised: result.most_praised || [],
                         most_reported_issues: result.most_reported_issues || []
+                    },
+                    _meta: {
+                        raw_text: rawText
                     }
                 };
             } else {
@@ -263,24 +271,24 @@ Praised: ${stage2.independent_signal.most_praised.map(p => p.text).join('; ')}
 Reported Issues: ${stage2.independent_signal.most_reported_issues.map(i => i.text).join('; ')}
 
 === TASK 1: FIND DISCREPANCIES ===
-You MUST actively look for discrepancies. Do NOT default to "no discrepancies" without a thorough check.
+You MUST actively look for discrepancies. Do NOT default to "no discrepancies" without a thorough check of the Community Signals provided.
 
-Examine each community-reported issue above. For each one, determine: Is this a real technical discrepancy (manufacturer claim vs. verified reality) or just a design trade-off?
+Examine each community-reported issue above. For each one, determine: Is this a real technical discrepancy (manufacturer claim vs. verified reality) or a significant reliability failure?
 
 Types of discrepancies you SHOULD flag:
+- App/Software failures (e.g. "Smart" features don't work, app is non-functional)
+- Connectivity issues (Wi-Fi/Bluetooth reliability)
 - Spec sheet value differs from measured/reported performance by >5%
 - Advertised feature missing or requires expensive add-on
-- Firmware-capped performance below rated spec
-- Recurring hardware failure not disclosed by manufacturer
-- Missing connectivity/feature that manufacturer implies is present
-- Safety or reliability issue not reflected in marketing
+- Hardware reliability (e.g. melting connectors, stuck relays)
+- Discontinued support or abandonment by manufacturer
 
 Do NOT flag:
 - Weight/size that matches the spec sheet
 - Price (not a claim discrepancy)
 - Subjectivity ("some users prefer X")
 
-If you find ZERO discrepancies after genuinely checking all community issues, you MAY return an empty array — but only if you have verified that each reported issue is purely a design trade-off with no misleading manufacturer claim attached.
+If you find ZERO discrepancies after genuinely checking all community issues, you MUST explain why each community issue was dismissed in your internal chain of thought, but still return an empty array if they are purely subjective or design trade-offs.
 
 === TASK 2: REALITY LEDGER ===
 For EACH manufacturer claim listed, write the real-world verified value:
@@ -409,11 +417,36 @@ Return ONLY valid JSON. No markdown, no code fences, no explanatory text.
             }
         }
 
+        const verification_map: Record<string, { status: 'verified_true' | 'verified_false' | 'unverified'; reason?: string }> = {};
+        
+        if (result?.reality_ledger) {
+            for (const item of result.reality_ledger) {
+                const val = String(item.value || "").toLowerCase();
+                let status: 'verified_true' | 'verified_false' | 'unverified' = 'unverified';
+                if (val.includes('confirmed')) {
+                    status = 'verified_true';
+                } else if (val.includes('actually') || val.includes('deviation') || val.includes('mismatch')) {
+                    status = 'verified_false';
+                }
+                verification_map[item.label] = { status };
+            }
+        }
+
+        if (result?.red_flags) {
+            for (const flag of result.red_flags) {
+                verification_map[flag.claim] = {
+                    status: 'verified_false',
+                    reason: flag.impact
+                };
+            }
+        }
+
         console.log(`[Stage 3] Found ${result?.reality_ledger?.length || 0} reality items, ${result?.red_flags?.length || 0} discrepancies (${isPartial ? 'partial' : 'complete'})`);
 
         return {
             reality_ledger: result?.reality_ledger || [],
             red_flags: result?.red_flags || [],
+            verification_map,
             _meta: isPartial || parseError ? {
                 status: isPartial ? 'partial' : 'error',
                 raw_text: rawText,

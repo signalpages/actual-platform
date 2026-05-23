@@ -491,15 +491,29 @@ export async function runAuditWorker({
         const finalExistingStages = finalShadowRows?.[0]?.stages || {};
         const finalMergedStages = mergeStages(finalExistingStages, completeStages);
 
+        const actualSpecsComposite = {
+            reality_ledger: stage3Result.reality_ledger || [],
+            strengths: stage4Result.strengths,
+            limitations: stage4Result.limitations,
+            practical_impact: stage4Result.practical_impact,
+            good_fit: stage4Result.good_fit,
+            consider_alternatives: stage4Result.consider_alternatives,
+            metric_bars: stage4Result.metric_bars,
+            score_interpretation: stage4Result.score_interpretation,
+            data_confidence: stage4Result.data_confidence,
+            truth_index: stage4Result.truth_index
+        };
+
         const { error: upsertError } = await sb.from("shadow_specs").upsert({
             product_id: product.id,
             claimed_specs: canonicalSpec.claim_profile,
-            actual_specs: canonicalSpec.reality_ledger,
+            actual_specs: actualSpecsComposite,
             red_flags: canonicalSpec.red_flags,
             stages: finalMergedStages,
             is_verified: true,
             truth_score: stage4Result.truth_index,
-            source_urls: []
+            source_urls: [],
+            canonical_spec_json: canonicalSpec // Ensure legacy bridge is updated
         }, {
             onConflict: 'product_id'
         });

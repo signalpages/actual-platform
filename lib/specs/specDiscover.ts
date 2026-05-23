@@ -137,7 +137,7 @@ Return URLs only, one per line:`;
 
     const geminiModel = genAI.getGenerativeModel({
         model: 'gemini-3-flash-preview',
-        tools: [{ googleSearch: {} }],
+        tools: [{ googleSearchRetrieval: {} }],
     });
 
     try {

@@ -171,3 +171,17 @@ export interface FieldNotesSnapshot {
     disclaimer?: string;
   };
 }
+
+export interface ProductAudit {
+  id: string;
+  product_id: string;
+  field_name: string;
+  claimed_value: string;
+  found_value: string;
+  proof: string;
+  page?: string | number;
+  status: 'match' | 'mismatch';
+  severity?: 'low' | 'med' | 'medium' | 'high';
+  created_at?: string;
+}
+

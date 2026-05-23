@@ -100,9 +100,14 @@ export function computeTruthIndex(
         ? (COVERAGE_PENALTY[Math.min(claimCount, 4)] ?? 0)
         : 0;
 
-    // 5. Final score = base + LLM - coverage penalty
+    // 5. Verification Ceiling: No perfect 100s without independent data.
+    // If no discrepancies OR confirmations were found, cap at 96.
+    const hasAuditData = entries.length > 0;
+    const verificationCeiling = !hasAuditData ? 96 : 100;
+
+    // 6. Final score = base + LLM - coverage penalty, capped by ceiling
     const raw = base + (llmAdj?.delta ?? 0) - coveragePenalty;
-    const final = Math.max(0, Math.min(100, raw));
+    const final = Math.max(0, Math.min(verificationCeiling, raw));
 
     return {
         base,
