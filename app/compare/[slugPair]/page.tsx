@@ -81,9 +81,7 @@ export default async function ComparisonPage({ params }: PageProps) {
     const verdict = verdictResult.ok ? verdictResult.verdict : null;
 
     // 3. Prepare Comparison Specs
-    const getSpec = (product: any, key: string) => {
-        const claims = composeClaimProfile(product.technical_specs, product.category);
-
+    const getSpec = (product: any, audit: typeof auditA, key: string) => {
         // Aliases for loose matching
         const aliases: Record<string, string[]> = {
             capacity: ['capacity', 'battery', 'energy', 'wh', 'kwh', 'size'],
@@ -95,22 +93,41 @@ export default async function ComparisonPage({ params }: PageProps) {
 
         const searchTerms = aliases[key] || [key];
 
-        // Find match in composed claims (which already handles unit formatting and schema mapping)
-        const match = claims.find(c => {
-            const labelLower = (c.label || '').toLowerCase();
-            return searchTerms.some(term => labelLower.includes(term));
-        });
+        const findInList = (items: { label: string; value: string }[]) =>
+            items.find(c => {
+                const labelLower = (c.label || '').toLowerCase();
+                return searchTerms.some(term => labelLower.includes(term));
+            });
 
-        return match ? match.value : 'N/A';
+        // Priority 1: technical_specs via schema composer
+        const claims = composeClaimProfile(product.technical_specs, product.category);
+        const fromSpecs = findInList(claims);
+        if (fromSpecs) return fromSpecs.value;
+
+        // Priority 2: audit claim_profile (from Stage 1 / DB claimed_specs)
+        const claimProfile = Array.isArray(audit.claim_profile) ? audit.claim_profile : [];
+        const fromAudit = findInList(claimProfile);
+        if (fromAudit) return fromAudit.value;
+
+        return null; // explicit null so caller can drop the row
     };
 
-    const specComparison = [
+    // Build spec rows, dropping any where BOTH products have no data
+    const ALL_SPEC_ROWS = [
         { label: 'Battery Capacity', key: 'capacity' },
         { label: 'Inverter Output', key: 'output' },
         { label: 'Solar Input', key: 'solar' },
         { label: 'Weight', key: 'weight' },
         { label: 'Expansion Support', key: 'expansion' },
     ];
+
+    const specComparison = ALL_SPEC_ROWS
+        .map(row => ({
+            ...row,
+            valueA: getSpec(productA, auditA, row.key) ?? 'N/A',
+            valueB: getSpec(productB, auditB, row.key) ?? 'N/A',
+        }))
+        .filter(row => row.valueA !== 'N/A' || row.valueB !== 'N/A');
 
     const baseUrl = 'https://actual.fyi';
     const jsonLd = {
@@ -224,8 +241,8 @@ export default async function ComparisonPage({ params }: PageProps) {
                             {specComparison.map((spec) => (
                                 <tr key={spec.key} className="hover:bg-slate-50/50 transition-colors">
                                     <td className="p-6 text-xs font-bold text-slate-500 uppercase tracking-wide">{spec.label}</td>
-                                    <td className="p-6 text-sm font-bold text-slate-900">{getSpec(productA, spec.key)}</td>
-                                    <td className="p-6 text-sm font-bold text-slate-900">{getSpec(productB, spec.key)}</td>
+                                    <td className="p-6 text-sm font-bold text-slate-900">{spec.valueA}</td>
+                                    <td className="p-6 text-sm font-bold text-slate-900">{spec.valueB}</td>
                                 </tr>
                             ))}
                         </tbody>

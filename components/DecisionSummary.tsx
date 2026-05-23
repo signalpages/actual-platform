@@ -20,7 +20,15 @@ export function DecisionSummary({ assets, audits, verdict }: DecisionSummaryProp
         if (audit.good_fit && audit.good_fit.length > 0) return audit.good_fit[0];
         // Fallback to practical impact
         if (audit.practical_impact && audit.practical_impact.length > 0) return audit.practical_impact[0];
-        return "Pending classification...";
+        // Derive from truth_index
+        const ti = audit.truth_index;
+        if (typeof ti === 'number') {
+            if (ti >= 90) return "Buyers who prioritize verified accuracy and minimal marketing inflation.";
+            if (ti >= 75) return "Consumers wanting strong real-world reliability with minor spec caveats.";
+            if (ti >= 55) return "Value-focused buyers who can tolerate some spec discrepancies.";
+            return "Research-first buyers who want full transparency on where claims diverge from reality.";
+        }
+        return "General-purpose users — full classification pending deeper audit.";
     };
 
     return (
@@ -135,6 +143,27 @@ function VerdictColumn({ asset, audit, isWinner, summary, goodFit }: { asset: As
                                 </li>
                             ))}
                         </ul>
+                    </div>
+                )}
+
+                {strengths.length === 0 && limitations.length === 0 && audit.truth_index !== null && (
+                    <div className="space-y-3">
+                        <div>
+                            <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2">Verification Score</h4>
+                            <p className="text-2xl font-black text-white">{audit.truth_index}%</p>
+                        </div>
+                        {Array.isArray(audit.discrepancies) && audit.discrepancies.length > 0 && (
+                            <div>
+                                <h4 className="text-[9px] font-black uppercase tracking-widest text-amber-500 mb-2">Verified Discrepancies</h4>
+                                <p className="text-[11px] text-slate-400">{audit.discrepancies.length} claim{audit.discrepancies.length !== 1 ? 's' : ''} flagged during forensic review</p>
+                            </div>
+                        )}
+                        {Array.isArray(audit.discrepancies) && audit.discrepancies.length === 0 && (
+                            <div>
+                                <h4 className="text-[9px] font-black uppercase tracking-widest text-emerald-500 mb-2">Clean Forensic Record</h4>
+                                <p className="text-[11px] text-slate-400">No discrepancies flagged in this audit</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
