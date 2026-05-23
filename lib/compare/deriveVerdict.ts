@@ -105,18 +105,55 @@ export function deriveVerdict(
 }
 
 function formatSummary(focus: AuditResult, comparator: AuditResult): string {
-    // Prefer Stage 4 strengths if available
+    // Prefer Stage 4 strengths if available — most specific signal
     if (focus.strengths && focus.strengths.length > 0) {
-        return focus.strengths[0]; // Top strength
+        return focus.strengths[0];
     }
 
-    // Fallback logic
-    const ti = focus.truth_index || 0;
-    const oppTi = comparator.truth_index || 0;
+    const ti = typeof focus.truth_index === 'number' ? focus.truth_index : null;
+    const oppTi = typeof comparator.truth_index === 'number' ? comparator.truth_index : null;
+    const discs = Array.isArray(focus.discrepancies) ? focus.discrepancies : [];
+    const discCount = discs.length;
 
-    if (ti > oppTi + 10) return "Validates closer to claimed specifications.";
-    if (ti < oppTi - 10) return "Deviates significantly from manufacturer claims.";
-    if (focus.discrepancies.length === 0) return "Clean forensic extraction.";
+    // Count by severity
+    const highCount = discs.filter(d => d.severity === 'high').length;
+    const medCount = discs.filter(d => d.severity === 'med' || d.severity === 'medium').length;
 
-    return "Standard deviation within category norms.";
+    // Build a specific, data-grounded summary
+    if (ti !== null) {
+        const delta = oppTi !== null ? ti - oppTi : 0;
+
+        // Accuracy tier
+        const accuracyLabel =
+            ti >= 90 ? 'Exceptionally high claims accuracy' :
+            ti >= 80 ? 'Strong claims accuracy' :
+            ti >= 65 ? 'Moderate claims accuracy' :
+            'Below-average claims accuracy';
+
+        // Discrepancy descriptor
+        let discPhrase = '';
+        if (discCount === 0) {
+            discPhrase = 'with no flagged discrepancies';
+        } else if (highCount > 0) {
+            discPhrase = `with ${discCount} discrepanc${discCount !== 1 ? 'ies' : 'y'} including ${highCount} high-severity flag${highCount !== 1 ? 's' : ''}`;
+        } else if (medCount > 0) {
+            discPhrase = `with ${discCount} discrepanc${discCount !== 1 ? 'ies' : 'y'}, ${medCount} at medium severity`;
+        } else {
+            discPhrase = `with ${discCount} minor discrepanc${discCount !== 1 ? 'ies' : 'y'}`;
+        }
+
+        // Relative advantage
+        const relPhrase =
+            delta >= 10 ? ', notably outperforming its competitor on verified accuracy' :
+            delta >= 5 ? ', with a slight edge in claim verification' :
+            delta <= -10 ? ', trailing its competitor on verified accuracy' :
+            delta <= -5 ? ', marginally behind on claim verification' :
+            '';
+
+        return `${accuracyLabel} at ${ti}% ${discPhrase}${relPhrase}.`;
+    }
+
+    // No truth_index at all — last resort
+    if (discCount === 0) return 'No discrepancies flagged during forensic extraction.';
+    return `${discCount} discrepanc${discCount !== 1 ? 'ies' : 'y'} flagged across verified claim categories.`;
 }
