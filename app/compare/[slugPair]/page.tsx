@@ -3,6 +3,7 @@ import React from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getProductBySlug, getAudit, mapShadowToResult } from '@/lib/dataBridge.server';
+import { normalizeAuditResult } from '@/lib/auditNormalizer';
 import { DecisionSummary } from '@/components/DecisionSummary';
 import { FullAuditPanel } from '@/components/FullAuditPanel';
 import { deriveVerdict } from '@/lib/compare/deriveVerdict';
@@ -40,13 +41,17 @@ export default async function ComparisonPage({ params }: PageProps) {
         getAudit(productB.id)
     ]);
 
-    // Ticket requirement: "Only generate comparisons when... both have completed audits"
-    // We check if both have a truth score and are verified/provisional
-    const auditA = shadowA ? mapShadowToResult(shadowA) : null;
-    const auditB = shadowB ? mapShadowToResult(shadowB) : null;
+    // Normalize audits through the canonical pipeline (same as specs page)
+    // This ensures FullAuditPanel gets properly structured CanonicalAuditResult
+    const rawAuditA = shadowA ? mapShadowToResult(shadowA) : null;
+    const rawAuditB = shadowB ? mapShadowToResult(shadowB) : null;
+    const auditA = normalizeAuditResult(rawAuditA, productA);
+    const auditB = normalizeAuditResult(rawAuditB, productB);
 
-    const isCompleteA = auditA?.analysis?.status === 'ready' || auditA?.analysis?.status === 'provisional';
-    const isCompleteB = auditB?.analysis?.status === 'ready' || auditB?.analysis?.status === 'provisional';
+    // Allow comparison when either: status is ready/provisional OR there is a truth_index present
+    // This prevents falsely blocking comparisons for products with scores below 40
+    const isCompleteA = auditA.analysis?.status === 'ready' || auditA.analysis?.status === 'provisional' || auditA.truth_index !== null;
+    const isCompleteB = auditB.analysis?.status === 'ready' || auditB.analysis?.status === 'provisional' || auditB.truth_index !== null;
 
     if (!isCompleteA || !isCompleteB) {
         return (
@@ -69,8 +74,8 @@ export default async function ComparisonPage({ params }: PageProps) {
 
     // 2. Derive Verdict
     const verdictResult = deriveVerdict(
-        { id: productA.id, model_name: productA.model_name, audit: auditA! },
-        { id: productB.id, model_name: productB.model_name, audit: auditB! }
+        { id: productA.id, model_name: productA.model_name, audit: auditA as any },
+        { id: productB.id, model_name: productB.model_name, audit: auditB as any }
     );
 
     const verdict = verdictResult.ok ? verdictResult.verdict : null;
@@ -191,12 +196,12 @@ export default async function ComparisonPage({ params }: PageProps) {
 
                 {/* Left Product */}
                 <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden">
-                    <FullAuditPanel product={productA as any} audit={auditA as any} />
+                    <FullAuditPanel product={productA as any} audit={auditA} />
                 </div>
 
                 {/* Right Product */}
                 <div className="bg-white border border-slate-200 rounded-[2.5rem] shadow-sm overflow-hidden">
-                    <FullAuditPanel product={productB as any} audit={auditB as any} />
+                    <FullAuditPanel product={productB as any} audit={auditB} />
                 </div>
             </div>
 
@@ -241,7 +246,7 @@ export default async function ComparisonPage({ params }: PageProps) {
                     <DecisionSummary
                         verdict={verdict}
                         assets={[productA as any, productB as any]}
-                        audits={[auditA as any, auditB as any]}
+                        audits={[auditA, auditB]}
                     />
                 </section>
             )}
